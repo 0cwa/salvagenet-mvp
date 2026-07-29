@@ -25,3 +25,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Podroid"
 include(":app", ":terminal-emulator", ":terminal-view")
+
+// NODEHOST-WORKSPACE-INCLUDE
+apply(from = "../workspace.settings.gradle.kts")

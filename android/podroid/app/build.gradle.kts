@@ -101,6 +101,8 @@ android {
 }
 
 dependencies {
+    // NODEHOST-COMPOSITION-HOOK
+    implementation(project(":node-shell"))
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

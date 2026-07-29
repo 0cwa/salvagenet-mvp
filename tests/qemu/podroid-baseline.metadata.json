@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "8ecfefaa3459b7e84c3d6e52c57e8005e289e8e3",
+  "upstreamTree": "6c351c35b78fb7204e0dcb89c410cde2bb6cc291",
+  "source": "android/podroid/app/src/main/java/com/excp/podroid/engine/QemuEngine.kt#buildCommand",
+  "captureMethod": "Static expansion of buildCommand using the deterministic inputs below and PodroidService implicit forwards; device-specific absolute paths and Android IPv4 are normalized.",
+  "inputs": {
+    "ramMb": 512,
+    "cpus": 2,
+    "sshEnabled": true,
+    "androidIp": "${ANDROID_IP}",
+    "storageSizeGb": 2,
+    "storageAccessEnabled": false,
+    "qemuExtraArgs": "-cpu max,sve=off,pauth-impdef=on -accel tcg,thread=multi,tb-size=512 -object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0 -overcommit mem-lock=off",
+    "kernelExtraCmdline": "loglevel=1 quiet mitigations=off",
+    "x11Dpi": 96,
+    "usbPassthroughEnabled": false,
+    "bandwidthMbps": 0,
+    "portForwards": [
+      "tcp::9922-:22",
+      "tcp:127.0.0.1:5900-:5900",
+      "tcp:127.0.0.1:4713-:4713"
+    ],
+    "assetsPresent": [
+      "vmlinuz-virt",
+      "initrd.img",
+      "storage.img",
+      "alpine-rootfs.squashfs",
+      "libpodroid-launcher.so"
+    ]
+  },
+  "excludedConditionalArguments": [
+    "Downloads virtio-9p (storage access disabled by default)",
+    "qemu-xhci (USB passthrough disabled by default)",
+    "podroid.bandwidth (unlimited by default)"
+  ]
+}
