@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+from pathlib import Path
+import sys
 import unittest
 from unittest import mock
 import urllib.error
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from nodehost_mvp.client import ApiError, NodeHostClient
 from nodehost_mvp.config import ControllerConfig
