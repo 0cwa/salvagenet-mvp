@@ -1,12 +1,11 @@
 package org.nodehost.qemu
 
-class QemuCommandCompiler {
+internal class QemuCommandCompiler {
     fun compile(launch: ResolvedVmLaunch): QemuLaunchDescriptor {
-        require(launch.instanceId.matches(Regex("[a-z0-9][a-z0-9-]{0,62}")))
         require(launch.memoryMiB in 256..16_384)
         require(launch.vcpus in 1..16)
         require(launch.recoverySshHostPort in 1024..65_535)
-        require(launch.kernelArguments.none { '\n' in it || '\u0000' in it })
+        require(launch.kernelArguments.none { '\n' in it || '\u0000' in it || it.isBlank() })
 
         val args = mutableListOf(
             "-M", "virt,gic-version=3",
@@ -15,144 +14,67 @@ class QemuCommandCompiler {
             "-smp", launch.vcpus.toString(),
             "-m", launch.memoryMiB.toString(),
         )
-
         when (launch.bootMode) {
-            QemuBootMode.DIRECT_KERNEL -> {
-                args += listOf(
-                    "-kernel", requireNotNull(launch.kernelPath),
-                    "-initrd", requireNotNull(launch.initramfsPath),
-                    "-append", launch.kernelArguments.joinToString(" "),
-                )
-            }
-            QemuBootMode.UEFI -> {
-                args += listOf(
-                    "-drive",
-                    "if=pflash,format=raw,readonly=on,file=${requireNotNull(launch.firmwareCodePath)}",
-                    "-drive",
-                    "if=pflash,format=raw,file=${requireNotNull(launch.firmwareVarsPath)}",
-                )
-            }
+            QemuBootMode.DIRECT_KERNEL -> args += listOf(
+                "-kernel", requireNotNull(launch.kernelPath).path,
+                "-append", launch.kernelArguments.joinToString(" "),
+                "-initrd", requireNotNull(launch.initramfsPath).path,
+            )
+            QemuBootMode.UEFI -> args += listOf(
+                "-drive", "if=pflash,format=raw,readonly=on,file=${requireNotNull(launch.firmwareCodePath).path}",
+                "-drive", "if=pflash,format=raw,file=${requireNotNull(launch.firmwareVarsPath).path}",
+            )
         }
-        launch.metadataSeedUrl?.let { seedUrl ->
-            require(seedUrl.startsWith("http://10.0.2.2:")) {
-                "MVP NoCloud metadata must use the QEMU SLIRP host gateway"
-            }
-            args += listOf("-smbios", "type=1,serial=ds=nocloud-net;s=$seedUrl")
-        }
+        launch.metadataSeedUrl?.let { args += listOf("-smbios", "type=1,serial=ds=nocloud-net;s=$it") }
 
         when (launch.diskLayout) {
-            QemuDiskLayout.LEGACY_PODROID -> addLegacyPodroidDisks(args, launch)
-            QemuDiskLayout.SYSTEM_THEN_DATA -> addGenericDisks(args, launch)
+            QemuDiskLayout.LEGACY_PODROID -> {
+                addDisk(args, "drive1", requireNotNull(launch.dataDiskPath).path, "raw", false, "iothread0", launch.vcpus, true)
+                addDisk(args, "drive2", launch.systemDiskPath.path, "raw", true, "iothread1", launch.vcpus, false)
+            }
+            QemuDiskLayout.SYSTEM_THEN_DATA -> {
+                addDisk(args, "system", launch.systemDiskPath.path, launch.systemDiskFormat, false, "iothread0", launch.vcpus, true)
+                launch.dataDiskPath?.let { addDisk(args, "data", it.path, "raw", false, "iothread1", launch.vcpus, true) }
+            }
         }
 
         args += listOf(
-            "-netdev",
-            "user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:${launch.recoverySshHostPort}-:22",
+            "-netdev", "user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:${launch.recoverySshHostPort}-:22",
             "-device", "virtio-net-pci,netdev=net0,romfile=",
-            "-serial", "unix:${launch.serialSocketPath},server,nowait",
+            "-serial", "unix:${launch.serialSocketPath.path},server,nowait",
             "-device", "virtio-serial-pci",
-            "-chardev", "socket,id=term0,path=${launch.consoleSocketPath},server=on,wait=off",
-            "-device", "virtconsole,chardev=term0,name=org.nodehost.console",
+            "-chardev", "socket,id=term0,path=${launch.consoleSocketPath.path},server=on,wait=off",
+            "-device", "virtconsole,chardev=term0,name=org.podroid.term",
+            "-chardev", "socket,id=ctrl0,path=${launch.controlSocketPath.path},server=on,wait=off",
+            "-device", "virtconsole,chardev=ctrl0,name=org.podroid.ctrl",
+            "-chardev", "socket,id=host0,path=${launch.hostSocketPath.path},server=on,wait=off",
+            "-device", "virtconsole,chardev=host0,name=org.podroid.host",
             "-display", "none",
-            "-qmp", "unix:${launch.qmpSocketPath},server,nowait",
+            "-qmp", "unix:${launch.qmpSocketPath.path},server,nowait",
+            "-cpu", "max,sve=off,pauth-impdef=on",
+            "-accel", "tcg,thread=multi,tb-size=512",
+            "-object", "rng-random,id=rng0,filename=/dev/urandom",
+            "-device", "virtio-rng-pci,rng=rng0",
+            "-overcommit", "mem-lock=off",
         )
-
         return QemuLaunchDescriptor(
             executable = launch.qemuExecutable,
             launcher = launch.launcherExecutable,
             workingDirectory = launch.workingDirectory,
-            environment = mapOf(
-                "LD_LIBRARY_PATH" to "${launch.nativeLibraryDir}:${launch.workingDirectory}",
-            ),
+            environment = mapOf("LD_LIBRARY_PATH" to "${launch.nativeLibraryDir.path}:${launch.workingDirectory.path}"),
             arguments = args,
+            sockets = listOf(launch.serialSocketPath, launch.consoleSocketPath, launch.controlSocketPath, launch.hostSocketPath, launch.qmpSocketPath),
         )
     }
 
-    private fun addLegacyPodroidDisks(
-        args: MutableList<String>,
-        launch: ResolvedVmLaunch,
-    ) {
-        val statePath = requireNotNull(launch.dataDiskPath) {
-            "legacy Podroid layout requires its writable ext4 state disk"
-        }
-        addDisk(
-            args = args,
-            id = "drive1",
-            path = statePath,
-            format = "raw",
-            readOnly = false,
-            ioThread = "iothread0",
-            vcpus = launch.vcpus,
-            discard = true,
-        )
-        addDisk(
-            args = args,
-            id = "drive2",
-            path = launch.systemDiskPath,
-            format = "raw", // SquashFS is exposed as a raw block device.
-            readOnly = true,
-            ioThread = "iothread1",
-            vcpus = launch.vcpus,
-            discard = false,
-        )
-    }
-
-    private fun addGenericDisks(
-        args: MutableList<String>,
-        launch: ResolvedVmLaunch,
-    ) {
-        addDisk(
-            args = args,
-            id = "system",
-            path = launch.systemDiskPath,
-            format = launch.systemDiskFormat,
-            readOnly = false,
-            ioThread = "iothread0",
-            vcpus = launch.vcpus,
-            discard = true,
-        )
-        launch.dataDiskPath?.let { dataPath ->
-            addDisk(
-                args = args,
-                id = "data",
-                path = dataPath,
-                format = "raw",
-                readOnly = false,
-                ioThread = "iothread1",
-                vcpus = launch.vcpus,
-                discard = true,
-            )
-        }
-    }
-
-    private fun addDisk(
-        args: MutableList<String>,
-        id: String,
-        path: String,
-        format: String,
-        readOnly: Boolean,
-        ioThread: String,
-        vcpus: Int,
-        discard: Boolean,
-    ) {
+    private fun addDisk(args: MutableList<String>, id: String, path: String, format: String, readOnly: Boolean, ioThread: String, vcpus: Int, discard: Boolean) {
+        require(format == "raw" || format == "qcow2")
         args += listOf("-object", "iothread,id=$ioThread")
-        args += listOf(
-            "-device",
-            "virtio-blk-pci,drive=$id,num-queues=$vcpus,iothread=$ioThread",
-        )
-        val options = buildList {
-            add("file=$path")
-            add("if=none")
-            add("id=$id")
-            add("format=$format")
-            if (readOnly) add("readonly=on")
-            add("cache=writeback")
-            add("aio=threads")
-            if (discard) {
-                add("discard=unmap")
-                add("detect-zeroes=unmap")
-            }
-        }
+        args += listOf("-device", "virtio-blk-pci,drive=$id,num-queues=$vcpus,iothread=$ioThread")
+        val options = mutableListOf("file=$path", "if=none", "id=$id", "format=$format")
+        if (readOnly) options += "readonly=on"
+        options += listOf("cache=writeback", "aio=threads")
+        if (discard) options += listOf("discard=unmap", "detect-zeroes=unmap")
         args += listOf("-drive", options.joinToString(","))
     }
 }

@@ -1,5 +1,4 @@
-# Exact normalized argv emitted by pinned Podroid for the inputs in the metadata fixture.
-# One argv element per line; ${NATIVE_LIB} and ${FILES} replace device-specific paths.
+# Normalized generic ARM64 UEFI argv compiled from the Ubuntu profile fixture.
 ${NATIVE_LIB}/libpodroid-launcher.so
 ${NATIVE_LIB}/libqemu-system-aarch64.so
 -M
@@ -11,25 +10,25 @@ tcg,thread=multi,tb-size=256
 -smp
 2
 -m
-512
--kernel
-${FILES}/vms/default/artifacts/vmlinuz-virt
--append
-console=ttyAMA0 mitigations=off loglevel=1 quiet mitigations=off androidip=${ANDROID_IP} ssh=1 podroid.x11.dpi=96
--initrd
-${FILES}/vms/default/artifacts/initrd.img
+1024
+-drive
+if=pflash,format=raw,readonly=on,file=${FILES}/vms/default/artifacts/AAVMF_CODE.fd
+-drive
+if=pflash,format=raw,file=${FILES}/vms/default/firmware-vars.fd
+-smbios
+type=1,serial=ds=nocloud-net;s=http://10.0.2.2:8080/v1/bootstrap/${TOKEN}/
 -object
 iothread,id=iothread0
 -device
-virtio-blk-pci,drive=drive1,num-queues=2,iothread=iothread0
+virtio-blk-pci,drive=system,num-queues=2,iothread=iothread0
 -drive
-file=${FILES}/vms/default/storage.img,if=none,id=drive1,format=raw,cache=writeback,aio=threads,discard=unmap,detect-zeroes=unmap
+file=${FILES}/vms/default/system.qcow2,if=none,id=system,format=qcow2,cache=writeback,aio=threads,discard=unmap,detect-zeroes=unmap
 -object
 iothread,id=iothread1
 -device
-virtio-blk-pci,drive=drive2,num-queues=2,iothread=iothread1
+virtio-blk-pci,drive=data,num-queues=2,iothread=iothread1
 -drive
-file=${FILES}/vms/default/artifacts/alpine-rootfs.squashfs,if=none,id=drive2,format=raw,readonly=on,cache=writeback,aio=threads
+file=${FILES}/vms/default/data.raw,if=none,id=data,format=raw,cache=writeback,aio=threads,discard=unmap,detect-zeroes=unmap
 -netdev
 user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:19922-:22
 -device
