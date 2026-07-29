@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B20",
+  "status": "PASS",
+  "recordedAt": "2026-07-29T16:52:20.867773+00:00",
+  "gitCommit": "cdf65b20a8e28abd9b9b930ffec35fb73da76a6d",
+  "command": "cd android/podroid && ./gradlew :mesh-tailscale:testDebugUnitTest --tests 'org.nodehost.mesh.OfficialLibtailscaleAdapterTest'",
+  "summary": "Focused bounded diagnostic tests redact auth keys, bearer values, passwords, API keys, and URLs.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/qa-summary.txt",
+      "sha256": "d6f1e0dfcce77286b41003354d80b8237d49ca54f0365ca519496d660b930fd5",
+      "note": null
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B13",
+  "status": "BLOCKED-HARDWARE",
+  "recordedAt": "2026-07-29T14:23:43.380993+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "tests/e2e/run.sh",
+  "summary": "No live guest exists for recovery SSH with guest mesh disabled.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/qa-summary.txt",
+      "sha256": "d6f1e0dfcce77286b41003354d80b8237d49ca54f0365ca519496d660b930fd5",
+      "note": null
+    }
+  ]
+}

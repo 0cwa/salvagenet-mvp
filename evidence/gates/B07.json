@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B07",
+  "status": "BLOCKED-HARDWARE",
+  "recordedAt": "2026-07-29T14:23:43.057342+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "cd android/podroid && ./gradlew :node-store:testDebugUnitTest --tests org.nodehost.store.RoomOperationRepositoryTest --tests org.nodehost.store.NodeHostMigrationTest",
+  "summary": "Room durability/cancellation race tests pass, but actual Activity/service recreation and process death require Android device evidence.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/qa-summary.txt",
+      "sha256": "d6f1e0dfcce77286b41003354d80b8237d49ca54f0365ca519496d660b930fd5",
+      "note": null
+    }
+  ]
+}

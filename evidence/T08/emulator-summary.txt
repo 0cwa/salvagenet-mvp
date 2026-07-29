@@ -1,0 +1,4 @@
+Environment: Android emulator 36.6.11.0 build 15507667; API 36 google_apis x86_64 AVD nodehost-api36.
+Command: timeout --signal=TERM --kill-after=5s 90s "$ANDROID_SDK_ROOT/emulator/emulator" @nodehost-api36 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -no-snapshot -wipe-data -accel on
+Observed: emulator reported Feature 'Vulkan' overridden to disabled, began full startup, then dumped core. Exit status 139 (SIGSEGV); adb showed emulator-5554 offline. The process was stopped and no emulator remained connected.
+Conclusion: environment blocker only; this is not physical ARM64 or device acceptance evidence.

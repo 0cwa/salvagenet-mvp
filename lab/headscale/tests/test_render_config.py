@@ -33,6 +33,7 @@ class RenderConfigTest(unittest.TestCase):
                         "HEADSCALE_VERSION=0.28.0",
                         "HEADSCALE_PUBLIC_URL=http://192.168.50.10:8080",
                         "HEADSCALE_LISTEN_IP=0.0.0.0",
+                        "HEADSCALE_HOST_PORT=8080",
                         "HEADSCALE_BASE_DOMAIN=nodehost.test",
                     ]
                 )
@@ -43,6 +44,48 @@ class RenderConfigTest(unittest.TestCase):
             text = output.read_text(encoding="utf-8")
             self.assertIn('server_url: "http://192.168.50.10:8080"', text)
             self.assertNotIn("${", text)
+
+    def test_rejects_loopback_listen_address(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            env_file = temp / ".env"
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "HEADSCALE_VERSION=0.28.0",
+                        "HEADSCALE_PUBLIC_URL=http://192.168.50.10:8080",
+                        "HEADSCALE_LISTEN_IP=127.0.0.1",
+                        "HEADSCALE_HOST_PORT=8080",
+                        "HEADSCALE_BASE_DOMAIN=nodehost.test",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "must not be loopback"):
+                MODULE.render(root, env_file, temp / "generated")
+
+    def test_rejects_public_url_port_mismatch(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            env_file = temp / ".env"
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "HEADSCALE_VERSION=0.28.0",
+                        "HEADSCALE_PUBLIC_URL=http://192.168.50.10:8080",
+                        "HEADSCALE_LISTEN_IP=0.0.0.0",
+                        "HEADSCALE_HOST_PORT=18080",
+                        "HEADSCALE_BASE_DOMAIN=nodehost.test",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "port must match"):
+                MODULE.render(root, env_file, temp / "generated")
 
 
 if __name__ == "__main__":

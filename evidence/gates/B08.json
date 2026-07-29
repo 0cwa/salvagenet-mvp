@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B08",
+  "status": "BLOCKED-HARDWARE",
+  "recordedAt": "2026-07-29T14:23:43.111843+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "tests/network/host-mesh/smoke.sh",
+  "summary": "Static official-binding checks pass; no authorized device exists for VPN approval and live Headscale join.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/headscale-summary.txt",
+      "sha256": "195e515b19dcafa220cf3aa1222532ee96becaf12db7a12f091e7c676f304177",
+      "note": null
+    }
+  ]
+}

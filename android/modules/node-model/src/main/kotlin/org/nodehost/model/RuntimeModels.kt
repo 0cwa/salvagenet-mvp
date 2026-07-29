@@ -1,10 +1,18 @@
 package org.nodehost.model
 
-@JvmInline value class RuntimeId(val value: String) {
-    init { require(value.matches(Regex("[a-z0-9][a-z0-9-]{0,62}"))) }
+private val resourceIdPattern = Regex("[a-z0-9][a-z0-9-]{0,62}")
+
+@JvmInline
+value class RuntimeId(val value: String) {
+    init { require(resourceIdPattern.matches(value)) { "invalid runtime id" } }
+
     companion object { val DEFAULT = RuntimeId("default") }
 }
-@JvmInline value class VmProfileId(val value: String)
+
+@JvmInline
+value class VmProfileId(val value: String) {
+    init { require(Regex("[a-z0-9][a-z0-9-]{0,63}").matches(value)) { "invalid profile id" } }
+}
 
 enum class DesiredRuntimeState { ABSENT, STOPPED, RUNNING }
 
@@ -19,10 +27,22 @@ data class RuntimeSpec(
     val preserveDataOnDelete: Boolean = true,
 ) {
     init {
-        require(generation >= 0)
-        require(memoryMiB in 256..16384)
-        require(vcpus in 1..16)
-        require(dataDiskGiB in 1..1024)
+        require(generation >= 1) { "generation must be positive" }
+        require(memoryMiB in 256..16384) { "memoryMiB is out of range" }
+        require(vcpus in 1..16) { "vcpus is out of range" }
+        require(dataDiskGiB in 1..1024) { "dataDiskGiB is out of range" }
+    }
+}
+
+enum class GenerationDecision { INITIAL, ADVANCE, REPLAY, STALE, CONFLICT }
+
+object RuntimeGenerationRules {
+    fun decide(current: RuntimeSpec?, proposed: RuntimeSpec): GenerationDecision = when {
+        current == null -> GenerationDecision.INITIAL
+        proposed.generation < current.generation -> GenerationDecision.STALE
+        proposed.generation > current.generation -> GenerationDecision.ADVANCE
+        proposed == current -> GenerationDecision.REPLAY
+        else -> GenerationDecision.CONFLICT
     }
 }
 
@@ -31,7 +51,18 @@ sealed interface RuntimeObservation {
     data class Absent(override val id: RuntimeId) : RuntimeObservation
     data class Stopped(override val id: RuntimeId, val profileId: VmProfileId?) : RuntimeObservation
     data class Starting(override val id: RuntimeId, val processId: Long?) : RuntimeObservation
-    data class Running(override val id: RuntimeId, val processId: Long?, val guestReady: Boolean) : RuntimeObservation
+    data class Running(
+        override val id: RuntimeId,
+        val processId: Long?,
+        val guestReady: Boolean,
+        val appliedGeneration: Long? = null,
+    ) : RuntimeObservation {
+        init {
+            require(appliedGeneration == null || appliedGeneration >= 1) {
+                "appliedGeneration must be positive when known"
+            }
+        }
+    }
     data class Stopping(
         override val id: RuntimeId,
         val processId: Long?,

@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-29T16:53:34.518640+00:00",
+  "testedGitCommit": "cdf65b20a8e28abd9b9b930ffec35fb73da76a6d",
+  "note": "Full logs are ignored local artifacts and are not committed. Hashes bind successful final software evidence; e2e exit 77 is the expected hardware continuation block.",
+  "logs": {
+    "clean-final.log": {
+      "sha256": "3f561ea70fbae7caea82f17c373bbe64dbe755823e91d8b3998ce984a35b1c98",
+      "bytes": 767,
+      "command": "cd android/podroid && ./gradlew clean; rm -rf android/podroid/build android/vendor/tailscale/build android/vendor/tailscale/src"
+    },
+    "gradle-full-final.log": {
+      "sha256": "15297e0d06fd75a07c51ea2ec37e24753e9350bd420fa007339719ab8edb1529",
+      "bytes": 38674,
+      "command": "cd android/podroid && ./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging"
+    },
+    "make-test-jvm.log": {
+      "sha256": "bd0ca75e216f23f8d2c0037b2b15a1737d607ae40be726b21e004d75ca4fa863",
+      "bytes": 6138,
+      "command": "make test-jvm"
+    },
+    "make-test-android.log": {
+      "sha256": "b32c88f901d471d9c4be9cfa994743a22821c6d932e6a2fd3288513dac48c9ce",
+      "bytes": 33902,
+      "command": "make test-android"
+    },
+    "make-test-guest.log": {
+      "sha256": "0e83c7b2587b5f86e35c78ea11a29e33ee506a74e88147f3cfd8a5387b05bfb7",
+      "bytes": 42,
+      "command": "make test-guest"
+    },
+    "python-explicit.log": {
+      "sha256": "c71878f03110199cfa9ab8965a7a4a6cd39c8bbaa246d554c579773829481725",
+      "bytes": 126,
+      "command": "python3 -m unittest tests/api/test_openapi.py tests/contracts/test_contracts.py tests/qemu/test_fixture.py tests/tools/test_context_pack.py tests/tools/test_guest_init_renderer.py"
+    },
+    "python-controller-cli.log": {
+      "sha256": "3b95636ae54cbb25ba820d5abf9fcfcbbc89a7098dffc898e4dbedcda6aa4a01",
+      "bytes": 117,
+      "command": "python3 -m unittest discover -s controller/mvp-cli/tests -p 'test_*.py'"
+    },
+    "python-headscale.log": {
+      "sha256": "d03ce458f2a6cd2b4f27522f3aacad03ce1872c028853507c3ad02ca621bdcad",
+      "bytes": 103,
+      "command": "python3 -m unittest discover -s lab/headscale/tests -p 'test_*.py'"
+    },
+    "e2e.log": {
+      "sha256": "3c717fc8089bbcf37db45683af0189bacff3cfc3448dee148c19e957c2a61a2f",
+      "bytes": 10037,
+      "command": "tests/e2e/run.sh (fake path PASS; expected physical continuation exit 77)"
+    },
+    "focused-maintenance-compaction.log": {
+      "sha256": "8c1c1d2360ab93cc5b3898918914d3370917dba6082b3dd473531d7ad7cbf7a6",
+      "bytes": 3732,
+      "command": "cd android/podroid && ./gradlew :node-store:testDebugUnitTest --rerun-tasks --tests 'org.nodehost.store.RoomOperationRepositoryTest.completedDriftCyclesRecoverForeverWithBoundedDurableHistory'"
+    },
+    "focused-running-generation-replacement.log": {
+      "sha256": "060c7ae8b3200b023f570b46b72a13631d87335746e8f4acfd218730d9021660",
+      "bytes": 11592,
+      "command": "focused NodePlanner, AndroidQemuRuntimeBackend, ReconciliationActor, and production VerticalIntegration running-generation replacement tests with --rerun-tasks"
+    },
+    "focused-validated-staged-restart.log": {
+      "sha256": "577e874627734e096b8e6802e8b12201d471556defcf4f0773166d4da26a50d7",
+      "bytes": 8551,
+      "command": "cd android/podroid && ./gradlew :node-shell:testDebugUnitTest --rerun-tasks --tests 'org.nodehost.shell.VerticalIntegrationTest.restartConvergesAfterEveryEnrollmentBoundaryWithoutDuplicateAuthorityOrDesiredStateLoss' --tests 'org.nodehost.shell.VerticalIntegrationTest.corruptUnapprovedAndExpiredPersistedStagesFailClosedAndClear'"
+    },
+    "apk-verification.log": {
+      "sha256": "0253657ddfc6634ed56ba6233cf7bd984d4b4297eaf615a1255a975d33937b93",
+      "bytes": 43371,
+      "command": ":app:verifyPodroidPackaging; prepare-runtime --verify-apk; apksigner; zipalign -P 16; zipfile/readelf assertions"
+    },
+    "make-validate-final.log": {
+      "sha256": "e3214827f7a0d41dbdcf94995234ba6bbeba08dcc06bb492db8fb99ed4b2f238",
+      "bytes": 1358,
+      "command": "make validate after generated vendor checkout removal"
+    },
+    "mvp-plus-final.log": {
+      "sha256": "aabce7a60c82ad83a365fe9cf634671beccc74bdc0b2afdffb3d871b8ecc2f9a",
+      "bytes": 248,
+      "command": "python3 tools/ci/check-mvp-plus-gate.py --report-only"
+    },
+    "verify-scope-precommit.log": {
+      "sha256": "5eebfe38958fc205f436f17bce4e01038b36b727e926d181d87d835d0c28da6f",
+      "bytes": 45,
+      "command": "python3 tools/agents/verify-scope.py T08"
+    }
+  }
+}

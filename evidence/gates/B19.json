@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B19",
+  "status": "PASS",
+  "recordedAt": "2026-07-29T16:52:20.867773+00:00",
+  "gitCommit": "cdf65b20a8e28abd9b9b930ffec35fb73da76a6d",
+  "command": "cd android/podroid && ./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging && python3 prepare-runtime.py --verify-apk app/build/outputs/apk/debug/app-debug.apk --offline && $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk && $ANDROID_HOME/build-tools/36.0.0/zipalign -c -P 16 -v 4 app/build/outputs/apk/debug/app-debug.apk",
+  "summary": "Clean full build, exact runtime verification, v2 signature, 16 KiB ZIP/ELF alignment, and all required packaged payload checks pass.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/apk-metadata.json",
+      "sha256": "3cff7e8fd189c990756988fbc1add140deabe64fb224ac6841320c230287f58b",
+      "note": null
+    }
+  ]
+}
