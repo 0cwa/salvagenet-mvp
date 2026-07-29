@@ -10,7 +10,7 @@ import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from nodehost_mvp.client import ApiError, NodeHostClient
+from nodehost_mvp.client import ApiError, NodeHostClient, RetryableOperationError
 from nodehost_mvp.config import ControllerConfig
 
 
@@ -55,6 +55,14 @@ class ClientTest(unittest.TestCase):
         with self.assertRaises(ApiError) as caught: self.client.status()
         self.assertNotIn(self.capability, str(caught.exception))
         self.assertIn("[REDACTED]", str(caught.exception))
+
+    def test_wait_reports_failed_retryable_without_timing_out(self) -> None:
+        operation = {"id": "op-1", "state": "FAILED_RETRYABLE", "errorCode": "NETWORK_UNAVAILABLE"}
+        with mock.patch.object(self.client, "operation", return_value=operation):
+            with self.assertRaises(RetryableOperationError) as caught:
+                self.client.wait("op-1", timeout=600)
+        self.assertIs(caught.exception.operation, operation)
+        self.assertIn("NETWORK_UNAVAILABLE", str(caught.exception))
 
     def test_rejects_oversized_request_and_short_key(self) -> None:
         with self.assertRaisesRegex(ValueError, "1 MiB"):

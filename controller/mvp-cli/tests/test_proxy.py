@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from nodehost_mvp.proxy import _ChunkedReader
+from nodehost_mvp.proxy import _ByteBudget, _ChunkedReader
 
 
 class _Socket:
@@ -19,6 +19,13 @@ class ProxyTest(unittest.TestCase):
         reader = _ChunkedReader(_Socket([b"llo\r\n0\r\n\r\n"]), b"5\r\nhe")  # type: ignore[arg-type]
         self.assertEqual(reader.read_chunk(), b"hello")
         self.assertIsNone(reader.read_chunk())
+
+    def test_direction_byte_budget_is_bounded(self) -> None:
+        budget = _ByteBudget(5)
+        budget.consume(3)
+        budget.consume(2)
+        with self.assertRaisesRegex(RuntimeError, "byte budget"):
+            budget.consume(1)
 
     def test_rejects_oversized_chunk(self) -> None:
         reader = _ChunkedReader(_Socket([]), b"10001\r\n")  # type: ignore[arg-type]
