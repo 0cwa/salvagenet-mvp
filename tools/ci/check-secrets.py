@@ -6,7 +6,7 @@ import re
 
 root = Path(__file__).resolve().parents[2]
 this_file = Path(__file__).resolve()
-ignore = {'.git', '.local', '.gradle', 'build', 'secrets', '.venv', 'podroid'}
+ignore = {'.git', '.local', '.gradle', '.worktrees', 'build', 'secrets', '.venv', 'podroid'}
 patterns = [
     re.compile(r'tskey-(?:auth|client)-[A-Za-z0-9_-]{10,}'),
     re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),

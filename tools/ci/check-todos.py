@@ -6,7 +6,7 @@ import re
 
 root = Path(__file__).resolve().parents[2]
 this_file = Path(__file__).resolve()
-ignore = {'.git', '.local', '.gradle', 'build', '.venv', 'podroid'}
+ignore = {'.git', '.local', '.gradle', '.worktrees', 'build', '.venv', 'podroid'}
 allowed = re.compile(r'TODO\((MVP-HARDENING|RESEARCH), T\d\d\):')
 
 for path in root.rglob('*'):
