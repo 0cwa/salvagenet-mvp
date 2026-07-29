@@ -17,6 +17,10 @@ import org.nodehost.model.RuntimeSpec
 interface GuestBootstrapStore {
     suspend fun save(materialized: MaterializedGuestBootstrap)
     suspend fun hasDurableState(): Boolean
+    suspend fun enrollmentId(): String?
+    suspend fun clear()
+    suspend fun commit(enrollmentId: String): Boolean
+    suspend fun beginBoot(profileId: org.nodehost.model.VmProfileId): String? = null
 }
 
 data class InstalledNode(
@@ -26,7 +30,7 @@ data class InstalledNode(
 
 /** Ordered integration boundary: persist authority before mesh/runtime effects, then wake reconciliation. */
 class EnrollmentInstaller(
-    enrollments: org.nodehost.core.EnrollmentRepository,
+    private val enrollments: org.nodehost.core.EnrollmentRepository,
     operations: org.nodehost.store.RoomOperationRepository,
     private val mesh: HostMesh,
     private val bootstrapStore: GuestBootstrapStore,
@@ -45,14 +49,34 @@ class EnrollmentInstaller(
         rawEnrollment: ByteArray,
         rawGuestBootstrapSecret: ByteArray,
         enrollmentIdempotencyKey: String,
+        approvedIssuerSpkiSha256: String,
     ): InstalledNode {
         val enrollment = EnrollmentJson.parse(rawEnrollment)
-        val guestBootstrapSecret = GuestBootstrapSecretJson.parse(rawGuestBootstrapSecret)
-        val canonicalImport = rawEnrollment + byteArrayOf(0) + rawGuestBootstrapSecret
-        importEnrollment.import(enrollment, enrollmentIdempotencyKey, canonicalImport)
-        val materialized = if (bootstrapStore.hasDurableState()) null else {
-            materializer.materialize(enrollment, guestBootstrapSecret).also { bootstrapStore.save(it) }
+        require(MessageDigest.isEqual(enrollment.controller.spkiSha256.toByteArray(), approvedIssuerSpkiSha256.toByteArray())) {
+            "enrollment issuer fingerprint was not approved"
         }
+        val guestBootstrapSecret = GuestBootstrapSecretJson.parse(rawGuestBootstrapSecret)
+        // Both hostile documents are fully parsed and cross-validated before either durable document can commit.
+        materializer.validate(enrollment, guestBootstrapSecret)
+        val canonicalImport = rawEnrollment + byteArrayOf(0) + rawGuestBootstrapSecret
+        require(enrollmentIdempotencyKey.length in 16..200) { "invalid idempotency key length" }
+        require(canonicalImport.isNotEmpty() && canonicalImport.size <= 1_048_576) { "canonical enrollment request is out of bounds" }
+        require(enrollment.expiresAtEpochMs > clock.epochMillis()) { "enrollment has expired" }
+        val stagedEnrollmentId = bootstrapStore.enrollmentId()
+        require(stagedEnrollmentId == null || stagedEnrollmentId == enrollment.id.value) {
+            "a different guest bootstrap enrollment is already staged"
+        }
+        val stagedNow = !bootstrapStore.hasDurableState()
+        val materialized = if (stagedNow) {
+            materializer.materialize(enrollment, guestBootstrapSecret).also { bootstrapStore.save(it) }
+        } else null
+        try {
+            importEnrollment.import(enrollment, enrollmentIdempotencyKey, canonicalImport)
+        } catch (failure: Throwable) {
+            if (stagedNow) bootstrapStore.clear()
+            throw failure
+        }
+        check(bootstrapStore.commit(enrollment.id.value)) { "guest bootstrap commit did not match enrollment authority" }
 
         val status = mesh.status()
         if (status.state != org.nodehost.core.HostMeshStatus.State.RUNNING &&
@@ -64,6 +88,10 @@ class EnrollmentInstaller(
                 enrollment.hostMesh.oneUseAuthKey,
             ))
             mesh.start()
+        }
+        // Erase duplicate enrollment credentials only after the mesh confirms durable identity.
+        if (mesh.status().state == org.nodehost.core.HostMeshStatus.State.RUNNING) {
+            (enrollments as? EncryptedEnrollmentRepository)?.clearConsumedOneTimeCredentials()
         }
 
         val desired = RuntimeSpec(

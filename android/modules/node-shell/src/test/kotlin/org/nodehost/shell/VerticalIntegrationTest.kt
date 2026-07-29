@@ -28,6 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.nodehost.api.AcceptedOperationDispatcher
 import org.nodehost.api.ApplyVmRequest
 import org.nodehost.api.HostApiController
 import org.nodehost.api.HostCapability
@@ -52,6 +53,7 @@ import org.nodehost.core.OperationIdFactory
 import org.nodehost.model.NodeEnrollment
 import org.nodehost.model.OperationId
 import org.nodehost.model.OperationRecord
+import org.nodehost.model.OperationState
 import org.nodehost.model.RuntimeId
 import org.nodehost.model.SensitiveValue
 import org.nodehost.store.NodeHostDatabase
@@ -98,6 +100,7 @@ class VerticalIntegrationTest {
             raw,
             guestBootstrapSecretJson(),
             "enrollment-key-0001",
+            "a".repeat(64),
         )
         withTimeout(5_000) { completed.await() }
         completed = CompletableDeferred()
@@ -107,13 +110,16 @@ class VerticalIntegrationTest {
             UnsupportedMutations,
             ApplyRuntimeUseCase(operations, OperationIdFactory { OperationId("op-controller-apply") }),
             LoopbackRecoverySshGateway(),
+            AcceptedOperationDispatcher {
+                check(actor.wake(WakeReason.DESIRED_STATE_CHANGED)) { "reconciliation actor is unavailable" }
+            },
         )
         assertNotNull(controller.authorize("Bearer controller-capability-000001", "PUT", "/v1/vms/default"))
         controller.applyVm(
             ApplyVmRequest("default", 2, "running", "ubuntu-2404-arm64-uefi", 1024, 2, 8, true),
             "controller-apply-0001", "controller-generation-2".toByteArray(),
         )
-        actor.wake(WakeReason.DESIRED_STATE_CHANGED)
+        // Production dispatch wakes the actor after durable acceptance; callers never wake it manually.
         withTimeout(5_000) { completed.await() }
 
         assertEquals("host-auth-key-00000001", mesh.configuration?.oneUseAuthKey?.value)
@@ -135,7 +141,7 @@ class VerticalIntegrationTest {
         assertEquals("guest-auth-key-distinct-0001", secretJson.getJSONObject("mesh").getString("oneUseAuthKey"))
         assertEquals("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey nodehost-test", secretJson.getJSONObject("ssh").getJSONArray("emergencyAuthorizedKeys").getString(0))
         assertNull(materialized.secret.redeem(materialized.profile.token))
-        val replayedEnrollment = installer.install(raw, guestBootstrapSecretJson(), "enrollment-key-0001")
+        val replayedEnrollment = installer.install(raw, guestBootstrapSecretJson(), "enrollment-key-0001", "a".repeat(64))
         assertNull(replayedEnrollment.bootstrapProfile)
         assertSame(materialized, bootstrap.materialized)
         assertNull(materialized.secret.redeem(materialized.profile.token))
@@ -143,6 +149,39 @@ class VerticalIntegrationTest {
         // Controller transport disappearing is only absence of another wake; durable purpose remains RUNNING.
         assertEquals("RUNNING", operations.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState?.name)
         actor.close()
+    }
+
+    @Test fun persistedAuthorityCanEraseOneTimeCredentialsWithoutLosingRestartAuthority() {
+        val enrollment = EnrollmentJson.parse(enrollmentJson())
+        val operation = OperationRecord(
+            OperationId("op-erasure-test"), "erasure-key-0001", "d".repeat(64), null, null, OperationState.ACCEPTED, null,
+        )
+        val stored = EnrollmentJson.encodeStored(enrollment, operation, includeOneTimeCredentials = false)
+        assertFalse(stored.contains("controller-enrollment-0001"))
+        assertFalse(stored.contains("host-auth-key-00000001"))
+        val restored = EnrollmentJson.decodeStored(stored).first
+        assertEquals(enrollment.hostAccess, restored.hostAccess)
+        assertEquals(enrollment.artifacts, restored.artifacts)
+    }
+
+    @Test fun mismatchedBoundDocumentCannotCommitAndCorrectedRetrySucceeds() = runBlocking {
+        val repository = InMemoryEnrollmentRepository()
+        val installer = EnrollmentInstaller(
+            repository, operations, RecordingMesh(), RecordingBootstrapStore(), {},
+            object : Clock { override fun epochMillis() = 1_000L },
+            OperationIdFactory { OperationId("op-binding-test") },
+            materializer = GuestBootstrapMaterializer { "c".repeat(43) },
+        )
+        val mismatched = JSONObject(guestBootstrapSecretJson().toString(Charsets.UTF_8))
+            .getJSONObject("binding").put("enrollmentId", "other-enrollment")
+        val badDocument = JSONObject(guestBootstrapSecretJson().toString(Charsets.UTF_8))
+            .put("binding", mismatched).toString().toByteArray()
+        assertTrue(runCatching { installer.install(enrollmentJson(), badDocument, "binding-key-0001", "a".repeat(64)) }.isFailure)
+        assertNull(repository.installed)
+        assertTrue(runCatching { installer.install(enrollmentJson(), guestBootstrapSecretJson(), "binding-key-0001", "b".repeat(64)) }.isFailure)
+        assertNull(repository.installed)
+        assertNotNull(installer.install(enrollmentJson(), guestBootstrapSecretJson(), "binding-key-0001", "a".repeat(64)))
+        assertNotNull(repository.installed)
     }
 
     @Test fun recoverySshWorksIndependentlyOfGuestMeshAndEnforcesSingleSession() = runBlocking {
@@ -169,6 +208,7 @@ class VerticalIntegrationTest {
 
     private fun guestBootstrapSecretJson(): ByteArray = JSONObject()
         .put("apiVersion", "nodehost.example/v1alpha1").put("kind", "GuestBootstrapSecret")
+        .put("binding", JSONObject().put("enrollmentId", "enroll-0001").put("issuerSpkiSha256", "a".repeat(64)))
         .put("mesh", JSONObject().put("controlUrl", "https://mesh.example.test").put("oneUseAuthKey", "guest-auth-key-distinct-0001").put("hostname", "node-01-guest"))
         .put("ssh", JSONObject().put("user", "nodeadmin").put("emergencyAuthorizedKeys", JSONArray(listOf("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey nodehost-test"))))
         .put("callback", JSONObject().put("readyUrl", "http://10.0.2.2:8080/v1/bootstrap/ready").put("capability", "guest-ready-capability-0001"))
@@ -206,8 +246,16 @@ class VerticalIntegrationTest {
 
     private class RecordingBootstrapStore : GuestBootstrapStore {
         var materialized: MaterializedGuestBootstrap? = null
-        override suspend fun save(materialized: MaterializedGuestBootstrap) { this.materialized = materialized }
+        var committed = false
+        override suspend fun save(materialized: MaterializedGuestBootstrap) { this.materialized = materialized; committed = false }
         override suspend fun hasDurableState(): Boolean = materialized != null
+        override suspend fun enrollmentId(): String? = materialized?.profile?.enrollmentId
+        override suspend fun clear() { materialized = null; committed = false }
+        override suspend fun commit(enrollmentId: String): Boolean {
+            if (materialized?.profile?.enrollmentId != enrollmentId) return false
+            committed = true
+            return true
+        }
     }
 
     private class RecordingMesh : HostMesh {

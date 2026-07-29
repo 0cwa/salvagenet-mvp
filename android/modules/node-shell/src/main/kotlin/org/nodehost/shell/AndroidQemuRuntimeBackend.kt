@@ -6,9 +6,13 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.security.MessageDigest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.nodehost.core.OperationContext
 import org.nodehost.core.RuntimeBackend
 import org.nodehost.core.RuntimeStep
@@ -33,36 +37,73 @@ import org.nodehost.model.VmProfile
 import org.nodehost.model.VmProfileId
 import org.nodehost.model.WritableLayer
 import org.nodehost.qemu.BootstrapToken
+import org.nodehost.qemu.QemuExit
 import org.nodehost.qemu.QemuLaunchPlan
-import org.nodehost.qemu.QemuProcessHandle
 import org.nodehost.qemu.QemuProfileResolver
 import org.nodehost.qemu.QemuRuntimeAdapter
 import org.nodehost.qemu.QemuRuntimeAllocation
 import org.nodehost.qemu.RecoverySshHostPort
+import org.json.JSONObject
+
+internal data class ManagedQemuProcess(
+    val processId: Long?,
+    val awaitExit: suspend () -> QemuExit,
+    val requestGuestShutdown: suspend () -> Unit,
+)
+
+internal interface QemuProcessControl {
+    suspend fun start(plan: QemuLaunchPlan): ManagedQemuProcess
+    fun forceStop()
+}
+
+private class RuntimeQemuProcessControl(private val adapter: QemuRuntimeAdapter = QemuRuntimeAdapter()) : QemuProcessControl {
+    override suspend fun start(plan: QemuLaunchPlan): ManagedQemuProcess {
+        val handle = adapter.start(plan)
+        return ManagedQemuProcess(handle.processId, { adapter.awaitExit(handle) }, { adapter.requestGuestShutdown(handle) })
+    }
+    override fun forceStop() = adapter.forceStop()
+}
 
 /** RuntimeBackend adapter whose only process effect is the typed runtime-qemu API. */
-class AndroidQemuRuntimeBackend(
+internal class AndroidQemuRuntimeBackend(
     context: Context,
     private val desiredRuntime: suspend () -> RuntimeSpec?,
-    private val bootstrapToken: suspend () -> String?,
+    private val beginBootToken: suspend (VmProfileId) -> String?,
     private val recoveryPort: RecoverySshHostPort = RecoverySshHostPort(19922),
-    private val qemu: QemuRuntimeAdapter = QemuRuntimeAdapter(),
+    private val qemu: QemuProcessControl = RuntimeQemuProcessControl(),
+    private val elapsedRealtimeMillis: () -> Long = android.os.SystemClock::elapsedRealtime,
+    private val gracefulStopMillis: Long = GRACEFUL_STOP_MILLIS,
+    private val forceExitMillis: Long = FORCE_EXIT_MILLIS,
 ) : RuntimeBackend {
     private val application = context.applicationContext
     private val artifactRoot = File(application.filesDir, "nodehost-artifacts")
     private val resolver = QemuProfileResolver()
     private val stateLock = Any()
-    private var handle: QemuProcessHandle? = null
+    private var handle: ManagedQemuProcess? = null
     private var launchPlan: QemuLaunchPlan? = null
     private var profileId: VmProfileId? = null
     private var qmpReady = false
     private var guestReady = false
     private var stopping = false
+    private var gracefulDeadlineElapsedRealtime: Long? = null
+    private var exitWatcher: Job? = null
+    private var serviceScope: CoroutineScope? = null
+    private var wakeReconciler: (() -> Unit)? = null
+
+    /** Service-owned observation is attached after composition so process exit always wakes convergence. */
+    fun attachLifecycle(scope: CoroutineScope, wake: () -> Unit) = synchronized(stateLock) {
+        serviceScope = scope
+        wakeReconciler = wake
+        handle?.let(::watchExitLocked)
+    }
 
     override suspend fun observe(id: RuntimeId): RuntimeObservation = synchronized(stateLock) {
         require(id == RuntimeId.DEFAULT) { "MVP supports one runtime" }
         when {
-            handle != null && stopping -> RuntimeObservation.Stopping(id, handle?.processId, false)
+            handle != null && stopping -> RuntimeObservation.Stopping(
+                id, handle?.processId,
+                gracefulDeadlineElapsedRealtime?.let { elapsedRealtimeMillis() >= it } == true,
+            )
             handle != null && qmpReady -> RuntimeObservation.Running(id, handle?.processId, guestReady)
             handle != null -> RuntimeObservation.Starting(id, handle?.processId)
             instanceDirectory().isDirectory -> RuntimeObservation.Stopped(id, profileId)
@@ -88,7 +129,8 @@ class AndroidQemuRuntimeBackend(
                 StepOutcome(true, "disks-prepared")
             }
             RuntimeStep.PrepareBoot -> {
-                val token = bootstrapToken()?.let(::BootstrapToken)
+                File(instanceDirectory(), "guest-ready").delete()
+                val token = beginBootToken(desired.profileId)?.let(::BootstrapToken)
                 val allocation = QemuRuntimeAllocation.fromApplication(application, recoveryPort, token)
                 val resolved = resolver.resolve(profile(desired.profileId, verifyArtifacts = true), desired, allocation)
                 synchronized(stateLock) { launchPlan = resolved; profileId = desired.profileId }
@@ -97,29 +139,58 @@ class AndroidQemuRuntimeBackend(
             RuntimeStep.StartProcess -> {
                 val plan = synchronized(stateLock) { checkNotNull(launchPlan) { "boot is not prepared" } }
                 val started = qemu.start(plan)
-                synchronized(stateLock) { handle = started; qmpReady = false; guestReady = false; stopping = false }
+                synchronized(stateLock) {
+                    handle = started
+                    qmpReady = false
+                    guestReady = false
+                    stopping = false
+                    gracefulDeadlineElapsedRealtime = null
+                    watchExitLocked(started)
+                }
                 StepOutcome(true, "qemu-started")
             }
             RuntimeStep.WaitForQmp -> {
                 awaitFile(File(instanceDirectory(), "qmp.sock"), QMP_WAIT_MILLIS)
-                synchronized(stateLock) { checkNotNull(handle); qmpReady = true }
+                synchronized(stateLock) {
+                    checkNotNull(handle)
+                    qmpReady = true
+                    // Legacy Alpine has no metadata callback; successful direct-kernel QMP qualification is its bounded readiness gate.
+                    if (profileId?.value == ALPINE_PROFILE) guestReady = true
+                }
                 StepOutcome(false, "qmp-ready")
             }
             RuntimeStep.WaitForGuest -> {
-                // The bootstrap callback creates this app-private marker after capability verification.
-                awaitFile(File(instanceDirectory(), "guest-ready"), GUEST_WAIT_MILLIS)
+                val needsCallback = synchronized(stateLock) { profileId?.value != ALPINE_PROFILE }
+                if (needsCallback) awaitFile(File(instanceDirectory(), "guest-ready"), GUEST_WAIT_MILLIS)
                 synchronized(stateLock) { checkNotNull(handle); guestReady = true }
                 StepOutcome(false, "guest-ready")
             }
             RuntimeStep.RequestShutdown -> {
-                val active = synchronized(stateLock) { stopping = true; handle }
-                if (active != null) qemu.requestGuestShutdown(active)
+                val active = synchronized(stateLock) {
+                    stopping = true
+                    gracefulDeadlineElapsedRealtime = elapsedRealtimeMillis() + gracefulStopMillis
+                    handle
+                }
+                if (active != null) active.requestGuestShutdown()
+                serviceScope?.launch {
+                    delay(gracefulStopMillis)
+                    synchronized(stateLock) { if (handle === active && stopping) wakeReconciler?.invoke() }
+                }
                 StepOutcome(active != null, "shutdown-requested")
             }
             RuntimeStep.ForceStop -> {
-                qemu.forceStop()
-                synchronized(stateLock) { handle = null; qmpReady = false; guestReady = false; stopping = false }
-                StepOutcome(true, "qemu-force-stopped")
+                val active = synchronized(stateLock) { handle }
+                if (active != null) {
+                    qemu.forceStop()
+                    try {
+                        withTimeout(forceExitMillis) { active.awaitExit() }
+                    } finally {
+                        if (synchronized(stateLock) { handle === active }) {
+                            serviceScope?.launch { delay(POLL_MILLIS); wakeReconciler?.invoke() }
+                        }
+                    }
+                }
+                StepOutcome(active != null, "qemu-force-stopped")
             }
             RuntimeStep.RemoveSystem -> withContext(Dispatchers.IO) {
                 check(synchronized(stateLock) { handle == null }) { "cannot remove a running runtime" }
@@ -132,49 +203,82 @@ class AndroidQemuRuntimeBackend(
         }
     }
 
-    private fun profile(id: VmProfileId, verifyArtifacts: Boolean): VmProfile {
-        require(id.value == UBUNTU_PROFILE) { "unsupported profile: ${id.value}" }
-        val cloud = artifact("ubuntu-2404-arm64-cloud", verifyArtifacts)
-        val code = artifact("aavmf-code", verifyArtifacts)
-        val vars = artifact("aavmf-vars", verifyArtifacts)
-        return VmProfile(
-            id = id,
-            version = 1,
-            machine = MachineSpec(cpuModel = "max"),
-            boot = BootSpec.Uefi(code, vars),
-            systemDisk = SystemDiskSpec(cloud, DiskFormat.QCOW2, WritableLayer.QCOW2_OVERLAY),
-            dataDisk = DataDiskSpec(8, true),
-            initialization = InitializationSpec(InitializationKind.NOCLOUD_NET, "guest-init/ubuntu/vendor-data.yaml", "/v1/bootstrap/{token}/"),
-            recoverySsh = RecoverySshSpec(),
-            health = HealthSpec(HealthKind.METADATA_CALLBACK),
-            requirements = ProfileRequirements(768, 5, setOf("uefi", "cloud-init", "openssh")),
+    internal fun profile(id: VmProfileId, verifyArtifacts: Boolean): VmProfile = when (id.value) {
+        ALPINE_PROFILE -> VmProfile(
+            id, 1, machine = MachineSpec(cpuModel = "max"),
+            boot = BootSpec.DirectKernel(artifact("podroid-kernel", verifyArtifacts), artifact("podroid-initramfs", verifyArtifacts), "podroid-compatible-v1"),
+            systemDisk = SystemDiskSpec(artifact("podroid-alpine-squashfs", verifyArtifacts), DiskFormat.SQUASHFS, WritableLayer.SEPARATE_EXT4_OVERLAY),
+            dataDisk = DataDiskSpec(4, true),
+            initialization = InitializationSpec(InitializationKind.LEGACY_PODROID, "guest-init/alpine-direct/vendor-data.yaml"),
+            recoverySsh = RecoverySshSpec(), health = HealthSpec(HealthKind.CONSOLE_MARKER, "Ready!"),
+            requirements = ProfileRequirements(512, 3, setOf("virtio-block", "virtio-net", "serial-console", "overlayfs")),
         )
+        UBUNTU_PROFILE, K3S_PROFILE -> {
+            val k3s = id.value == K3S_PROFILE
+            VmProfile(
+                id, 1, extends = if (k3s) VmProfileId(UBUNTU_PROFILE) else null,
+                machine = MachineSpec(cpuModel = "max"),
+                boot = BootSpec.Uefi(artifact("aavmf-code", verifyArtifacts), artifact("aavmf-vars", verifyArtifacts)),
+                systemDisk = SystemDiskSpec(artifact("ubuntu-2404-arm64-cloud", verifyArtifacts), DiskFormat.QCOW2, WritableLayer.QCOW2_OVERLAY),
+                dataDisk = DataDiskSpec(8, true),
+                initialization = InitializationSpec(InitializationKind.NOCLOUD_NET, if (k3s) "guest-init/k3s-worker-lab/vendor-data.yaml" else "guest-init/ubuntu/vendor-data.yaml", "/v1/bootstrap/{token}/"),
+                recoverySsh = RecoverySshSpec(), health = HealthSpec(HealthKind.METADATA_CALLBACK),
+                requirements = if (k3s) ProfileRequirements(1024, 8, K3S_CHECKS) else ProfileRequirements(768, 5, setOf("uefi", "cloud-init", "openssh")),
+            )
+        }
+        else -> error("unsupported profile: ${id.value}")
     }
 
     private fun artifact(id: String, verify: Boolean): ArtifactRef {
-        val file = File(artifactRoot, id)
+        val file = artifactFile(id)
         require(file.isFile && file.length() in 1..MAX_ARTIFACT_BYTES) { "trusted artifact is missing or out of bounds: $id" }
         val digest = sha256(file)
-        if (verify) {
-            val expected = File(artifactRoot, "$id.sha256")
-            require(expected.isFile && expected.length() <= 128) { "artifact digest metadata is missing: $id" }
-            require(expected.readText().trim() == digest) { "artifact digest mismatch: $id" }
-        }
+        if (verify) require(expectedDigest(id) == digest) { "artifact digest mismatch: $id" }
         return ArtifactRef(id, digest, file.length())
+    }
+
+    private fun artifactFile(id: String): File {
+        val manifest = File(artifactRoot, "$id.manifest.json")
+        if (!manifest.isFile) return File(artifactRoot, id)
+        require(manifest.length() in 1..4096) { "artifact manifest is out of bounds: $id" }
+        val relative = JSONObject(manifest.readText()).getString("relativePath")
+        val resolved = File(artifactRoot, relative).canonicalFile
+        require(resolved.path.startsWith(artifactRoot.canonicalPath + File.separator)) { "artifact manifest escaped its root" }
+        return resolved
+    }
+
+    private fun expectedDigest(id: String): String {
+        val manifest = File(artifactRoot, "$id.manifest.json")
+        if (manifest.isFile) return JSONObject(manifest.readText()).getString("sha256")
+        val expected = File(artifactRoot, "$id.sha256")
+        require(expected.isFile && expected.length() <= 128) { "artifact digest metadata is missing: $id" }
+        return expected.readText().trim()
     }
 
     private fun prepareDisks(runtime: RuntimeSpec) {
         val instance = instanceDirectory().apply { check(mkdirs() || isDirectory) }
         val artifacts = File(instance, "artifacts").apply { check(mkdirs() || isDirectory) }
-        copyVerified("aavmf-code", File(artifacts, "AAVMF_CODE.fd"))
-        copyVerified("aavmf-vars", File(instance, "firmware-vars.fd"))
-        copyVerified("ubuntu-2404-arm64-cloud", File(instance, "system.qcow2"))
-        val data = File(instance, "data.raw")
-        if (!data.exists()) RandomAccessFile(data, "rw").use { it.setLength(runtime.dataDiskGiB * GIB) }
+        when (runtime.profileId.value) {
+            ALPINE_PROFILE -> {
+                copyVerified("podroid-kernel", File(artifacts, "vmlinuz-virt"))
+                copyVerified("podroid-initramfs", File(artifacts, "initrd.img"))
+                copyVerified("podroid-alpine-squashfs", File(artifacts, "alpine-rootfs.squashfs"))
+                val overlay = File(instance, "storage.img")
+                if (!overlay.exists()) RandomAccessFile(overlay, "rw").use { it.setLength(runtime.dataDiskGiB * GIB) }
+            }
+            UBUNTU_PROFILE, K3S_PROFILE -> {
+                copyVerified("aavmf-code", File(artifacts, "AAVMF_CODE.fd"))
+                copyVerified("aavmf-vars", File(instance, "firmware-vars.fd"))
+                copyVerified("ubuntu-2404-arm64-cloud", File(instance, "system.qcow2"))
+                val data = File(instance, "data.raw")
+                if (!data.exists()) RandomAccessFile(data, "rw").use { it.setLength(runtime.dataDiskGiB * GIB) }
+            }
+            else -> error("unsupported profile: ${runtime.profileId.value}")
+        }
     }
 
     private fun copyVerified(id: String, target: File) {
-        val source = File(artifactRoot, id)
+        val source = artifactFile(id)
         artifact(id, true)
         if (target.isFile && target.length() == source.length() && sha256(target) == sha256(source)) return
         val temporary = File(target.parentFile, target.name + ".tmp")
@@ -183,10 +287,31 @@ class AndroidQemuRuntimeBackend(
     }
 
     private suspend fun awaitFile(file: File, timeoutMillis: Long) {
-        val end = android.os.SystemClock.elapsedRealtime() + timeoutMillis
+        val end = elapsedRealtimeMillis() + timeoutMillis
         while (!file.exists()) {
-            check(android.os.SystemClock.elapsedRealtime() < end) { "runtime readiness deadline exceeded: ${file.name}" }
+            check(synchronized(stateLock) { handle != null }) { "QEMU exited before runtime readiness: ${file.name}" }
+            check(elapsedRealtimeMillis() < end) { "runtime readiness deadline exceeded: ${file.name}" }
             delay(POLL_MILLIS)
+        }
+    }
+
+    private fun watchExitLocked(started: ManagedQemuProcess) {
+        val scope = serviceScope ?: return
+        exitWatcher?.cancel()
+        exitWatcher = scope.launch {
+            val result = runCatching { started.awaitExit() }
+            result.onSuccess { android.util.Log.i(TAG, "QEMU exited code=${it.code}") }
+                .onFailure { android.util.Log.e(TAG, "QEMU exit observation failed class=${it::class.java.simpleName}") }
+            synchronized(stateLock) {
+                if (handle === started) {
+                    handle = null
+                    qmpReady = false
+                    guestReady = false
+                    stopping = false
+                    gracefulDeadlineElapsedRealtime = null
+                    wakeReconciler?.invoke()
+                }
+            }
         }
     }
 
@@ -215,13 +340,19 @@ class AndroidQemuRuntimeBackend(
     }
 
     private companion object {
+        const val TAG = "NodeHostQemu"
+        const val ALPINE_PROFILE = "alpine-direct-qualification"
         const val UBUNTU_PROFILE = "ubuntu-2404-arm64-uefi"
+        const val K3S_PROFILE = "k3s-worker-lab"
+        val K3S_CHECKS = setOf("cgroup-v2", "namespaces", "overlayfs", "br-netfilter", "vxlan", "tun", "iptables-or-nft", "ip-forwarding", "swap-policy", "minimum-memory", "minimum-storage", "tailscale-reachability")
         const val COPY_BUFFER_BYTES = 1024 * 1024
         const val MAX_ARTIFACT_BYTES = 64L * 1024 * 1024 * 1024
         const val MAX_DELETE_ENTRIES = 4096
         const val QMP_WAIT_MILLIS = 10_000L
         const val GUEST_WAIT_MILLIS = 25_000L
         const val POLL_MILLIS = 100L
+        const val GRACEFUL_STOP_MILLIS = 20_000L
+        const val FORCE_EXIT_MILLIS = 5_000L
         const val GIB = 1024L * 1024 * 1024
     }
 }

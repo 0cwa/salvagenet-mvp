@@ -20,11 +20,23 @@ import kotlinx.coroutines.withContext
 /** App-private, user-mediated two-document enrollment entry point. No secret content is displayed or logged. */
 class EnrollmentImportActivity : ComponentActivity() {
     private lateinit var status: TextView
+    private lateinit var actionButton: Button
     private var enrollmentDocument: ByteArray? = null
+    private var approvedIssuerSpkiSha256: String? = null
+
+    private val trustAnchorExporter = registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-pem-file")) { uri ->
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { contentResolver.openOutputStream(uri, "wt").use { output -> requireNotNull(output).write(AndroidTlsCredentials.certificatePem()) } }
+            }
+            if (result.isFailure) status.text = "TLS trust export failed. No trust file was installed."
+        }
+    }
 
     private val vpnPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            status.text = "Tailnet authorization accepted. Starting the authenticated Host API…"
+            showTlsExport()
             NodeHostGraph.restoreAuthorityAndApi()
         } else {
             showFailure("Enrollment installed, but tailnet VPN authorization was not granted")
@@ -33,7 +45,6 @@ class EnrollmentImportActivity : ComponentActivity() {
 
     private val guestPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
-            enrollmentDocument = null
             showFailure("Guest bootstrap document selection cancelled")
             return@registerForActivityResult
         }
@@ -45,17 +56,21 @@ class EnrollmentImportActivity : ComponentActivity() {
                 val key = "enrollment-" + MessageDigest.getInstance("SHA-256")
                     .digest(enrollment + byteArrayOf(0) + guest).take(12).joinToString("") { "%02x".format(it) }
                 try {
-                    NodeHostGraph.installEnrollment(enrollment, guest, key)
+                    NodeHostGraph.installEnrollment(
+                        enrollment, guest, key,
+                        requireNotNull(approvedIssuerSpkiSha256) { "issuer fingerprint approval is required" },
+                    )
                 } finally {
                     enrollment.fill(0)
                     guest.fill(0)
                 }
             }.onSuccess {
                 enrollmentDocument = null
+                approvedIssuerSpkiSha256 = null
                 setResult(Activity.RESULT_OK)
                 val permissionIntent = android.net.VpnService.prepare(this@EnrollmentImportActivity)
                 if (permissionIntent == null) {
-                    status.text = "Enrollment installed. Host API will start on the authenticated tailnet."
+                    showTlsExport()
                     NodeHostGraph.restoreAuthorityAndApi()
                 } else {
                     status.text = "Enrollment installed. Authorize the tailnet VPN to start the Host API."
@@ -63,6 +78,7 @@ class EnrollmentImportActivity : ComponentActivity() {
                 }
             }.onFailure {
                 enrollmentDocument = null
+                approvedIssuerSpkiSha256 = null
                 showFailure("Enrollment failed (${it::class.java.simpleName}). No credentials were displayed.")
             }
         }
@@ -72,10 +88,20 @@ class EnrollmentImportActivity : ComponentActivity() {
         if (uri == null) return@registerForActivityResult showFailure("Enrollment document selection cancelled")
         lifecycleScope.launch {
             runCatching { withContext(Dispatchers.IO) { readBounded(uri, EnrollmentJson.MAX_ENROLLMENT_BYTES) } }
-                .onSuccess {
-                    enrollmentDocument = it
-                    status.text = "Now select the separate GuestBootstrapSecret JSON document."
-                    guestPicker.launch(arrayOf("application/json", "text/json", "text/plain"))
+                .onSuccess { document ->
+                    val fingerprint = runCatching { EnrollmentJson.parse(document).controller.spkiSha256 }.getOrElse {
+                        document.fill(0)
+                        return@onSuccess showFailure("Enrollment document is invalid")
+                    }
+                    enrollmentDocument = document
+                    approvedIssuerSpkiSha256 = null
+                    status.text = "Verify this issuer fingerprint with your controller administrator before approval:\n${formatFingerprint(fingerprint)}"
+                    actionButton.text = "I verified and approve this issuer"
+                    actionButton.setOnClickListener {
+                        approvedIssuerSpkiSha256 = fingerprint
+                        status.text = "Issuer approved. Select the separately delivered, bound GuestBootstrapSecret document."
+                        guestPicker.launch(arrayOf("application/json", "text/json", "text/plain"))
+                    }
                 }
                 .onFailure { showFailure("Enrollment document could not be read") }
         }
@@ -86,7 +112,7 @@ class EnrollmentImportActivity : ComponentActivity() {
         NodeHostGraph.initialize(this)
         ContextCompat.startForegroundService(this, Intent(this, NodeSupervisorService::class.java))
         status = TextView(this).apply { text = "Select both controller-issued JSON documents. No defaults are generated." }
-        val button = Button(this).apply {
+        actionButton = Button(this).apply {
             text = "Select enrollment documents"
             setOnClickListener { enrollmentPicker.launch(arrayOf("application/json", "text/json", "text/plain")) }
         }
@@ -95,12 +121,53 @@ class EnrollmentImportActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(48, 48, 48, 48)
             addView(status)
-            addView(button)
+            addView(actionButton)
         })
     }
 
-    private fun setBusy(message: String) { status.text = message }
-    private fun showFailure(message: String) { status.text = message; setResult(Activity.RESULT_CANCELED) }
+    private fun showTlsExport() {
+        status.text = "Enrollment complete. Preparing address-bound Host API TLS trust…"
+        actionButton.isEnabled = false
+        lifecycleScope.launch {
+            runCatching { NodeHostGraph.prepareDeviceTlsTrust() }
+                .onSuccess { pin ->
+                    status.text = "Host API: https://<tailnet-address>:7443. Device TLS SPKI pin:\n${formatFingerprint(pin)}"
+                    actionButton.isEnabled = true
+                    actionButton.text = "Export address-bound TLS trust certificate"
+                    actionButton.setOnClickListener { trustAnchorExporter.launch("nodehost-device-ca.pem") }
+                }
+                .onFailure {
+                    status.text = "Tailnet address is not ready. TLS trust is not exportable until it is address-bound."
+                    actionButton.isEnabled = true
+                    actionButton.text = "Retry TLS trust preparation"
+                    actionButton.setOnClickListener { showTlsExport() }
+                }
+        }
+    }
+
+    private fun formatFingerprint(value: String): String = value.chunked(4).joinToString(" ")
+
+    private fun setBusy(message: String) { status.text = message; actionButton.isEnabled = false }
+    private fun resetAction() {
+        actionButton.isEnabled = true
+        actionButton.text = "Select enrollment documents"
+        actionButton.setOnClickListener { enrollmentPicker.launch(arrayOf("application/json", "text/json", "text/plain")) }
+    }
+    private fun showFailure(message: String) {
+        enrollmentDocument?.fill(0)
+        enrollmentDocument = null
+        approvedIssuerSpkiSha256 = null
+        status.text = message
+        resetAction()
+        setResult(Activity.RESULT_CANCELED)
+    }
+
+    override fun onDestroy() {
+        enrollmentDocument?.fill(0)
+        enrollmentDocument = null
+        approvedIssuerSpkiSha256 = null
+        super.onDestroy()
+    }
 
     private fun readBounded(uri: android.net.Uri, maximumBytes: Int): ByteArray {
         val declared = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }

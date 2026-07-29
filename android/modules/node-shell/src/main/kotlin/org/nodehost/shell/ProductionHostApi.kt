@@ -10,7 +10,17 @@ import java.net.InetAddress
 import java.net.URI
 import java.net.URL
 import java.security.MessageDigest
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SNIHostName
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.SSLSocketFactory
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -67,13 +77,27 @@ class AndroidHostResourceQueries(
         HostCapability("vm.single", true), HostCapability("image.https-import", true),
         HostCapability("recovery.ssh", true),
     )
-    override suspend fun profiles() = listOf(HostProfile("ubuntu-2404-arm64-uefi", 1, "UEFI"))
+    override suspend fun profiles() = listOf(
+        HostProfile("alpine-direct-qualification", 1, "DIRECT_KERNEL"),
+        HostProfile("ubuntu-2404-arm64-uefi", 1, "UEFI"),
+        HostProfile("k3s-worker-lab", 1, "UEFI"),
+    )
     override suspend fun images(): List<HostImage> = withContext(Dispatchers.IO) {
-        val files = artifacts.listFiles()?.filter { it.isFile && !it.name.endsWith(".sha256") && IMAGE_ID.matches(it.name) }
+        val manifests = artifacts.listFiles()?.filter { it.isFile && it.name.endsWith(".manifest.json") }
             ?.sortedBy { it.name }?.take(128).orEmpty()
-        files.mapNotNull { file ->
-            val digest = File(artifacts, "${file.name}.sha256").takeIf(File::isFile)?.readText()?.trim()
-            digest?.takeIf { SHA256.matches(it) }?.let { HostImage(file.name, it, file.length()) }
+        manifests.mapNotNull { manifest ->
+            runCatching {
+                require(manifest.length() in 1..MAX_MANIFEST_BYTES)
+                val value = JSONObject(manifest.readText())
+                require(value.keys().asSequence().toSet() == setOf("version", "sha256", "sizeBytes", "relativePath"))
+                require(value.getInt("version") == 1)
+                val id = manifest.name.removeSuffix(".manifest.json")
+                val digest = value.getString("sha256")
+                val sizeBytes = value.getLong("sizeBytes")
+                require(IMAGE_ID.matches(id) && SHA256.matches(digest) && sizeBytes in 1..MAX_IMAGE_BYTES)
+                require(value.getString("relativePath") == "versions/$id/$digest/payload")
+                HostImage(id, digest, sizeBytes)
+            }.getOrNull()
         }
     }
     override suspend fun vms(): List<HostVm> = vm(RuntimeId.DEFAULT)?.let(::listOf).orEmpty()
@@ -100,6 +124,8 @@ class AndroidHostResourceQueries(
     private companion object {
         val IMAGE_ID = Regex("[a-z0-9][a-z0-9.-]{0,127}")
         val SHA256 = Regex("[a-f0-9]{64}")
+        const val MAX_MANIFEST_BYTES = 4096L
+        const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
     }
 }
 
@@ -111,9 +137,13 @@ class AndroidHostMutations(
     private val enrolledRepositoryOrigin: suspend () -> URI,
     private val operationIds: SecureOperationIdFactory = SecureOperationIdFactory(),
     private val clockMillis: () -> Long = System::currentTimeMillis,
+    private val serviceScope: CoroutineScope? = null,
+    private val addressResolver: (String) -> List<InetAddress> = { InetAddress.getAllByName(it).toList() },
 ) : HostMutationUseCases {
     private val artifacts = File(context.filesDir, "nodehost-artifacts")
+    private val pendingImports = File(context.filesDir, "nodehost-imports")
     private val lock = Mutex()
+    private val importEffectLock = Mutex()
 
     override suspend fun importImage(request: ImageImportRequest, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord {
         val digest = sha256(canonicalRequest)
@@ -123,34 +153,120 @@ class AndroidHostMutations(
                 return@withLock it to false
             }
             val accepted = OperationRecord(operationIds.newId(), idempotencyKey, digest, null, null, OperationState.ACCEPTED, null)
-            insert(accepted)
-            val preflight = update(accepted, accepted.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
-            update(preflight, preflight.transitionTo(OperationState.FETCHING, "image.fetch")) to true
+            // Persist resumable effect input before the journal can advertise work as accepted.
+            persistPending(accepted.id, request)
+            try {
+                insert(accepted)
+            } catch (failure: Throwable) {
+                pendingFile(accepted.id).delete()
+                throw failure
+            }
+            accepted to true
         }
-        if (!newlyAccepted) return operation
+        if (!newlyAccepted) {
+            if (operation.state == OperationState.FAILED_RETRYABLE && pendingFile(operation.id).isFile) {
+                serviceScope?.launch { runImport(operation.id, request, rethrow = false) }
+            }
+            return operation
+        }
+        val scope = serviceScope
+        if (scope != null) {
+            scope.launch { runImport(operation.id, request, rethrow = false) }
+            return operation
+        }
+        return runImport(operation.id, request, rethrow = true)
+    }
+
+    fun recoverInterruptedImports() {
+        val scope = serviceScope ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching(::cleanupInterruptedPublications).onFailure {
+                android.util.Log.e(TAG, "Interrupted image publication cleanup failed class=${it::class.java.simpleName}")
+            }
+            if (!pendingImports.isDirectory) return@launch
+            pendingImports.listFiles()?.filter { it.isFile && it.name.endsWith(".json") }?.sortedBy { it.name }
+                ?.take(MAX_PENDING_IMPORTS)?.forEach { file ->
+                    runCatching {
+                        require(file.length() in 1..MAX_PENDING_FILE_BYTES) { "pending import record is out of bounds" }
+                        val value = JSONObject(file.readText())
+                        require(value.keys().asSequence().toSet() == setOf("operationId", "sourceUrl", "sha256", "expectedSizeBytes"))
+                        val id = OperationId(value.getString("operationId"))
+                        val request = ImageImportRequest(value.getString("sourceUrl"), value.getString("sha256"), value.getLong("expectedSizeBytes"))
+                        val current = operations.load(id)
+                        if (current == null || current.state.terminal) check(file.delete()) { "stale pending import could not be removed" }
+                        else runImport(id, request, rethrow = false)
+                    }.onFailure {
+                        android.util.Log.e(TAG, "Pending image import recovery failed file=${file.name} class=${it::class.java.simpleName}")
+                    }
+                }
+        }
+    }
+
+    private suspend fun runImport(operationId: OperationId, request: ImageImportRequest, rethrow: Boolean): OperationRecord = importEffectLock.withLock {
         try {
+            lock.withLock {
+                var latest = requireNotNull(operations.load(operationId))
+                if (latest.state in setOf(OperationState.VERIFYING, OperationState.PREPARING_DISKS, OperationState.PREPARING_BOOT)) {
+                    latest = update(latest, latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.recover", "IMPORT_INTERRUPTED"))
+                }
+                if (latest.state == OperationState.FAILED_RETRYABLE) latest = update(latest, latest.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
+                if (latest.state == OperationState.ACCEPTED) latest = update(latest, latest.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
+                if (latest.state == OperationState.PREFLIGHT) update(latest, latest.transitionTo(OperationState.FETCHING, "image.fetch"))
+            }
             val imageId = imageId(URI(request.sourceUrl))
-            downloadVerified(request, enrolledRepositoryOrigin(), imageId, operation.id)
-            return lock.withLock {
-                val latest = requireNotNull(operations.load(operation.id))
-                if (latest.blocksArtifactEffects) latest
-                else {
+            if (!isInstalled(imageId, request)) preflightSpace(request.expectedSizeBytes)
+            downloadVerified(request, enrolledRepositoryOrigin(), imageId, operationId)
+            cleanupInterruptedPublications()
+            val completed = lock.withLock {
+                val latest = requireNotNull(operations.load(operationId))
+                if (latest.blocksArtifactEffects) latest else {
                     val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
                     val preparing = update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
                     val prepared = update(preparing, preparing.transitionTo(OperationState.PREPARING_BOOT, "image.publish"))
                     update(prepared, prepared.transitionTo(OperationState.SUCCEEDED, null))
                 }
             }
+            if (!pendingFile(operationId).delete() && pendingFile(operationId).exists()) {
+                // Recovery removes terminal records; retain success rather than corrupting the operation transition.
+                android.util.Log.w(TAG, "Completed image import record cleanup deferred operation=${operationId.value}")
+            }
+            completed
         } catch (failure: Throwable) {
-            lock.withLock {
-                val latest = requireNotNull(operations.load(operation.id))
-                if (!latest.blocksArtifactEffects) {
-                    update(latest, latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.fetch", "IMAGE_IMPORT_FAILED"))
+            val failed = withContext(NonCancellable) {
+                lock.withLock {
+                    val latest = requireNotNull(operations.load(operationId))
+                    if (latest.blocksArtifactEffects) latest
+                    else update(latest, latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.fetch", "IMAGE_IMPORT_FAILED"))
                 }
             }
-            throw failure
+            if (failure is CancellationException || rethrow) throw failure
+            failed
         }
     }
+
+    private fun persistPending(id: OperationId, request: ImageImportRequest) {
+        check(pendingImports.mkdirs() || pendingImports.isDirectory)
+        require(pendingImports.listFiles()?.size.orZero() < MAX_PENDING_IMPORTS) { "pending import capacity exceeded" }
+        val target = pendingFile(id)
+        val temporary = File(pendingImports, ".${id.value}.tmp")
+        FileOutputStream(temporary).use {
+            it.write(JSONObject().put("operationId", id.value).put("sourceUrl", request.sourceUrl).put("sha256", request.sha256).put("expectedSizeBytes", request.expectedSizeBytes).toString().toByteArray())
+            it.fd.sync()
+        }
+        check(temporary.renameTo(target)) { "pending import publication failed" }
+    }
+
+    private fun pendingFile(id: OperationId) = File(pendingImports, "${id.value}.json")
+    private fun preflightSpace(expectedBytes: Long) {
+        check(artifacts.mkdirs() || artifacts.isDirectory) { "artifact directory unavailable" }
+        require(expectedBytes in 1..MAX_IMAGE_BYTES) { "image size is out of bounds" }
+        require(artifacts.usableSpace >= expectedBytes + MIN_FREE_BYTES) { "insufficient free space for image import" }
+        val retained = artifacts.walkTopDown().filter(File::isFile).take(MAX_ARTIFACT_FILES + 1).toList()
+        require(retained.size <= MAX_ARTIFACT_FILES) { "artifact file quota exceeded" }
+        require(retained.sumOf(File::length) + expectedBytes <= ARTIFACT_QUOTA_BYTES) { "artifact byte quota exceeded" }
+    }
+
+    private fun Int?.orZero() = this ?: 0
 
     override suspend fun removeVm(id: RuntimeId, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord {
         require(id == RuntimeId.DEFAULT) { "MVP supports one runtime" }
@@ -172,11 +288,9 @@ class AndroidHostMutations(
 
     private suspend fun downloadVerified(request: ImageImportRequest, authority: URI, imageId: String, operationId: OperationId) = withContext(Dispatchers.IO) {
         check(artifacts.mkdirs() || artifacts.isDirectory) { "artifact directory unavailable" }
-        val destination = File(artifacts, imageId)
-        val installedDigest = File(artifacts, "$imageId.sha256")
-        if (destination.isFile && destination.length() == request.expectedSizeBytes &&
-            installedDigest.isFile && installedDigest.readText().trim() == request.sha256
-        ) return@withContext
+        val manifest = File(artifacts, "$imageId.manifest.json")
+        val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
+        if (isInstalled(imageId, request)) return@withContext
         val temporary = File(artifacts, ".$imageId.${System.nanoTime()}.part")
         val deadline = SystemClock.elapsedRealtime() + DOWNLOAD_DEADLINE_MILLIS
         var current = URI(request.sourceUrl)
@@ -186,10 +300,17 @@ class AndroidHostMutations(
                 var redirects = 0
                 while (true) {
                     validateArtifactUri(current, authority)
-                    validatePublicAddresses(current.host)
+                    val validatedAddress = resolvePublicAddresses(current.host).first()
                     val remaining = deadline - SystemClock.elapsedRealtime()
                     check(remaining > 0) { "image download deadline exceeded" }
-                    val connection = URL(current.toString()).openConnection() as HttpURLConnection
+                    val addressLiteral = if (validatedAddress.address.size == 16) "[${validatedAddress.hostAddress}]" else validatedAddress.hostAddress
+                    val connectedUrl = URL("https", addressLiteral, effectivePort(current), current.rawPath + (current.rawQuery?.let { "?$it" } ?: ""))
+                    val connection = connectedUrl.openConnection() as HttpsURLConnection
+                    connection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, session ->
+                        HttpsURLConnection.getDefaultHostnameVerifier().verify(current.host, session)
+                    }
+                    connection.sslSocketFactory = SniSocketFactory(current.host, HttpsURLConnection.getDefaultSSLSocketFactory())
+                    connection.setRequestProperty("Host", current.host + if (effectivePort(current) == 443) "" else ":${effectivePort(current)}")
                     connection.instanceFollowRedirects = false
                     connection.connectTimeout = minOf(10_000L, remaining).toInt()
                     connection.readTimeout = minOf(15_000L, remaining).toInt()
@@ -208,6 +329,7 @@ class AndroidHostMutations(
                             val buffer = ByteArray(BUFFER_BYTES)
                             var total = 0L
                             while (true) {
+                                currentCoroutineContext().ensureActive()
                                 check(!operationCancelled(operationId)) { "image import cancelled" }
                                 check(SystemClock.elapsedRealtime() < deadline) { "image download deadline exceeded" }
                                 val count = input.read(buffer)
@@ -225,22 +347,62 @@ class AndroidHostMutations(
                     } finally { connection.disconnect() }
                 }
             }
+            val versionDirectory = requireNotNull(versionPayload.parentFile)
+            check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
             java.nio.file.Files.move(
-                temporary.toPath(), destination.toPath(),
+                temporary.toPath(), versionPayload.toPath(),
                 java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
             )
-            val digestTemporary = File(artifacts, ".$imageId.sha256.part")
-            FileOutputStream(digestTemporary).use { it.write((request.sha256 + "\n").toByteArray()); it.fd.sync() }
-            java.nio.file.Files.move(
-                digestTemporary.toPath(), File(artifacts, "$imageId.sha256").toPath(),
-                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-            )
+            val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
+            try {
+                val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
+                    .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
+                FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
+                java.nio.file.Files.move(
+                    manifestTemporary.toPath(), manifest.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                )
+            } finally { manifestTemporary.delete() }
         } finally { temporary.delete() }
+    }
+
+    internal fun cleanupInterruptedPublications() {
+        if (!artifacts.isDirectory) return
+        artifacts.walkTopDown().filter(File::isFile).take(MAX_ARTIFACT_FILES + 1).forEach { file ->
+            val relative = file.relativeTo(artifacts).invariantSeparatorsPath
+            val temporary = file.parentFile == artifacts && file.name.startsWith('.') && file.name.endsWith(".part")
+            val payload = PAYLOAD_PATH.matchEntire(relative)
+            val orphanedPayload = payload != null && run {
+                val imageId = payload.groupValues[1]
+                val digest = payload.groupValues[2]
+                val manifest = File(artifacts, "$imageId.manifest.json")
+                val value = manifest.takeIf { it.isFile && it.length() in 1..MAX_MANIFEST_BYTES }
+                    ?.let { runCatching { JSONObject(it.readText()) }.getOrNull() }
+                value?.optInt("version") != 1 || value.optString("sha256") != digest ||
+                    value.optString("relativePath") != relative
+            }
+            if (temporary || orphanedPayload) check(file.delete()) { "interrupted artifact could not be removed" }
+        }
+        File(artifacts, "versions").walkBottomUp().filter(File::isDirectory).forEach { directory ->
+            if (directory != File(artifacts, "versions") && directory.list()?.isEmpty() == true) directory.delete()
+        }
+    }
+
+    private fun isInstalled(imageId: String, request: ImageImportRequest): Boolean {
+        val manifest = File(artifacts, "$imageId.manifest.json")
+        val payload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
+        if (!manifest.isFile || manifest.length() !in 1..MAX_MANIFEST_BYTES || !payload.isFile || payload.length() != request.expectedSizeBytes) return false
+        val value = runCatching { JSONObject(manifest.readText()) }.getOrNull() ?: return false
+        if (value.optInt("version") != 1 || value.optString("sha256") != request.sha256 ||
+            value.optLong("sizeBytes") != request.expectedSizeBytes ||
+            value.optString("relativePath") != "versions/$imageId/${request.sha256}/payload"
+        ) return false
+        return sha256(payload) == request.sha256
     }
 
     private fun operationCancelled(id: OperationId): Boolean =
         database.openHelper.readableDatabase.query("SELECT state FROM operations WHERE id = ?", arrayOf(id.value)).use {
-            it.moveToFirst() && OperationState.valueOf(it.getString(0)).let { state -> state.terminal || state == OperationState.CANCELLING }
+            it.moveToFirst() && it.getString(0) == OperationState.CANCELLED.name
         }
 
     private fun validateArtifactUri(uri: URI, authority: URI) {
@@ -253,12 +415,34 @@ class AndroidHostMutations(
             "artifact URL is outside enrolled repository path"
         }
     }
-    private fun validatePublicAddresses(host: String) {
-        val addresses = InetAddress.getAllByName(host)
+    internal fun resolvePublicAddresses(host: String): List<InetAddress> {
+        // Resolve exactly once for this hop. The selected literal is used for connect, preventing rebinding.
+        val addresses = addressResolver(host)
         require(addresses.isNotEmpty() && addresses.size <= 16) { "artifact host address count is out of bounds" }
-        require(addresses.all { !it.isAnyLocalAddress && !it.isLoopbackAddress && !it.isLinkLocalAddress && !it.isSiteLocalAddress && !it.isMulticastAddress }) {
-            "artifact host resolved to a non-public address"
+        require(addresses.all(::isGloballyRoutable)) { "artifact host resolved to a non-global address" }
+        return addresses
+    }
+
+    internal fun isGloballyRoutable(address: InetAddress): Boolean {
+        val bytes = address.address.map { it.toInt() and 0xff }
+        if (bytes.size == 4) {
+            val a = bytes[0]; val b = bytes[1]; val c = bytes[2]
+            return when {
+                a == 0 || a == 10 || a == 127 || a >= 224 -> false
+                a == 100 && b in 64..127 -> false // RFC 6598 CGNAT
+                a == 169 && b == 254 -> false
+                a == 172 && b in 16..31 -> false
+                a == 192 && b == 0 -> false
+                a == 192 && b == 168 -> false
+                a == 192 && b == 88 && c == 99 -> false
+                a == 198 && b in setOf(18, 19, 51) -> false
+                a == 203 && b == 0 && c == 113 -> false
+                else -> true
+            }
         }
+        if (bytes.size != 16 || bytes[0] !in 0x20..0x3f) return false // only IPv6 global unicast 2000::/3
+        if (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0d && bytes[3] == 0xb8) return false
+        return !address.isAnyLocalAddress && !address.isLoopbackAddress && !address.isLinkLocalAddress && !address.isMulticastAddress
     }
     private fun imageId(uri: URI): String = uri.path.substringAfterLast('/').also {
         require(Regex("[a-z0-9][a-z0-9.-]{0,127}").matches(it)) { "artifact URL must end in a typed image id" }
@@ -276,11 +460,48 @@ class AndroidHostMutations(
     private fun OperationRecord.toEntity(created: Long) = OperationEntity(id.value, idempotencyKey, requestDigest, runtimeId?.value, desiredGeneration, state.name, currentStepId, errorCode, created, clockMillis())
     private fun OperationEntity.toRecord() = OperationRecord(OperationId(id), idempotencyKey, requestDigest, runtimeId?.let(::RuntimeId), desiredGeneration, OperationState.valueOf(state), currentStepId, errorCode)
     private fun sha256(value: ByteArray) = MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(BUFFER_BYTES)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private class SniSocketFactory(
+        private val tlsHostname: String,
+        private val delegate: SSLSocketFactory,
+    ) : SSLSocketFactory() {
+        override fun getDefaultCipherSuites() = delegate.defaultCipherSuites
+        override fun getSupportedCipherSuites() = delegate.supportedCipherSuites
+        override fun createSocket(socket: java.net.Socket, host: String, port: Int, autoClose: Boolean) = configure(delegate.createSocket(socket, host, port, autoClose))
+        override fun createSocket(host: String, port: Int) = configure(delegate.createSocket(host, port))
+        override fun createSocket(host: String, port: Int, local: InetAddress, localPort: Int) = configure(delegate.createSocket(host, port, local, localPort))
+        override fun createSocket(host: InetAddress, port: Int) = configure(delegate.createSocket(host, port))
+        override fun createSocket(host: InetAddress, port: Int, local: InetAddress, localPort: Int) = configure(delegate.createSocket(host, port, local, localPort))
+        private fun configure(socket: java.net.Socket): java.net.Socket = socket.apply {
+            if (this is SSLSocket) sslParameters = sslParameters.apply { serverNames = listOf(SNIHostName(tlsHostname)) }
+        }
+    }
 
     private companion object {
         const val BUFFER_BYTES = 64 * 1024
         const val DOWNLOAD_DEADLINE_MILLIS = 15 * 60 * 1000L
         const val MAX_REDIRECTS = 5
+        const val TAG = "NodeHostImages"
+        const val MAX_PENDING_IMPORTS = 16
+        const val MAX_PENDING_FILE_BYTES = 4096L
+        val PAYLOAD_PATH = Regex("versions/([a-z0-9][a-z0-9.-]{0,127})/([a-f0-9]{64})/payload")
+        const val MAX_ARTIFACT_FILES = 512
+        const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
+        const val ARTIFACT_QUOTA_BYTES = 96L * 1024 * 1024 * 1024
+        const val MIN_FREE_BYTES = 256L * 1024 * 1024
+        const val MAX_MANIFEST_BYTES = 4096L
     }
 }
 

@@ -44,6 +44,13 @@ class EncryptedEnrollmentRepository(context: Context) : EnrollmentRepository {
 
     override suspend fun load(): NodeEnrollment? = mutex.withLock { state.read()?.let(EnrollmentJson::decodeStored)?.first }
 
+    suspend fun clearConsumedOneTimeCredentials() = mutex.withLock {
+        val current = state.read()?.let(EnrollmentJson::decodeStored) ?: return@withLock
+        state.write(EnrollmentJson.encodeStored(current.first, current.second, includeOneTimeCredentials = false))
+    }
+
+    suspend fun clearAuthority() = mutex.withLock { state.clear() }
+
     override suspend fun acceptEnrollment(
         enrollment: NodeEnrollment,
         operation: OperationRecord,
@@ -107,8 +114,12 @@ object EnrollmentJson {
         )
     }
 
-    internal fun encodeStored(enrollment: NodeEnrollment, operation: OperationRecord): String = JSONObject()
-        .put("enrollment", encodeEnrollment(enrollment))
+    internal fun encodeStored(
+        enrollment: NodeEnrollment,
+        operation: OperationRecord,
+        includeOneTimeCredentials: Boolean = true,
+    ): String = JSONObject()
+        .put("enrollment", encodeEnrollment(enrollment, includeOneTimeCredentials))
         .put("operation", JSONObject()
             .put("id", operation.id.value)
             .put("key", operation.idempotencyKey)
@@ -118,7 +129,14 @@ object EnrollmentJson {
 
     internal fun decodeStored(raw: String): Pair<NodeEnrollment, OperationRecord> {
         val root = JSONObject(raw).keysExactly("enrollment", "operation")
-        val enrollmentRaw = root.objectValue("enrollment").toString().toByteArray()
+        val enrollmentObject = root.objectValue("enrollment")
+        enrollmentObject.getJSONObject("controller").apply {
+            if (!has("oneTimeEnrollmentToken")) put("oneTimeEnrollmentToken", ephemeralConsumedCredential())
+        }
+        enrollmentObject.getJSONObject("hostMesh").apply {
+            if (!has("oneUseAuthKey")) put("oneUseAuthKey", ephemeralConsumedCredential())
+        }
+        val enrollmentRaw = enrollmentObject.toString().toByteArray()
         val operation = root.objectValue("operation").keysExactly("id", "key", "digest", "state")
         return parse(enrollmentRaw) to OperationRecord(
             OperationId(operation.string("id")), operation.string("key"), operation.string("digest"),
@@ -126,7 +144,7 @@ object EnrollmentJson {
         )
     }
 
-    private fun encodeEnrollment(value: NodeEnrollment): JSONObject {
+    private fun encodeEnrollment(value: NodeEnrollment, includeOneTimeCredentials: Boolean): JSONObject {
         val guest = JSONObject().put("sshUser", value.guestAccess.sshUser)
         when (val authorization = value.guestAccess.authorization) {
             is GuestSshAuthorization.UserCertificateAuthority -> guest.put("sshUserCaPublicKey", authorization.publicKey)
@@ -135,13 +153,20 @@ object EnrollmentJson {
         return JSONObject()
             .put("apiVersion", "nodehost.example/v1alpha1").put("kind", "NodeEnrollment")
             .put("metadata", JSONObject().put("enrollmentId", value.id.value).put("nodeName", value.nodeName.value).put("expiresAt", java.time.Instant.ofEpochMilli(value.expiresAtEpochMs).toString()))
-            .put("controller", JSONObject().put("endpoint", value.controller.endpoint).put("spkiSha256", value.controller.spkiSha256).put("oneTimeEnrollmentToken", value.controller.oneTimeEnrollmentToken.value))
-            .put("hostMesh", JSONObject().put("controlUrl", value.hostMesh.controlUrl).put("oneUseAuthKey", value.hostMesh.oneUseAuthKey.value).put("hostname", value.hostMesh.hostname.value).put("expectedTags", JSONArray(value.hostMesh.expectedTags.sorted())))
+            .put("controller", JSONObject().put("endpoint", value.controller.endpoint).put("spkiSha256", value.controller.spkiSha256).apply {
+                if (includeOneTimeCredentials) put("oneTimeEnrollmentToken", value.controller.oneTimeEnrollmentToken.value)
+            })
+            .put("hostMesh", JSONObject().put("controlUrl", value.hostMesh.controlUrl).put("hostname", value.hostMesh.hostname.value).put("expectedTags", JSONArray(value.hostMesh.expectedTags.sorted())).apply {
+                if (includeOneTimeCredentials) put("oneUseAuthKey", value.hostMesh.oneUseAuthKey.value)
+            })
             .put("hostAccess", JSONObject().put("controllerCapability", value.hostAccess.controllerCapability.value).put("allowedControllerId", value.hostAccess.allowedControllerId))
             .put("guestAccess", guest)
             .put("artifacts", JSONObject().put("repositoryUrl", value.artifacts.repositoryUrl).put("profileIds", JSONArray(value.artifacts.profileIds.map { it.value }.sorted())))
             .put("initialRuntime", JSONObject().put("profileId", value.initialRuntime.profileId.value).put("desiredState", value.initialRuntime.desiredState.name.lowercase()).put("memoryMiB", value.initialRuntime.memoryMiB).put("vcpus", value.initialRuntime.vcpus).put("dataDiskGiB", value.initialRuntime.dataDiskGiB))
     }
+
+    private fun ephemeralConsumedCredential(): String = ByteArray(32).also(java.security.SecureRandom()::nextBytes)
+        .let { Base64.encodeToString(it, Base64.NO_WRAP or Base64.URL_SAFE) }
 
     private fun JSONObject.keysExactly(vararg expected: String): JSONObject = apply {
         require(keysAsSet() == expected.toSet()) { "invalid fields" }
@@ -178,6 +203,11 @@ internal class AndroidEncryptedBlob(
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, IV_BYTES)))
         return String(cipher.doFinal(bytes.copyOfRange(IV_BYTES, bytes.size)), Charsets.UTF_8)
+    }
+
+    @Synchronized fun clear() {
+        check(preferences.edit().remove(preferenceKey).commit()) { "encrypted state removal failed" }
+        if (keyStore.containsAlias(keyAlias)) keyStore.deleteEntry(keyAlias)
     }
 
     @Synchronized fun write(value: String) {
