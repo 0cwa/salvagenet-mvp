@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "gateId": "B01",
   "status": "PASS",
-  "recordedAt": "2026-07-29T14:23:42.733483+00:00",
-  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
-  "command": "cd android/podroid && ./gradlew :app:assembleDebug",
-  "summary": "Pinned Podroid sources are present and the integrated debug application assembles.",
+  "recordedAt": "2026-07-29T16:06:00.307278+00:00",
+  "gitCommit": "7120316e69ad27b47a54108bd92ef49f94161a5a",
+  "command": "cd android/podroid && ./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease",
+  "summary": "Pinned Podroid sources are present; the current integrated debug application and mesh release artifact assemble in the clean full build.",
   "environment": {},
   "artifacts": [
     {
       "path": "evidence/T08/qa-summary.txt",
-      "sha256": "358d1d75829a96654e72e217cbb387bfaa6c6cf3b6f33521559098d799dc2791",
+      "sha256": "f01667f353b6c5cfa46d5122591a4a48bb38ad8abe8d45a2696f1cce7b3eeb70",
       "note": null
     }
   ]

@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "gateId": "B03",
   "status": "PASS",
-  "recordedAt": "2026-07-29T14:23:42.841640+00:00",
-  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "recordedAt": "2026-07-29T16:06:00.385512+00:00",
+  "gitCommit": "7120316e69ad27b47a54108bd92ef49f94161a5a",
   "command": "python3 -m unittest tests/qemu/test_fixture.py && cd android/podroid && ./gradlew :runtime-qemu:testDebugUnitTest",
-  "summary": "Typed QEMU compiler/profile tests and preserved baseline fixture invariants pass.",
+  "summary": "Typed QEMU compiler/profile tests and preserved baseline fixture invariants pass on the tested source commit.",
   "environment": {},
   "artifacts": [
     {
       "path": "evidence/T08/qa-summary.txt",
-      "sha256": "358d1d75829a96654e72e217cbb387bfaa6c6cf3b6f33521559098d799dc2791",
+      "sha256": "f01667f353b6c5cfa46d5122591a4a48bb38ad8abe8d45a2696f1cce7b3eeb70",
       "note": null
     }
   ]

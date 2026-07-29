@@ -2,20 +2,16 @@
   "schemaVersion": 1,
   "gateId": "B19",
   "status": "PASS",
-  "recordedAt": "2026-07-29T16:53:27+02:00",
-  "gitCommit": "bc23997c1a8cf7191b4dc72b2d3e0c272b4cb790",
-  "command": "rm -rf android/podroid/app/build android/vendor/tailscale/build && cd android/podroid && ./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging && APK=app/build/outputs/apk/debug/app-debug.apk && apksigner verify --verbose --print-certs $APK && zipalign -c -P 16 -v 4 $APK && unzip/readelf $APK && python3 prepare-runtime.py --verify-apk $APK",
-  "summary": "Clean generation, full tests, debug/release assembly, signature, 16 KiB ZIP/ELF alignment, and exact pinned runtime verification pass. QEMU, launcher, SLIRP, bridge, libgojni, kernel, initrd, rootfs, EFI, and 34 keymaps are present. Physical installation remains covered by hardware gates, not B19.",
-  "environment": {
-    "androidBuildTools": "36.0.0",
-    "java": "17",
-    "go": "1.26.3"
-  },
+  "recordedAt": "2026-07-29T16:06:00.815699+00:00",
+  "gitCommit": "7120316e69ad27b47a54108bd92ef49f94161a5a",
+  "command": "cd android/podroid && ./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging && python3 prepare-runtime.py --verify-apk app/build/outputs/apk/debug/app-debug.apk --offline && $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk && $ANDROID_HOME/build-tools/36.0.0/zipalign -c -P 16 -v 4 app/build/outputs/apk/debug/app-debug.apk",
+  "summary": "Clean full build, exact runtime verification, v2 signature, 16 KiB ZIP/ELF alignment, and all required packaged payload checks pass.",
+  "environment": {},
   "artifacts": [
     {
       "path": "evidence/T08/apk-metadata.json",
-      "sha256": "59cc560e781a230dbb5e3b23c875965463242a2cb16cb75b168b7de45b411f9a",
-      "note": "Compact metadata only; APK, generated caches, temporary keystore, and full logs are uncommitted."
+      "sha256": "ac883b41b2eb2d08b69a91c14f70ff59c8f4919597178aa6efd77dca6f1d2d58",
+      "note": null
     }
   ]
 }

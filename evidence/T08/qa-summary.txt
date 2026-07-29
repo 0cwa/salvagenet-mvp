@@ -1,26 +1,23 @@
-T08 integrated-base QA summary (initial run 2026-07-29; packaging rerun 2026-07-29)
+T08 final integrated QA refresh (2026-07-29)
+Tested source commit: 7120316e69ad27b47a54108bd92ef49f94161a5a
 
 PASS
-- Clean packaging rerun removed app/build and vendor/tailscale/build before rebuilding.
-- Full `./gradlew test`, make test-jvm, make test-android, and make test-guest.
-- App lintDebug/assembleDebug, mesh-tailscale assembleRelease, and app assembleRelease with a temporary test-only keystore that was deleted and never committed.
-- `:app:verifyPodroidPackaging` and the direct prepare-runtime verifier checked all 42 exact pinned runtime entries.
-- Debug APK v2 signature and `zipalign -c -P 16 -v 4` checks.
-- unzip/readelf confirmed QEMU, launcher, SLIRP, bridge, libgojni, kernel, initrd, rootfs, EFI, and all 34 pinned keymaps are present; all five required AArch64 ELF payloads have PT_LOAD alignment of at least 0x4000.
-- Debug APK: 348464044 bytes; SHA-256 df413b753f6e1effe62a2911c26f0cfddb893af8c4ba591bf16b06850ae4a1a3. The APK remains an ignored, uncommitted build artifact.
-- make validate, including strict schema/evidence validation, release-surface and secret scans.
-- Explicit API (5), contract (17), QEMU fixture (2), tools (3), controller CLI (18), and Headscale renderer (5) Python tests.
-- Fake vertical e2e decision/composition path; its hardware continuation exited 77 as designed.
+- Clean generated-output run: Gradle clean completed, Podroid/build and generated Tailscale checkout/build were removed, then full `./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease` passed.
+- `make validate`, `make test-jvm`, `make test-android`, and `make test-guest` passed with the pinned Python/JDK/Go/Android toolchains.
+- Explicit API, contract, QEMU fixture, context/guest-init tool, controller CLI, and Headscale renderer Python suites passed (50 tests total).
+- Fake vertical e2e passed the complete decision/composition path; its physical continuation exited 77 as designed because no authorized device/controller configuration is available.
+- Focused actor maintenance/restart, mutable system and preserved data-disk persistence, graceful-before-force stop, enrollment phase recovery, deployed K3s qualifier asset, cancel receipt/publication races, readiness capability/runtime generation, release/debug mesh HTTPS policy, bounded body timeout/cancellation, and constrained model URI tests passed.
+- Runtime packaging verification passed all 42 exact pinned Podroid entries. Debug APK v2 signature, `zipalign -c -P 16 -v 4`, AArch64 ELF identity, and minimum 0x4000 PT_LOAD alignment checks passed for QEMU, launcher, SLIRP, bridge, and libgojni.
+- Debug APK: 348494941 bytes; SHA-256 7f9d8b9f483fb527d675c2a711640f13312c0ed1ebf8009dcad837badc6c9eb4. The APK remains an ignored, uncommitted build artifact.
+- B04, B05, B06, B14, B15, B18, and B20 have current focused software evidence and remain PASS. B19 packaging evidence also remains PASS.
 
-RESOLVED SOFTWARE BLOCKERS
-- T00 packaging fixes now produce and package the pinned QEMU, launcher, SLIRP, bridge, kernel, initrd, rootfs, EFI, and keymap payloads. B19 changed from FAIL to PASS.
-- T00 terminal-emulator test dependencies now permit full Gradle `test` aggregation.
-- T05 generated libtailscale inputs and task wiring now permit clean libgojni generation, mesh release assembly, and app release assembly.
-
-PRESERVED PRIOR HARDWARE EVIDENCE
-- The earlier API 36 x86_64 emulator 36.6.11 cold boot exited 139 with Vulkan disabled; this remains truthful but is not physical ARM64 evidence.
-- No authorized physical ARM64 Android device exists. No physical APK install/QEMU boot, VPN approval, live host/guest mesh, guest SSH/recovery, lifecycle/process-death-on-device, or reboot test was run.
-- B02 and B07-B17 remain BLOCKED-HARDWARE.
+BLOCKED-HARDWARE
+- No authorized physical ARM64 Android device exists. No physical APK install/QEMU boot, Activity/service/process-death lifecycle, VPN approval, live host/guest mesh, controller-through-mesh, guest/recovery SSH, or first-unlock reboot test was run.
+- B02, B07-B13, B16, and B17 remain BLOCKED-HARDWARE; no software result is represented as physical evidence.
 
 MVP+
-- `check-mvp-plus-gate.py --report-only` remains BLOCKED solely because physical base gates are BLOCKED-HARDWARE. No executable USB work was enabled.
+- U01-U04 remain DEFERRED. `check-mvp-plus-gate.py --report-only` remains blocked only by the unchanged physical base gates. No executable USB work was enabled.
+
+HYGIENE
+- Full logs remain ignored under `.local/experiments/E08-final/`; committed log metadata contains only sizes and SHA-256 hashes.
+- The generated `android/vendor/tailscale/build` checkout was removed before final validation and scope verification.
