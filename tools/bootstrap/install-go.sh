@@ -52,7 +52,7 @@ done
 unset nodehost_fragment
 ENV
 
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 source "$HOME/.config/nodehost/env.sh"
 go version
 printf 'Go %s installed at %s\nsource %s/.config/nodehost/env.sh\n' "$GO_VERSION" "$prefix" "$HOME"

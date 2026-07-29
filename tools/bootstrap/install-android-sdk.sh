@@ -59,7 +59,7 @@ for nodehost_fragment in \
 done
 unset nodehost_fragment
 ENV
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 source "$HOME/.config/nodehost/env.sh"
 yes | sdkmanager --licenses >/dev/null
 sdkmanager \

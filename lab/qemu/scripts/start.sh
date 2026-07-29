@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# shellcheck source=common.sh
+# shellcheck source=lab/qemu/scripts/common.sh
 source "$(dirname "$0")/common.sh"
 for file in system.qcow2 seed.img AAVMF_CODE.fd AAVMF_VARS.fd; do
   [[ -f "$state/$file" ]] || { echo "missing $state/$file; run make qemu-lab-prepare" >&2; exit 2; }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# shellcheck source=common.sh
+# shellcheck source=lab/qemu/scripts/common.sh
 source "$(dirname "$0")/common.sh"
 [[ -f "$state/id_ed25519" ]] || { echo "missing lab key" >&2; exit 2; }
 for _ in $(seq 1 240); do

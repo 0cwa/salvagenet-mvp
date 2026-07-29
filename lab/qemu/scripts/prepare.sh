@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# shellcheck source=common.sh
+# shellcheck source=lab/qemu/scripts/common.sh
 source "$(dirname "$0")/common.sh"
 for command in qemu-system-aarch64 qemu-img cloud-localds ssh-keygen; do
   command -v "$command" >/dev/null || { echo "missing $command" >&2; exit 2; }

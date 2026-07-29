@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# shellcheck source=common.sh
+# shellcheck source=lab/qemu/scripts/common.sh
 source "$(dirname "$0")/common.sh"
 if [[ ! -f "$state/qemu.pid" ]]; then
   echo "host-QEMU lab is not running"

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."; runtime=$(./scripts/runtime.sh)
-[[ "$runtime" == docker ]] && docker compose --env-file .env -f compose.yaml down || podman compose --env-file .env -f compose.yaml down
+if [[ "$runtime" == docker ]]; then
+  docker compose --env-file .env -f compose.yaml down
+else
+  podman compose --env-file .env -f compose.yaml down
+fi
