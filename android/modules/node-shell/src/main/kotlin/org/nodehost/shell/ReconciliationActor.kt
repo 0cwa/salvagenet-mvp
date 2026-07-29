@@ -9,8 +9,11 @@ import kotlinx.coroutines.withTimeout
 import org.nodehost.core.NodePlanner
 import org.nodehost.core.OperationContext
 import org.nodehost.core.RuntimeBackend
+import org.nodehost.model.DesiredRuntimeState
+import org.nodehost.model.OperationRecord
 import org.nodehost.model.OperationState
 import org.nodehost.model.RuntimeId
+import org.nodehost.model.RuntimeObservation
 import org.nodehost.store.RoomOperationRepository
 import org.nodehost.store.StepStatus
 
@@ -43,18 +46,34 @@ class ReconciliationActor(
             events(ReconciliationEvent.Idle(reason))
             return
         }
-        val operation = store.operationForDesired(desired)
+        var operation = store.operationForDesired(desired)
         if (operation == null) {
             events(ReconciliationEvent.Failed(reason, "MissingOperation"))
             return
         }
 
-        if (operation.blocksEffects) {
+        // Cancellation disposes only its user operation. It must never be converted into an
+        // internal retry, because doing so would replay the cancelled operation's effects.
+        if (operation.blocksEffects &&
+            !(operation.state == OperationState.SUCCEEDED || store.isSystemReconciliation(operation.id))
+        ) {
             events(ReconciliationEvent.Completed(reason, 0))
             return
         }
-        val observed = withTimeout(effectTimeoutMillis) { runtime.observe(desired.id) }
-        store.recordObservation(observed)
+
+        var observed = observeAndRecord(desired.id)
+        if (operation.blocksEffects) {
+            if (operation.state == OperationState.SUCCEEDED && desired.isConverged(observed)) {
+                events(ReconciliationEvent.Completed(reason, 0))
+                return
+            }
+            operation = store.beginSystemReconciliation(desired)
+            if (operation == null || operation.blocksEffects) {
+                events(ReconciliationEvent.Failed(reason, "ReconciliationAttemptLimit"))
+                return
+            }
+        }
+
         val plan = NodePlanner.plan(desired, observed)
         var executedSteps = 0
         for (step in plan.steps) {
@@ -86,16 +105,20 @@ class ReconciliationActor(
             }
         }
         if (store.load(operation.id)?.blocksEffects == false) {
-            val finalObservation = withTimeout(effectTimeoutMillis) { runtime.observe(desired.id) }
-            store.recordObservation(finalObservation)
-            // Re-read immediately before the compare-and-set terminal transition.
-            if (NodePlanner.plan(desired, finalObservation).steps.isEmpty() &&
-                store.load(operation.id)?.blocksEffects == false
-            ) {
+            observed = observeAndRecord(desired.id)
+            // A Stopping observation intentionally has no graceful step before its monotonic
+            // deadline, but it is not convergence and therefore cannot complete a STOP operation.
+            if (desired.isConverged(observed) && store.load(operation.id)?.blocksEffects == false) {
                 store.markSucceeded(operation.id)
             }
         }
         events(ReconciliationEvent.Completed(reason, executedSteps))
+    }
+
+    private suspend fun observeAndRecord(id: RuntimeId): RuntimeObservation {
+        val observed = withTimeout(effectTimeoutMillis) { runtime.observe(id) }
+        store.recordObservation(observed)
+        return observed
     }
 
     suspend fun stop() {
@@ -112,7 +135,14 @@ class ReconciliationActor(
     }
 }
 
-private val org.nodehost.model.OperationRecord.blocksEffects: Boolean
+private fun org.nodehost.model.RuntimeSpec.isConverged(observed: RuntimeObservation): Boolean =
+    when (desiredState) {
+        DesiredRuntimeState.RUNNING -> observed is RuntimeObservation.Running && observed.guestReady
+        DesiredRuntimeState.STOPPED -> observed is RuntimeObservation.Stopped || observed is RuntimeObservation.Absent
+        DesiredRuntimeState.ABSENT -> observed is RuntimeObservation.Absent
+    }
+
+private val OperationRecord.blocksEffects: Boolean
     get() = state.terminal || state == OperationState.CANCELLING
 
 enum class WakeReason { SERVICE_STARTED, DESIRED_STATE_CHANGED, RUNTIME_EVENT, RETRY }
