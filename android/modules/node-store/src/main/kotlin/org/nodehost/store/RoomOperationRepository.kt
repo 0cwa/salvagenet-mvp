@@ -86,36 +86,54 @@ class RoomOperationRepository(
     }
 
     /**
-     * Creates or reuses the next durable reconciliation attempt without changing desired state.
-     * Stable IDs and the Room transaction make concurrent/repeated runtime wakes idempotent.
+     * Creates or reuses a durable reconciliation cycle without changing desired state.
+     *
+     * The fixed slot set bounds history without bounding lifetime recovery. Once all slots are
+     * occupied, the oldest terminal slot is compacted inside this transaction. An active slot is
+     * always reused, so concurrent/repeated runtime wakes remain idempotent.
      */
     suspend fun beginSystemReconciliation(spec: RuntimeSpec): OperationRecord? = database.withTransaction {
-        var latest: OperationEntity? = null
-        for (attempt in 1..MAX_SYSTEM_RECONCILIATION_ATTEMPTS) {
-            val id = systemReconciliationId(spec, attempt)
-            val existing = dao.operation(id)
-            if (existing != null) {
-                latest = existing
-                continue
-            }
-            if (latest != null && !OperationState.valueOf(latest.state).terminal) {
-                return@withTransaction latest.toModel()
-            }
-            require(dao.operationCount() < MAX_RETAINED_OPERATIONS) { "operation journal capacity exceeded" }
-            val now = clock.epochMillis()
-            val operation = OperationRecord(
-                id = OperationId(id),
-                idempotencyKey = "system-reconcile:${spec.id.value}:${spec.generation}:$attempt",
-                requestDigest = systemReconciliationDigest(spec),
-                runtimeId = spec.id,
-                desiredGeneration = spec.generation,
-                state = OperationState.ACCEPTED,
-                currentStepId = null,
-            )
-            dao.insertOperation(operation.toEntity(now, now))
-            return@withTransaction operation
+        val occupiedSlots = (1..MAX_RETAINED_SYSTEM_RECONCILIATIONS_PER_GENERATION).mapNotNull { slot ->
+            dao.operation(systemReconciliationId(spec, slot))?.let { slot to it }
         }
-        latest?.toModel()
+        occupiedSlots.firstOrNull { (_, operation) ->
+            !OperationState.valueOf(operation.state).terminal
+        }?.let { return@withTransaction it.second.toModel() }
+
+        val occupiedSlotNumbers = occupiedSlots.mapTo(mutableSetOf()) { it.first }
+        val availableSlot = (1..MAX_RETAINED_SYSTEM_RECONCILIATIONS_PER_GENERATION)
+            .firstOrNull { it !in occupiedSlotNumbers }
+        val slot = if (availableSlot != null) {
+            require(dao.operationCount() < MAX_RETAINED_OPERATIONS) { "operation journal capacity exceeded" }
+            availableSlot
+        } else {
+            val (_, oldestTerminal) = occupiedSlots.minWith(
+                compareBy<Pair<Int, OperationEntity>>(
+                    { it.second.createdAtEpochMillis },
+                    { it.second.updatedAtEpochMillis },
+                    { it.first },
+                ),
+            )
+            dao.deleteSteps(oldestTerminal.id)
+            check(dao.deleteTerminalOperation(oldestTerminal.id, oldestTerminal.state) == 1) {
+                "terminal reconciliation slot changed concurrently"
+            }
+            occupiedSlots.first { it.second.id == oldestTerminal.id }.first
+        }
+
+        val now = clock.epochMillis()
+        val id = systemReconciliationId(spec, slot)
+        val operation = OperationRecord(
+            id = OperationId(id),
+            idempotencyKey = "system-reconcile:${spec.id.value}:${spec.generation}:$slot",
+            requestDigest = systemReconciliationDigest(spec),
+            runtimeId = spec.id,
+            desiredGeneration = spec.generation,
+            state = OperationState.ACCEPTED,
+            currentStepId = null,
+        )
+        dao.insertOperation(operation.toEntity(now, now))
+        operation
     }
 
     fun isSystemReconciliation(id: OperationId): Boolean = id.value.startsWith(SYSTEM_RECONCILIATION_PREFIX)
@@ -205,10 +223,17 @@ class RoomOperationRepository(
     suspend fun steps(operationId: OperationId): List<OperationStepEntity> = dao.steps(operationId.value)
 
     private suspend fun latestSystemReconciliation(spec: RuntimeSpec): OperationRecord? {
-        for (attempt in MAX_SYSTEM_RECONCILIATION_ATTEMPTS downTo 1) {
-            dao.operation(systemReconciliationId(spec, attempt))?.let { return it.toModel() }
+        val slots = (1..MAX_RETAINED_SYSTEM_RECONCILIATIONS_PER_GENERATION).mapNotNull { slot ->
+            dao.operation(systemReconciliationId(spec, slot))
         }
-        return null
+        return slots.firstOrNull { !OperationState.valueOf(it.state).terminal }?.toModel()
+            ?: slots.maxWithOrNull(
+                compareBy<OperationEntity>(
+                    { it.createdAtEpochMillis },
+                    { it.updatedAtEpochMillis },
+                    { it.id },
+                ),
+            )?.toModel()
     }
 
     private fun systemReconciliationId(spec: RuntimeSpec, attempt: Int) =
@@ -234,7 +259,7 @@ class RoomOperationRepository(
 
     companion object {
         const val MAX_STEP_ATTEMPTS = 100
-        const val MAX_SYSTEM_RECONCILIATION_ATTEMPTS = 32
+        const val MAX_RETAINED_SYSTEM_RECONCILIATIONS_PER_GENERATION = 32
         const val MAX_RETAINED_OPERATIONS = 10_000L
         private const val SYSTEM_RECONCILIATION_PREFIX = "sys-reconcile-"
         private const val MAX_RESULT_DETAIL_CHARS = 512
