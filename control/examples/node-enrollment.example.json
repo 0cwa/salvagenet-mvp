@@ -25,8 +25,7 @@
   },
   "guestAccess": {
     "sshUser": "nodeadmin",
-    "sshUserCaPublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEONLYNOTAKEY nodehost-example",
-    "emergencyAuthorizedKeys": []
+    "sshUserCaPublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEONLYNOTAKEY nodehost-example"
   },
   "artifacts": {
     "repositoryUrl": "https://artifacts.example.invalid",
