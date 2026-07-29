@@ -1,9 +1,8 @@
-# End-to-end validation instructions
+# E2E compatibility-wrapper instructions
 
-- State the environment class in every result: fake, JVM/Robolectric, emulator, host-QEMU, or physical Android. Only physical Android closes B02/B07–B13/B16–B17.
-- Bind each run to one source commit, one exact APK, controller configuration hash, Headscale lab version, and device-facts record.
-- Verify separate host and guest mesh identities and test both direct/relay paths when available.
-- The normal path uses guest SSH; the recovery test intentionally disables guest mesh and uses only the authenticated host tunnel.
-- Re-running an idempotency key with different content must fail; older desired generations must not replace newer state.
-- Evidence scripts fail closed on missing observations. Manual continuation steps must not automatically update the ledger.
-- Never include live enrollment/auth keys, controller capabilities, private SSH keys, or full VM disks in committed artifacts.
+`tests/hil/` is the authoritative physical vertical-slice runner. This directory may only delegate to it or retain non-device contract fixtures.
+
+- Fake or emulator results never close physical gates.
+- Host and guest mesh identities must be asserted separately.
+- Real ordinary SSH and host-mediated recovery SSH are distinct assertions.
+- Exit 77 requires the HIL runner's recorded setup blocker, not a generic manual-follow-up message.

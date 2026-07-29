@@ -1,12 +1,10 @@
 # Human-to-device-validation handoff
 
-The T00–T08 overnight software implementation cycle is complete. The repository is now a **device-lab candidate**. The acceptance ledger still requires an authorized ARM64 Android device, live Headscale connectivity, a real QEMU/Ubuntu boot, guest SSH, recovery SSH, and lifecycle/reboot evidence.
+The software implementation cycle is complete. The repository is a **device-lab candidate**. Physical validation now uses one small runner rather than a collection of manual scripts or a device-farm project.
 
-Use [`agents/device-validation-goal.md`](agents/device-validation-goal.md), not the historical overnight implementation goal, for the next run.
+## 1. One-time host and phone preparation
 
-## 1. One-time host authorization
-
-Run these as the human operator; do not give an agent root credentials:
+Run host setup yourself; do not give the coding agent root credentials:
 
 ```sh
 sudo tools/bootstrap/ubuntu-root-setup.sh
@@ -17,17 +15,9 @@ source "$HOME/.config/nodehost/env.sh"
 yes | sdkmanager --licenses
 ```
 
-Authorize one ARM64 Android phone with ADB, accept the device RSA prompt, then verify:
+Connect one dedicated ARM64 Android phone, enable USB debugging, and accept its RSA prompt.
 
-```sh
-make doctor
-make device-facts
-adb devices -l
-```
-
-The device must appear as `device`, not `unauthorized`.
-
-## 2. Start the disposable Headscale laboratory
+## 2. Prepare the existing Headscale/controller state
 
 ```sh
 cp lab/headscale/.env.example lab/headscale/.env
@@ -35,54 +25,41 @@ cp lab/headscale/.env.example lab/headscale/.env
 make lab-up
 make lab-keys
 make lab-status
+
+cp tests/hil/config.example.json .local/hil.json
+# Set the exact ADB serial, node names, guest SSH target, and artifact-import files.
 ```
 
-Confirm the phone can reach the Headscale health URL. Live keys remain only in ignored files under `lab/headscale/secrets/`.
+Complete enrollment and Android VPN approval once for the persistent development mode. Live keys remain only in ignored lab/controller files.
 
-## 3. Establish the exact software candidate
+## 3. Establish the exact APK
 
-Use a green GitHub Actions artifact when available. Record its source commit and SHA-256 before installation. A locally built candidate must run the same checks:
+Use a green CI artifact when possible, or build locally with the same checks:
 
 ```sh
 make validate
 make test-jvm
 make test-android
 make test-guest
-
-cd android/podroid
-./gradlew :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging
+make hil-doctor HIL_BUILD=1
 ```
 
-Do not carry a `PASS` from a different APK or source commit into physical evidence.
+Do not transfer a pass from a different source commit or APK.
 
-## 4. Run the device-validation cycle
+## 4. Run the physical scenarios
 
-Follow [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) in order:
-
-```text
-D01  APK-native Alpine/QEMU boot and real QMP readiness
-D02  host Tailscale/Headscale and authenticated Host API
-D03  Ubuntu UEFI deployment, guest mesh, and ordinary SSH
-D04  host-mediated recovery SSH
-D05  Activity/service/process/reboot/controller-offline continuity
-D06  only bounded corrections demonstrated by those tests
-D07  one-commit/one-APK MVP evidence seal
+```sh
+make hil-smoke HIL_BUILD=1
+make hil-mvp
+make hil-resilience
+# or: make hil-all HIL_BUILD=1
 ```
 
-For each stage, read the nearest `AGENTS.md` under `tests/device`, `tests/e2e`, and the component being debugged.
+The runner writes ignored evidence under `.local/hil-runs/`. `hil-resilience` leaves reboot skipped unless `.local/hil.json` explicitly enables it.
 
-## 5. Evidence rules
+## 5. Promote evidence and update status
 
-A physical gate record must include:
-
-- exact source commit and APK SHA-256;
-- device manufacturer/model, API level, ABI, page size, and relevant power policy;
-- exact command or scripted procedure;
-- redacted logs/artifacts;
-- automated versus manually observed fields;
-- `PASS`, `FAIL`, or `BLOCKED-HARDWARE` without inference from unit/emulator tests.
-
-Regenerate the public status after any ledger update:
+Review redaction and assertions, then use the existing evidence tooling to promote the relevant run into `evidence/gates/`.
 
 ```sh
 make mvp-status
@@ -93,6 +70,4 @@ USB/AOA networking remains unscheduled until every B01–B20 gate is `PASS`.
 
 ## Authorization boundaries
 
-The validation agent may use the repository, its worktrees, the already authorized Docker/Podman socket, the authorized ADB device, the installed Android SDK/NDK, and ignored laboratory keys needed for the active stage.
-
-Do not provide production Headscale API keys, APK release-signing keys, unrelated SSH/private keys, or root credentials. Do not commit unfiltered logcat, auth keys, controller capabilities, guest disks, or enrollment bundles.
+The agent may use the repository, existing Docker/Podman socket, authorized ADB device, SDK/NDK, and ignored lab/controller files needed by the scenario. Do not provide production Headscale credentials, release-signing keys, unrelated private keys, or general root access.
