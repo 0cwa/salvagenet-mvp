@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/tailscale/tailscale-android.git",
-  "ref": "v1.98.2",
-  "commit": "VERIFY-IN-T05",
+  "ref": "android-go1.26.3-after-core-v1.98.2",
+  "commit": "68dd0a5170999fa33c884cb58a8d1679234cc9a3",
   "capturedAt": "2026-07-29",
-  "purpose": "Android-aware libtailscale/VpnService adapter only",
+  "purpose": "Official Android-aware libtailscale/VpnService adapter only",
   "coreRef": "v1.98.2",
+  "coreCommit": "34c530668cb05fa60b3d707a44b70460344789ef",
   "requiredGo": "1.26.3",
-  "coreCommitShort": "34c5306",
-  "notes": "Android release is verified; T05 must resolve and record the full immutable tailscale-android repository commit before import."
+  "notes": "The Android commit is the first official Go 1.26.3 baseline after core v1.98.2; the reproducible build replaces its next-development core pseudo-version with immutable v1.98.2. Generated AARs remain ignored."
 }
