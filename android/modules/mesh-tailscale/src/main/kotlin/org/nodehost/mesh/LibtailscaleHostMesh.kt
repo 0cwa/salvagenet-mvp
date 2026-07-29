@@ -1,6 +1,7 @@
 package org.nodehost.mesh
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.net.VpnService
 import java.net.URI
 import kotlinx.coroutines.sync.Mutex
@@ -19,11 +20,13 @@ class LibtailscaleHostMesh internal constructor(
     private val backend: HostMeshBackend,
     private val store: MeshConfigurationStore,
     private val hasVpnPermission: () -> Boolean,
+    private val controlUrlPolicy: ControlUrlPolicy = ControlUrlPolicy.RELEASE,
 ) : HostMesh {
     constructor(context: Context) : this(
         AndroidLibtailscaleRuntime.backend(context.applicationContext),
         AndroidMeshConfigurationStore(context.applicationContext),
         { VpnService.prepare(context.applicationContext) == null },
+        ControlUrlPolicy.fromAndroid(context.applicationContext),
     )
 
     private val operationLock = Mutex()
@@ -56,6 +59,12 @@ class LibtailscaleHostMesh internal constructor(
     override suspend fun start() = operationLock.withLock {
         val configuration = store.load()
             ?: throw IllegalStateException("host mesh is not configured")
+        try {
+            validateControlUrl(configuration.controlUrl, controlUrlPolicy)
+        } catch (failure: IllegalArgumentException) {
+            current = failureStatus(failure)
+            throw failure
+        }
         if (!hasVpnPermission()) {
             current = HostMeshStatus(HostMeshStatus.State.NEEDS_PERMISSION, detail = "vpn_permission_required")
             return@withLock
@@ -145,11 +154,7 @@ class LibtailscaleHostMesh internal constructor(
 
     private fun parseConfiguration(configuration: HostMeshConfiguration): PersistedMeshConfiguration {
         require(configuration.controlUrl.length <= MAX_CONTROL_URL_LENGTH) { "control URL is too long" }
-        val uri = URI(configuration.controlUrl)
-        require(uri.scheme == "https" || uri.scheme == "http") { "control URL must use HTTP(S)" }
-        require(!uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null) {
-            "control URL must be an absolute server URL"
-        }
+        validateControlUrl(configuration.controlUrl, controlUrlPolicy)
         require(HOSTNAME.matches(configuration.hostname)) { "invalid mesh hostname" }
         val authKey = configuration.oneUseAuthKey.value
         require(authKey.length in 16..512 && !authKey.any(Char::isWhitespace)) { "invalid one-use auth key" }
@@ -167,5 +172,28 @@ class LibtailscaleHostMesh internal constructor(
         const val MAX_FAILURE_DETAIL_LENGTH = 128
         const val MAX_ENROLLMENT_OBSERVATIONS = 12
         val HOSTNAME = Regex("[a-z0-9][a-z0-9-]{0,62}")
+    }
+}
+
+/** Process policy only: enrollment data cannot opt into cleartext control traffic. */
+internal class ControlUrlPolicy private constructor(val allowCleartextForDebugLab: Boolean) {
+    companion object {
+        val RELEASE = ControlUrlPolicy(allowCleartextForDebugLab = false)
+        val DEBUG_LAB = ControlUrlPolicy(allowCleartextForDebugLab = true)
+
+        fun fromAndroid(context: Context): ControlUrlPolicy = fromApplicationFlags(context.applicationInfo.flags)
+
+        internal fun fromApplicationFlags(applicationFlags: Int): ControlUrlPolicy =
+            if (applicationFlags and ApplicationInfo.FLAG_DEBUGGABLE != 0) DEBUG_LAB else RELEASE
+    }
+}
+
+internal fun validateControlUrl(controlUrl: String, policy: ControlUrlPolicy) {
+    val uri = URI(controlUrl)
+    require(uri.scheme == "https" || (uri.scheme == "http" && policy.allowCleartextForDebugLab)) {
+        "control URL must use HTTPS"
+    }
+    require(!uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null) {
+        "control URL must be an absolute server URL"
     }
 }

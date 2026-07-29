@@ -1,7 +1,56 @@
 package org.nodehost.model
 
+import java.net.URI
+import java.net.URISyntaxException
+
 private val hostnamePattern = Regex("[a-z0-9][a-z0-9-]{0,62}")
+private val dnsLabelPattern = Regex("[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
 private val sshPublicKeyPattern = Regex("ssh-(ed25519|rsa) [A-Za-z0-9+/=]+(?: .{1,128})?")
+private val controllerIdPattern = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+
+private fun requireHttpUri(
+    value: String,
+    allowedSchemes: Set<String>,
+    userInfoAndFragmentAllowed: Boolean = true,
+) {
+    require(value.length in 1..2048) { "URI length is out of range" }
+    val uri = try {
+        URI(value)
+    } catch (error: URISyntaxException) {
+        throw IllegalArgumentException("invalid URI", error)
+    }
+    require(uri.isAbsolute && !uri.isOpaque && uri.scheme in allowedSchemes) { "invalid URI scheme" }
+    require(uri.rawAuthority != null && uri.host != null) { "URI must have a host" }
+    require(uri.port == -1 || uri.port in 1..65535) { "URI port is out of range" }
+    if (!userInfoAndFragmentAllowed) {
+        require(uri.rawUserInfo == null) { "URI userinfo is not allowed" }
+        require(uri.rawFragment == null) { "URI fragment is not allowed" }
+    }
+    requirePublicHostSyntax(uri.host)
+}
+
+private fun requirePublicHostSyntax(uriHost: String) {
+    val bracketed = uriHost.startsWith('[') && uriHost.endsWith(']')
+    val host = uriHost.removePrefix("[").removeSuffix("]")
+    require(!bracketed || host.contains(':')) { "bracketed host must be an IPv6 literal" }
+    if (host.contains(':')) {
+        // java.net.URI has already parsed and validated the bracketed IPv6 literal.
+        require(host.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' || it == ':' || it == '.' }) {
+            "invalid IPv6 host"
+        }
+        return
+    }
+    if (host.all { it.isDigit() || it == '.' }) {
+        val octets = host.split('.')
+        require(octets.size == 4 && octets.all {
+            it.isNotEmpty() && it.length <= 3 && it.toIntOrNull()?.let { value -> value in 0..255 } == true
+        }) {
+            "invalid IPv4 host"
+        }
+        return
+    }
+    require(host.length <= 253 && host.split('.').all(dnsLabelPattern::matches)) { "invalid DNS host" }
+}
 
 @JvmInline
 value class SensitiveValue(val value: String) {
@@ -25,7 +74,7 @@ data class ControllerEnrollment(
     val oneTimeEnrollmentToken: SensitiveValue,
 ) {
     init {
-        require(endpoint.length <= 2048 && endpoint.startsWith("https://"))
+        requireHttpUri(endpoint, setOf("https"), userInfoAndFragmentAllowed = false)
         require(Regex("[a-f0-9]{64}").matches(spkiSha256))
     }
 }
@@ -37,7 +86,7 @@ data class HostMeshEnrollment(
     val expectedTags: Set<String>,
 ) {
     init {
-        require(controlUrl.length <= 2048 && (controlUrl.startsWith("https://") || controlUrl.startsWith("http://")))
+        requireHttpUri(controlUrl, setOf("http", "https"))
         require(expectedTags.size in 1..8)
         require(expectedTags.all { Regex("tag:[a-z0-9][a-z0-9-]{0,62}").matches(it) })
     }
@@ -47,18 +96,18 @@ data class HostAccessEnrollment(
     val controllerCapability: SensitiveValue,
     val allowedControllerId: String,
 ) {
-    init { require(allowedControllerId.length in 1..128) }
+    init { require(controllerIdPattern.matches(allowedControllerId)) }
 }
 
 sealed interface GuestSshAuthorization {
     data class UserCertificateAuthority(val publicKey: String) : GuestSshAuthorization {
-        init { require(sshPublicKeyPattern.matches(publicKey)) }
+        init { require(publicKey.length in 24..16384 && sshPublicKeyPattern.matches(publicKey)) }
     }
 
     data class AuthorizedKeys(val publicKeys: Set<String>) : GuestSshAuthorization {
         init {
             require(publicKeys.size in 1..4)
-            require(publicKeys.all(sshPublicKeyPattern::matches))
+            require(publicKeys.all { it.length in 24..16384 && sshPublicKeyPattern.matches(it) })
         }
     }
 }
@@ -75,7 +124,7 @@ data class ArtifactDefaults(
     val profileIds: Set<VmProfileId>,
 ) {
     init {
-        require(repositoryUrl.length <= 2048 && repositoryUrl.startsWith("https://"))
+        requireHttpUri(repositoryUrl, setOf("https"))
         require(profileIds.size in 1..16)
     }
 }

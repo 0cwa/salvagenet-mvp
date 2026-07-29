@@ -219,6 +219,122 @@ class ReconciliationActorTest {
     }
 
     @Test
+    fun ignoredGracefulShutdownCannotSucceedAndDeadlineWakeForceStops() = runBlocking {
+        val operation = acceptDesired(DesiredRuntimeState.STOPPED)
+        var observation: RuntimeObservation = RuntimeObservation.Running(RuntimeId.DEFAULT, 42, true)
+        val executed = CopyOnWriteArrayList<String>()
+        val runtime = object : RuntimeBackend {
+            override suspend fun observe(id: RuntimeId) = observation
+            override suspend fun execute(context: OperationContext, step: RuntimeStep): StepOutcome {
+                executed += step.id
+                observation = when (step) {
+                    RuntimeStep.RequestShutdown -> RuntimeObservation.Stopping(id = RuntimeId.DEFAULT, processId = 42, gracefulDeadlineExceeded = false)
+                    RuntimeStep.ForceStop -> RuntimeObservation.Stopped(RuntimeId.DEFAULT, null)
+                    else -> observation
+                }
+                return StepOutcome(true)
+            }
+        }
+
+        runActor(runtime)
+        assertEquals(OperationState.ACCEPTED, store.load(operation.id)?.state)
+        assertEquals(listOf("qemu.request_shutdown"), executed)
+
+        observation = RuntimeObservation.Stopping(RuntimeId.DEFAULT, 42, gracefulDeadlineExceeded = true)
+        runActor(runtime)
+        assertEquals(listOf("qemu.request_shutdown", "qemu.force_stop"), executed)
+        assertEquals(OperationState.SUCCEEDED, store.load(operation.id)?.state)
+    }
+
+    @Test
+    fun normalLateExitCompletesStopWithoutForceStop() = runBlocking {
+        val operation = acceptDesired(DesiredRuntimeState.STOPPED)
+        var observation: RuntimeObservation = RuntimeObservation.Running(RuntimeId.DEFAULT, 42, true)
+        val executed = CopyOnWriteArrayList<String>()
+        val runtime = object : RuntimeBackend {
+            override suspend fun observe(id: RuntimeId) = observation
+            override suspend fun execute(context: OperationContext, step: RuntimeStep): StepOutcome {
+                executed += step.id
+                observation = RuntimeObservation.Stopping(RuntimeId.DEFAULT, 42, false)
+                return StepOutcome(true)
+            }
+        }
+
+        runActor(runtime)
+        observation = RuntimeObservation.Stopped(RuntimeId.DEFAULT, null)
+        runActor(runtime)
+
+        assertEquals(listOf("qemu.request_shutdown"), executed)
+        assertEquals(OperationState.SUCCEEDED, store.load(operation.id)?.state)
+    }
+
+    @Test
+    fun spontaneousExitAfterSucceededCreatesDurableMaintenanceAndRestarts() = runBlocking {
+        val userOperation = acceptDesired()
+        val external = FakeRuntimeState()
+        runActor(FakeRuntimeBackend(external))
+        assertEquals(OperationState.SUCCEEDED, store.load(userOperation.id)?.state)
+
+        external.observation = RuntimeObservation.Absent(RuntimeId.DEFAULT)
+        val maintenanceRuntime = FakeRuntimeBackend(external)
+        runActor(maintenanceRuntime)
+
+        val maintenance = requireNotNull(store.operationForDesired(requireNotNull(store.loadDesiredRuntime(RuntimeId.DEFAULT))))
+        assertTrue(store.isSystemReconciliation(maintenance.id))
+        assertEquals(OperationState.SUCCEEDED, maintenance.state)
+        assertEquals(1, maintenanceRuntime.executed.count { it.second == RuntimeStep.StartProcess })
+        assertEquals(DesiredRuntimeState.RUNNING, store.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState)
+    }
+
+    @Test
+    fun processDeathDuringMaintenanceUsesNewAttemptWithoutReplayingUnknownEffect() = runBlocking {
+        acceptDesired()
+        val external = FakeRuntimeState()
+        runActor(FakeRuntimeBackend(external))
+        external.observation = RuntimeObservation.Absent(RuntimeId.DEFAULT)
+        val desired = requireNotNull(store.loadDesiredRuntime(RuntimeId.DEFAULT))
+        val interrupted = requireNotNull(store.beginSystemReconciliation(desired))
+        store.beginStep(interrupted.id, RuntimeStep.StartProcess.id)
+
+        val recoveryProbe = FakeRuntimeBackend(external)
+        runActor(recoveryProbe, expectFailure = true)
+        assertEquals(0, recoveryProbe.executed.count { it.second == RuntimeStep.StartProcess })
+        assertEquals(OperationState.FAILED_PERMANENT, store.load(interrupted.id)?.state)
+
+        val restartedRuntime = FakeRuntimeBackend(external)
+        runActor(restartedRuntime)
+
+        val maintenance = requireNotNull(store.operationForDesired(desired))
+        assertTrue(maintenance.id.value.endsWith("-2"))
+        assertEquals(OperationState.SUCCEEDED, maintenance.state)
+        assertEquals(1, restartedRuntime.executed.count { it.second == RuntimeStep.StartProcess })
+    }
+
+    @Test
+    fun repeatedExitWakesReuseOneMaintenanceAttempt() = runBlocking {
+        acceptDesired()
+        val external = FakeRuntimeState()
+        runActor(FakeRuntimeBackend(external))
+        external.observation = RuntimeObservation.Absent(RuntimeId.DEFAULT)
+        val runtime = FakeRuntimeBackend(external)
+        val events = CopyOnWriteArrayList<ReconciliationEvent>()
+        val completed = CompletableDeferred<Unit>()
+        val actor = ReconciliationActor(newScope(), store, runtime, events = {
+            events += it
+            if (it is ReconciliationEvent.Completed) completed.complete(Unit)
+        })
+
+        repeat(100) { actor.wake(WakeReason.RUNTIME_EVENT) }
+        withTimeout(5_000) { completed.await() }
+        actor.stop()
+
+        val maintenance = requireNotNull(store.operationForDesired(requireNotNull(store.loadDesiredRuntime(RuntimeId.DEFAULT))))
+        assertEquals("sys-reconcile-default-1-1", maintenance.id.value)
+        assertEquals(1, runtime.executed.count { it.second == RuntimeStep.StartProcess })
+        assertTrue(events.count { it is ReconciliationEvent.Completed } <= 2)
+    }
+
+    @Test
     fun conflatedWakeQueueSerializesRuntimeMutations() = runBlocking {
         acceptDesired()
         val runtime = FakeRuntimeBackend()
@@ -237,7 +353,9 @@ class ReconciliationActorTest {
         assertTrue(events.count { it is ReconciliationEvent.Completed } <= 2)
     }
 
-    private suspend fun acceptDesired(): OperationRecord {
+    private suspend fun acceptDesired(
+        desiredState: DesiredRuntimeState = DesiredRuntimeState.RUNNING,
+    ): OperationRecord {
         val operation = OperationRecord(
             OperationId("op-001"), "idempotency-key-0001", "a".repeat(64), RuntimeId.DEFAULT, 1,
             OperationState.ACCEPTED, null,
@@ -245,7 +363,7 @@ class ReconciliationActorTest {
         val accepted = store.acceptDesiredRuntime(
             RuntimeSpec(
                 generation = 1,
-                desiredState = DesiredRuntimeState.RUNNING,
+                desiredState = desiredState,
                 profileId = VmProfileId("alpine-direct"),
                 memoryMiB = 512,
                 vcpus = 1,

@@ -1,6 +1,7 @@
 package org.nodehost.store
 
 import androidx.room.withTransaction
+import java.security.MessageDigest
 import org.nodehost.core.Clock
 import org.nodehost.core.DesiredRuntimeAcceptance
 import org.nodehost.core.OperationRepository
@@ -79,8 +80,45 @@ class RoomOperationRepository(
         DesiredRuntimeAcceptance.Accepted
     }
 
-    suspend fun operationForDesired(spec: RuntimeSpec): OperationRecord? =
-        dao.operationForGeneration(spec.id.value, spec.generation)?.toModel()
+    suspend fun operationForDesired(spec: RuntimeSpec): OperationRecord? {
+        latestSystemReconciliation(spec)?.let { return it }
+        return dao.operationForGeneration(spec.id.value, spec.generation)?.toModel()
+    }
+
+    /**
+     * Creates or reuses the next durable reconciliation attempt without changing desired state.
+     * Stable IDs and the Room transaction make concurrent/repeated runtime wakes idempotent.
+     */
+    suspend fun beginSystemReconciliation(spec: RuntimeSpec): OperationRecord? = database.withTransaction {
+        var latest: OperationEntity? = null
+        for (attempt in 1..MAX_SYSTEM_RECONCILIATION_ATTEMPTS) {
+            val id = systemReconciliationId(spec, attempt)
+            val existing = dao.operation(id)
+            if (existing != null) {
+                latest = existing
+                continue
+            }
+            if (latest != null && !OperationState.valueOf(latest.state).terminal) {
+                return@withTransaction latest.toModel()
+            }
+            require(dao.operationCount() < MAX_RETAINED_OPERATIONS) { "operation journal capacity exceeded" }
+            val now = clock.epochMillis()
+            val operation = OperationRecord(
+                id = OperationId(id),
+                idempotencyKey = "system-reconcile:${spec.id.value}:${spec.generation}:$attempt",
+                requestDigest = systemReconciliationDigest(spec),
+                runtimeId = spec.id,
+                desiredGeneration = spec.generation,
+                state = OperationState.ACCEPTED,
+                currentStepId = null,
+            )
+            dao.insertOperation(operation.toEntity(now, now))
+            return@withTransaction operation
+        }
+        latest?.toModel()
+    }
+
+    fun isSystemReconciliation(id: OperationId): Boolean = id.value.startsWith(SYSTEM_RECONCILIATION_PREFIX)
 
     suspend fun current(id: RuntimeId): RuntimeObservation? = dao.current(id.value)?.toModel()
 
@@ -166,6 +204,26 @@ class RoomOperationRepository(
 
     suspend fun steps(operationId: OperationId): List<OperationStepEntity> = dao.steps(operationId.value)
 
+    private suspend fun latestSystemReconciliation(spec: RuntimeSpec): OperationRecord? {
+        for (attempt in MAX_SYSTEM_RECONCILIATION_ATTEMPTS downTo 1) {
+            dao.operation(systemReconciliationId(spec, attempt))?.let { return it.toModel() }
+        }
+        return null
+    }
+
+    private fun systemReconciliationId(spec: RuntimeSpec, attempt: Int) =
+        "$SYSTEM_RECONCILIATION_PREFIX${spec.id.value}-${spec.generation}-$attempt"
+
+    private fun systemReconciliationDigest(spec: RuntimeSpec): String {
+        val canonical = listOf(
+            spec.id.value, spec.generation, spec.desiredState.name, spec.profileId.value,
+            spec.memoryMiB, spec.vcpus, spec.dataDiskGiB, spec.preserveDataOnDelete,
+        ).joinToString("|")
+        return MessageDigest.getInstance("SHA-256")
+            .digest(canonical.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
+
     private suspend fun compareAndSet(
         stored: OperationEntity,
         updated: OperationRecord,
@@ -176,7 +234,9 @@ class RoomOperationRepository(
 
     companion object {
         const val MAX_STEP_ATTEMPTS = 100
+        const val MAX_SYSTEM_RECONCILIATION_ATTEMPTS = 32
         const val MAX_RETAINED_OPERATIONS = 10_000L
+        private const val SYSTEM_RECONCILIATION_PREFIX = "sys-reconcile-"
         private const val MAX_RESULT_DETAIL_CHARS = 512
         private const val UNKNOWN_EFFECT_OUTCOME = "UNKNOWN_EFFECT_OUTCOME"
         private val ERROR_CODE = Regex("[A-Z][A-Z0-9_]{0,63}")

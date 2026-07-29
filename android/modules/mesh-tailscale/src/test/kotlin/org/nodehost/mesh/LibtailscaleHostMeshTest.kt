@@ -28,6 +28,43 @@ class LibtailscaleHostMeshTest {
         assertEquals(configuration.oneUseAuthKey.value, fixture.store.value?.oneUseAuthKey)
     }
 
+    @Test fun `release rejects cleartext before persistence or LocalAPI`() {
+        val fixture = fixture(permission = true)
+        val cleartext = configuration.copy(controlUrl = "http://headscale.lab.test:8080")
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { fixture.mesh.configure(cleartext) }
+        }
+
+        assertNull(fixture.store.value)
+        assertTrue(fixture.backend.configured.isEmpty())
+    }
+
+    @Test fun `debug lab policy accepts cleartext control URL`() = runBlocking {
+        val fixture = fixture(permission = true, controlUrlPolicy = ControlUrlPolicy.DEBUG_LAB)
+        val cleartext = configuration.copy(controlUrl = "http://headscale.lab.test:8080")
+
+        fixture.mesh.configure(cleartext)
+
+        assertEquals(cleartext, fixture.backend.configured.single())
+        assertEquals(cleartext.controlUrl, fixture.store.value?.controlUrl)
+    }
+
+    @Test fun `restart of old cleartext state fails closed before backend start`() {
+        val fixture = fixture(permission = true)
+        fixture.store.value = PersistedMeshConfiguration(
+            "http://old-headscale.lab.test:8080",
+            configuration.hostname,
+            configuration.oneUseAuthKey.value,
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { fixture.mesh.start() }
+        }
+
+        assertTrue(fixture.backend.startKeys.isEmpty())
+    }
+
     @Test fun `missing VPN approval is reported without enrollment effect`() = runBlocking {
         val fixture = fixture(permission = false)
         fixture.mesh.configure(configuration)
@@ -195,10 +232,17 @@ class LibtailscaleHostMeshTest {
         assertTrue(fixture.backend.configured.isEmpty())
     }
 
-    private fun fixture(permission: Boolean): Fixture {
+    private fun fixture(
+        permission: Boolean,
+        controlUrlPolicy: ControlUrlPolicy = ControlUrlPolicy.RELEASE,
+    ): Fixture {
         val backend = FakeBackend()
         val store = FakeStore()
-        return Fixture(LibtailscaleHostMesh(backend, store) { permission }, backend, store)
+        return Fixture(
+            LibtailscaleHostMesh(backend, store, { permission }, controlUrlPolicy),
+            backend,
+            store,
+        )
     }
 
     private data class Fixture(
