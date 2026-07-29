@@ -14,14 +14,12 @@ import java.net.InetAddress
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /** Headless adaptation of the official Tailscale Android IPNService/VpnService hooks. */
 class NodeTailscaleVpnService : VpnService(), libtailscale.IPNService {
     private val serviceId = UUID.randomUUID().toString()
     @Volatile private var closed = false
-    private val lifecycleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -77,11 +75,15 @@ class NodeTailscaleVpnService : VpnService(), libtailscale.IPNService {
     }
 
     override fun onRevoke() {
-        lifecycleScope.launch {
+        // This bounded one-shot obligation must survive onDestroy; LocalAPI applies its own deadline.
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 AndroidLibtailscaleRuntime.revokeService(this@NodeTailscaleVpnService)
             } catch (failure: Exception) {
-                Log.e("NodeHostMesh", "failed to clear wanted-running state after VPN revoke", failure)
+                Log.e(
+                    "NodeHostMesh",
+                    "failed to complete VPN revoke cleanup (${failure::class.java.simpleName.take(64)})",
+                )
             } finally {
                 close()
             }
