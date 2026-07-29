@@ -148,6 +148,29 @@ class LibtailscaleHostMeshTest {
         assertThrows(IllegalStateException::class.java) { runBlocking { fixture.mesh.clearIdentity() } }
 
         assertEquals(configuration.controlUrl, fixture.store.value?.controlUrl)
+        assertEquals(configuration.oneUseAuthKey.value, fixture.store.value?.oneUseAuthKey)
+    }
+
+    @Test fun `confirmed revoke clears configuration even when dedicated key deletion fails`() = runBlocking {
+        val fixture = fixture(permission = true)
+        fixture.mesh.configure(configuration)
+        fixture.store.failDeletion = true
+
+        fixture.mesh.clearIdentity()
+
+        assertNull(fixture.store.value)
+        assertEquals(HostMeshStatus.State.STOPPED, fixture.mesh.status().state)
+    }
+
+    @Test fun `confirmed revoke does not retain key when final configuration clear fails`() {
+        val fixture = fixture(permission = true)
+        runBlocking { fixture.mesh.configure(configuration) }
+        fixture.store.failClear = true
+
+        assertThrows(IllegalStateException::class.java) { runBlocking { fixture.mesh.clearIdentity() } }
+
+        assertEquals(configuration.controlUrl, fixture.store.value?.controlUrl)
+        assertNull(fixture.store.value?.oneUseAuthKey)
     }
 
     @Test fun `status address collection is bounded`() = runBlocking {
@@ -213,12 +236,16 @@ class LibtailscaleHostMeshTest {
     private class FakeStore : MeshConfigurationStore {
         var value: PersistedMeshConfiguration? = null
         var failDeletion = false
+        var failClear = false
         override suspend fun save(configuration: PersistedMeshConfiguration) { value = configuration }
         override suspend fun load(): PersistedMeshConfiguration? = value
         override suspend fun deleteOneUseAuthKey() {
             if (failDeletion) throw IllegalStateException("disk full")
             value = value?.copy(oneUseAuthKey = null)
         }
-        override suspend fun clear() { value = null }
+        override suspend fun clear() {
+            if (failClear) throw IllegalStateException("disk full")
+            value = null
+        }
     }
 }

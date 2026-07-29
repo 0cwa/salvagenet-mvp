@@ -2,6 +2,7 @@ package org.nodehost.mesh
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
@@ -37,7 +38,11 @@ internal object AndroidLibtailscaleRuntime {
     }
 
     suspend fun revokeService(service: NodeTailscaleVpnService) {
-        backend(service.applicationContext).stopForRevocation()
+        val context = service.applicationContext
+        revokeVpn(
+            stopBackend = { backend(context).stopForRevocation() },
+            deleteOneUseAuthKey = { AndroidMeshConfigurationStore(context).deleteOneUseAuthKey() },
+        )
     }
 }
 
@@ -110,7 +115,7 @@ internal class AndroidLibtailscaleBackend(private val context: Context) : HostMe
         Libtailscale.requestVPN(service)
         true
     } catch (failure: Exception) {
-        Log.e(TAG, "libtailscale VPN attach failed", failure)
+        logClassifiedFailure("libtailscale VPN attach failed", failure)
         false
     }
 
@@ -118,8 +123,12 @@ internal class AndroidLibtailscaleBackend(private val context: Context) : HostMe
         try {
             Libtailscale.serviceDisconnect(service)
         } catch (failure: Exception) {
-            Log.e(TAG, "libtailscale VPN detach failed", failure)
+            logClassifiedFailure("libtailscale VPN detach failed", failure)
         }
+    }
+
+    private fun logClassifiedFailure(message: String, failure: Exception) {
+        Log.e(TAG, "$message (${failure::class.java.simpleName.take(64)})")
     }
 
     private companion object {
@@ -127,6 +136,14 @@ internal class AndroidLibtailscaleBackend(private val context: Context) : HostMe
         const val LIBTAILSCALE_STATE_PREFIX = "libtailscale."
         const val MAX_ADDRESSES = 16
     }
+}
+
+internal suspend fun revokeVpn(
+    stopBackend: suspend () -> Unit,
+    deleteOneUseAuthKey: suspend () -> Unit,
+) {
+    stopBackend()
+    deleteOneUseAuthKey()
 }
 
 internal data class LocalApiCall(val method: String, val endpoint: String, val body: ByteArray? = null)
@@ -198,6 +215,10 @@ private class AndroidPlatformContext(
     private val context: Context,
     private val secureState: AndroidSecureState,
 ) : libtailscale.AppContext {
+    private val nativeLog = NativeLogCallback(
+        diagnosticsEnabled = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0,
+        sink = { message -> Log.d("NodeHostMesh/libtailscale", message) },
+    )
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = notifyNetworkChanged(network)
@@ -221,12 +242,10 @@ private class AndroidPlatformContext(
         try {
             Libtailscale.onDNSConfigChanged(interfaceName)
         } catch (failure: Exception) {
-            Log.w(TAG, "libtailscale network callback failed", failure)
+            Log.w(TAG, "libtailscale network callback failed (${failure::class.java.simpleName.take(64)})")
         }
     }
-    override fun log(tag: String?, line: String?) {
-        Log.d("libtailscale/${tag.orEmpty().take(32)}", line.orEmpty())
-    }
+    override fun log(tag: String?, line: String?) = nativeLog.emit(line)
     override fun encryptToPref(key: String, value: String) = secureState.put(STATE_PREFIX + key, value)
     override fun decryptFromPref(key: String): String? = secureState.get(STATE_PREFIX + key)
     override fun getStateStoreKeysJSON(): String = JSONArray(
@@ -293,7 +312,7 @@ private class AndroidPlatformContext(
         ParcelFileDescriptor.fromFd(fd).use { network.bindSocket(it.fileDescriptor) }
         true
     } catch (failure: Exception) {
-        Log.w(TAG, "socket protection failed", failure)
+        Log.w(TAG, "socket protection failed (${failure::class.java.simpleName.take(64)})")
         false
     }
 
@@ -302,5 +321,34 @@ private class AndroidPlatformContext(
         const val STATE_PREFIX = "libtailscale."
         const val MAX_INTERFACES = 64
         const val MAX_INTERFACE_ADDRESSES = 32
+    }
+}
+
+/** Release callbacks are silent; debug callbacks expose only bounded, redacted diagnostics. */
+internal class NativeLogCallback(
+    private val diagnosticsEnabled: Boolean,
+    private val sink: (String) -> Unit,
+) {
+    fun emit(line: String?) {
+        if (!diagnosticsEnabled) return
+        var redacted = line.orEmpty().take(MAX_INPUT_CHARS)
+        redacted = URL.replace(redacted, "[URL_REDACTED]")
+        redacted = AUTHORIZATION.replace(redacted) { "${it.groupValues[1]}[REDACTED]" }
+        redacted = BEARER.replace(redacted) { "${it.groupValues[1]}[REDACTED]" }
+        redacted = AUTH_KEY.replace(redacted, "[AUTH_KEY_REDACTED]")
+        redacted = CREDENTIAL.replace(redacted) { "${it.groupValues[1]}[REDACTED]" }
+        sink(redacted.take(MAX_OUTPUT_CHARS))
+    }
+
+    private companion object {
+        const val MAX_INPUT_CHARS = 4 * 1024
+        const val MAX_OUTPUT_CHARS = 1024
+        val URL = Regex("(?i)\\b(?:https?|wss?)://[^\\s\\]}>]+")
+        val AUTHORIZATION = Regex("(?i)(\\bauthorization\\s*[:=]\\s*)(?:bearer|basic)?\\s*[^\\s,;]+")
+        val BEARER = Regex("(?i)(\\bbearer\\s+)[^\\s,;]+")
+        val AUTH_KEY = Regex("(?i)\\btskey-(?:auth|client)-[a-z0-9_-]+")
+        val CREDENTIAL = Regex(
+            "(?i)([\\\"']?\\b(?:auth|auth[_-]?key|api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|passwd|pwd|secret|credential)\\b[\\\"']?\\s*[:=]\\s*[\\\"']?)[^\\s,;\\\"']+",
+        )
     }
 }
