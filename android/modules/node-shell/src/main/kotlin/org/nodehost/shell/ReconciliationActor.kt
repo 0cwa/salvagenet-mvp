@@ -49,29 +49,53 @@ class ReconciliationActor(
             return
         }
 
+        if (operation.blocksEffects) {
+            events(ReconciliationEvent.Completed(reason, 0))
+            return
+        }
         val observed = withTimeout(effectTimeoutMillis) { runtime.observe(desired.id) }
         store.recordObservation(observed)
         val plan = NodePlanner.plan(desired, observed)
-        val repeatCompleted = operation.state.terminal
+        var executedSteps = 0
         for (step in plan.steps) {
-            val intent = store.beginStep(operation, step.id, repeatCompleted)
+            // Re-read at every boundary. beginStep repeats the check transactionally with intent creation.
+            if (store.load(operation.id)?.blocksEffects != false) break
+            val begun = store.beginStep(operation.id, step.id) ?: break
+            val intent = begun.intent
             if (intent.status == StepStatus.SUCCEEDED.name) continue
+            if (begun.recovered) {
+                store.failUnknownStartedStep(intent)
+                events(ReconciliationEvent.Failed(reason, "UnknownStartedIntent"))
+                return
+            }
+            // Cancellation may commit after intent creation but before the external call.
+            if (store.load(operation.id)?.blocksEffects != false) break
             try {
                 val outcome = withTimeout(effectTimeoutMillis) {
                     runtime.execute(OperationContext(operation.id, step.id, intent.attempt), step)
                 }
-                store.completeStep(intent, outcome)
+                if (!store.completeStep(intent, outcome)) break
+                executedSteps++
             } catch (failure: Exception) {
-                store.failStep(intent, if (failure is kotlinx.coroutines.TimeoutCancellationException) "EFFECT_TIMEOUT" else "EFFECT_FAILED")
-                throw failure
+                val failed = store.failStep(
+                    intent,
+                    if (failure is kotlinx.coroutines.TimeoutCancellationException) "EFFECT_TIMEOUT" else "EFFECT_FAILED",
+                )
+                if (failed) throw failure
+                break
             }
         }
-        val finalObservation = withTimeout(effectTimeoutMillis) { runtime.observe(desired.id) }
-        store.recordObservation(finalObservation)
-        if (NodePlanner.plan(desired, finalObservation).steps.isEmpty()) {
-            store.markSucceeded(operation)
+        if (store.load(operation.id)?.blocksEffects == false) {
+            val finalObservation = withTimeout(effectTimeoutMillis) { runtime.observe(desired.id) }
+            store.recordObservation(finalObservation)
+            // Re-read immediately before the compare-and-set terminal transition.
+            if (NodePlanner.plan(desired, finalObservation).steps.isEmpty() &&
+                store.load(operation.id)?.blocksEffects == false
+            ) {
+                store.markSucceeded(operation.id)
+            }
         }
-        events(ReconciliationEvent.Completed(reason, plan.steps.size))
+        events(ReconciliationEvent.Completed(reason, executedSteps))
     }
 
     suspend fun stop() {
@@ -87,6 +111,9 @@ class ReconciliationActor(
         const val DEFAULT_EFFECT_TIMEOUT_MILLIS = 30_000L
     }
 }
+
+private val org.nodehost.model.OperationRecord.blocksEffects: Boolean
+    get() = state.terminal || state == OperationState.CANCELLING
 
 enum class WakeReason { SERVICE_STARTED, DESIRED_STATE_CHANGED, RUNTIME_EVENT, RETRY }
 

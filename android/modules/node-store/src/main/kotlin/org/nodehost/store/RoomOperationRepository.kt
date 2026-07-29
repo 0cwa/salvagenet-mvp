@@ -28,8 +28,28 @@ class RoomOperationRepository(
     override suspend fun save(record: OperationRecord) {
         database.withTransaction {
             val existing = checkNotNull(dao.operation(record.id.value)) { "operation does not exist" }
-            dao.updateOperation(record.toEntity(existing.createdAtEpochMillis, clock.epochMillis()))
+            check(existing.state !in EFFECT_BLOCKING_STATE_NAMES) { "terminal or cancelling operation cannot be overwritten" }
+            check(compareAndSet(existing, record)) { "operation changed concurrently" }
         }
+    }
+
+    /** Atomically applies [updated] only while the durable operation still has [expected]'s state. */
+    suspend fun compareAndSetOperation(expected: OperationRecord, updated: OperationRecord): Boolean = database.withTransaction {
+        require(expected.id == updated.id) { "operation id cannot change" }
+        compareAndSet(checkNotNull(dao.operation(expected.id.value)), updated, expected.state.name)
+    }
+
+    /** Cancellation never changes desired runtime state; only the target operation is disposed. */
+    suspend fun cancelOperation(id: OperationId, cancellableStates: Set<OperationState>): OperationRecord = database.withTransaction {
+        val stored = checkNotNull(dao.operation(id.value)) { "operation not found" }
+        if (stored.state in EFFECT_BLOCKING_STATE_NAMES) return@withTransaction stored.toModel()
+        val current = stored.toModel()
+        require(current.state in cancellableStates) { "operation cannot be cancelled at its current step" }
+        val cancelling = current.transitionTo(OperationState.CANCELLING)
+        check(compareAndSet(stored, cancelling)) { "operation changed concurrently" }
+        val cancelled = cancelling.transitionTo(OperationState.CANCELLED, stepId = null)
+        check(compareAndSet(stored, cancelled, OperationState.CANCELLING.name)) { "cancellation disposition failed" }
+        cancelled
     }
 
     override suspend fun loadDesiredRuntime(id: RuntimeId): RuntimeSpec? = dao.desired(id.value)?.toModel()
@@ -68,20 +88,18 @@ class RoomOperationRepository(
         dao.putCurrent(observation.toEntity(clock.epochMillis()))
     }
 
-    /** Persists an inspectable intent before an effect. A STARTED row is reused after process death. */
-    suspend fun beginStep(
-        operation: OperationRecord,
-        stepId: String,
-        repeatCompleted: Boolean = false,
-    ): OperationStepEntity = database.withTransaction {
-        val latest = dao.latestStep(operation.id.value, stepId)
-        if (latest?.status == StepStatus.STARTED.name) return@withTransaction latest
-        if (!repeatCompleted && latest?.status == StepStatus.SUCCEEDED.name) return@withTransaction latest
+    /** Persists an inspectable intent before an effect, unless cancellation or a terminal state won the race. */
+    suspend fun beginStep(operationId: OperationId, stepId: String): BeginStepResult? = database.withTransaction {
+        val stored = checkNotNull(dao.operation(operationId.value))
+        if (stored.state in EFFECT_BLOCKING_STATE_NAMES) return@withTransaction null
+        val latest = dao.latestStep(operationId.value, stepId)
+        if (latest?.status == StepStatus.STARTED.name) return@withTransaction BeginStepResult(latest, recovered = true)
+        if (latest?.status == StepStatus.SUCCEEDED.name) return@withTransaction BeginStepResult(latest, recovered = false)
         val attempt = (latest?.attempt ?: 0) + 1
         require(attempt <= MAX_STEP_ATTEMPTS) { "step attempt limit exceeded" }
         val now = clock.epochMillis()
         val intent = OperationStepEntity(
-            operationId = operation.id.value,
+            operationId = operationId.value,
             stepId = stepId,
             attempt = attempt,
             status = StepStatus.STARTED.name,
@@ -92,45 +110,83 @@ class RoomOperationRepository(
             errorCode = null,
         )
         dao.insertStep(intent)
-        val stored = checkNotNull(dao.operation(operation.id.value))
-        dao.updateOperation(stored.copy(currentStepId = stepId, updatedAtEpochMillis = now))
-        intent
+        check(dao.compareAndSetOperation(
+            stored.id, stored.state, stored.state, stepId, stored.errorCode, now,
+        ) == 1) { "operation changed concurrently" }
+        BeginStepResult(intent, recovered = false)
     }
 
-    suspend fun completeStep(intent: OperationStepEntity, outcome: StepOutcome) = database.withTransaction {
+    suspend fun completeStep(intent: OperationStepEntity, outcome: StepOutcome): Boolean = database.withTransaction {
         require(intent.status == StepStatus.STARTED.name)
-        dao.updateStep(
-            intent.copy(
-                status = StepStatus.SUCCEEDED.name,
-                finishedAtEpochMillis = clock.epochMillis(),
-                changed = outcome.changed,
-                resultDetail = outcome.observationHint?.take(MAX_RESULT_DETAIL_CHARS),
-            ),
-        )
-    }
-
-    suspend fun failStep(intent: OperationStepEntity, errorCode: String) = database.withTransaction {
-        require(ERROR_CODE.matches(errorCode))
-        val now = clock.epochMillis()
-        dao.updateStep(intent.copy(status = StepStatus.FAILED.name, finishedAtEpochMillis = now, errorCode = errorCode))
         val stored = checkNotNull(dao.operation(intent.operationId))
-        dao.updateOperation(stored.copy(state = OperationState.FAILED_RETRYABLE.name, errorCode = errorCode, updatedAtEpochMillis = now))
+        if (stored.state in EFFECT_BLOCKING_STATE_NAMES) return@withTransaction false
+        dao.completeStartedStep(
+            intent.operationId, intent.stepId, intent.attempt, StepStatus.SUCCEEDED.name,
+            clock.epochMillis(), outcome.changed, outcome.observationHint?.take(MAX_RESULT_DETAIL_CHARS), null,
+        ) == 1
     }
 
-    suspend fun markSucceeded(operation: OperationRecord) = database.withTransaction {
-        val stored = checkNotNull(dao.operation(operation.id.value))
-        dao.updateOperation(stored.copy(state = OperationState.SUCCEEDED.name, currentStepId = null, errorCode = null, updatedAtEpochMillis = clock.epochMillis()))
+    suspend fun failStep(intent: OperationStepEntity, errorCode: String): Boolean = database.withTransaction {
+        require(ERROR_CODE.matches(errorCode))
+        val stored = checkNotNull(dao.operation(intent.operationId))
+        if (stored.state in EFFECT_BLOCKING_STATE_NAMES) return@withTransaction false
+        val now = clock.epochMillis()
+        check(dao.completeStartedStep(
+            intent.operationId, intent.stepId, intent.attempt, StepStatus.FAILED.name,
+            now, null, null, errorCode,
+        ) == 1) { "step changed concurrently" }
+        dao.compareAndSetOperation(
+            stored.id, stored.state, OperationState.FAILED_RETRYABLE.name,
+            stored.currentStepId, errorCode, now,
+        ) == 1
+    }
+
+    /** A recovered STARTED intent has an unknowable outcome and is never replayed. */
+    suspend fun failUnknownStartedStep(intent: OperationStepEntity): Boolean = database.withTransaction {
+        val stored = checkNotNull(dao.operation(intent.operationId))
+        if (stored.state in EFFECT_BLOCKING_STATE_NAMES) return@withTransaction false
+        val now = clock.epochMillis()
+        check(dao.completeStartedStep(
+            intent.operationId, intent.stepId, intent.attempt, StepStatus.FAILED.name,
+            now, null, null, UNKNOWN_EFFECT_OUTCOME,
+        ) == 1) { "step changed concurrently" }
+        dao.compareAndSetOperation(
+            stored.id, stored.state, OperationState.FAILED_PERMANENT.name,
+            stored.currentStepId, UNKNOWN_EFFECT_OUTCOME, now,
+        ) == 1
+    }
+
+    suspend fun markSucceeded(operationId: OperationId): Boolean = database.withTransaction {
+        val stored = checkNotNull(dao.operation(operationId.value))
+        if (stored.state in EFFECT_BLOCKING_STATE_NAMES) return@withTransaction false
+        dao.compareAndSetOperation(
+            stored.id, stored.state, OperationState.SUCCEEDED.name, null, null, clock.epochMillis(),
+        ) == 1
     }
 
     suspend fun steps(operationId: OperationId): List<OperationStepEntity> = dao.steps(operationId.value)
+
+    private suspend fun compareAndSet(
+        stored: OperationEntity,
+        updated: OperationRecord,
+        expectedState: String = stored.state,
+    ): Boolean = dao.compareAndSetOperation(
+        stored.id, expectedState, updated.state.name, updated.currentStepId, updated.errorCode, clock.epochMillis(),
+    ) == 1
 
     companion object {
         const val MAX_STEP_ATTEMPTS = 100
         const val MAX_RETAINED_OPERATIONS = 10_000L
         private const val MAX_RESULT_DETAIL_CHARS = 512
+        private const val UNKNOWN_EFFECT_OUTCOME = "UNKNOWN_EFFECT_OUTCOME"
         private val ERROR_CODE = Regex("[A-Z][A-Z0-9_]{0,63}")
+        private val EFFECT_BLOCKING_STATE_NAMES = (
+            OperationState.entries.filter { it.terminal } + OperationState.CANCELLING
+        ).mapTo(mutableSetOf()) { it.name }
     }
 }
+
+data class BeginStepResult(val intent: OperationStepEntity, val recovered: Boolean)
 
 enum class StepStatus { STARTED, SUCCEEDED, FAILED }
 

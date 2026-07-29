@@ -76,7 +76,7 @@ class RoomOperationRepositoryTest {
     fun intentAndResultJournalBracketEffectAndStartedIntentSurvivesRestart() = runBlocking {
         val operation = operation("op-300", "key-000000000300", 1)
         repository.acceptDesiredRuntime(spec(1), operation)
-        val intent = repository.beginStep(operation, "qemu.start_process")
+        val intent = requireNotNull(repository.beginStep(operation.id, "qemu.start_process")).intent
         assertEquals(StepStatus.STARTED.name, RoomOperationRepository(database, clock).steps(operation.id).single().status)
 
         clock.now = 200
@@ -85,6 +85,24 @@ class RoomOperationRepositoryTest {
         assertEquals(StepStatus.SUCCEEDED.name, result.status)
         assertEquals(200L, result.finishedAtEpochMillis)
         assertEquals("started", result.resultDetail)
+    }
+
+    @Test
+    fun cancellationIsAtomicPreservesDesiredAndWinsAgainstStaleSuccessOrFailure() = runBlocking {
+        val operation = operation("op-400", "key-000000000400", 1)
+        repository.acceptDesiredRuntime(spec(1), operation)
+        val intent = requireNotNull(repository.beginStep(operation.id, "qemu.start_process")).intent
+
+        assertEquals(
+            OperationState.CANCELLED,
+            repository.cancelOperation(operation.id, setOf(OperationState.ACCEPTED)).state,
+        )
+        assertEquals(DesiredRuntimeState.RUNNING, repository.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState)
+        assertEquals(false, repository.completeStep(intent, StepOutcome(true, "started")))
+        assertEquals(false, repository.failStep(intent, "EFFECT_FAILED"))
+        assertEquals(false, repository.markSucceeded(operation.id))
+        assertEquals(OperationState.CANCELLED, repository.load(operation.id)?.state)
+        assertEquals(StepStatus.STARTED.name, repository.steps(operation.id).single().status)
     }
 
     @Test

@@ -38,14 +38,38 @@ interface NodeHostDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertOperation(entity: OperationEntity)
 
-    @Update
-    suspend fun updateOperation(entity: OperationEntity)
+    @Query("""
+        UPDATE operations SET state = :newState, currentStepId = :newStepId, errorCode = :newErrorCode,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :id AND state = :expectedState
+    """)
+    suspend fun compareAndSetOperation(
+        id: String,
+        expectedState: String,
+        newState: String,
+        newStepId: String?,
+        newErrorCode: String?,
+        updatedAtEpochMillis: Long,
+    ): Int
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertStep(entity: OperationStepEntity)
 
-    @Update
-    suspend fun updateStep(entity: OperationStepEntity)
+    @Query("""
+        UPDATE operation_steps SET status = :newStatus, finishedAtEpochMillis = :finishedAtEpochMillis,
+            changed = :changed, resultDetail = :resultDetail, errorCode = :errorCode
+        WHERE operationId = :operationId AND stepId = :stepId AND attempt = :attempt AND status = 'STARTED'
+    """)
+    suspend fun completeStartedStep(
+        operationId: String,
+        stepId: String,
+        attempt: Int,
+        newStatus: String,
+        finishedAtEpochMillis: Long,
+        changed: Boolean?,
+        resultDetail: String?,
+        errorCode: String?,
+    ): Int
 
     @Query("SELECT * FROM operation_steps WHERE operationId = :operationId ORDER BY startedAtEpochMillis, attempt")
     suspend fun steps(operationId: String): List<OperationStepEntity>
