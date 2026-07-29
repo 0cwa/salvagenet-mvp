@@ -65,7 +65,12 @@ jobs:
       - name: Install pinned Android components
         shell: bash
         run: |
+          # sdkmanager closes stdin after accepting the last license; `yes` then
+          # exits with SIGPIPE. Disable pipefail only for this expected pipeline
+          # so the sdkmanager exit status remains authoritative.
+          set +o pipefail
           yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
           sdkmanager \
             'platform-tools' \
             'platforms;android-36' \
