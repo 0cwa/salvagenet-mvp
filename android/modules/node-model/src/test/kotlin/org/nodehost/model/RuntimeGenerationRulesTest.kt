@@ -42,4 +42,21 @@ class RuntimeGenerationRulesTest {
     @Test fun zeroGenerationIsRejectedAtBoundary() {
         assertThrows(IllegalArgumentException::class.java) { current.copy(generation = 0) }
     }
+
+    @Test fun legacyRunningObservationDefaultsAppliedGenerationToUnknown() {
+        val observed = RuntimeObservation.Running(RuntimeId.DEFAULT, processId = 42, guestReady = true)
+
+        assertEquals(null, observed.appliedGeneration)
+    }
+
+    @Test fun knownAppliedGenerationMustBePositive() {
+        assertThrows(IllegalArgumentException::class.java) {
+            RuntimeObservation.Running(
+                RuntimeId.DEFAULT,
+                processId = 42,
+                guestReady = true,
+                appliedGeneration = 0,
+            )
+        }
+    }
 }
