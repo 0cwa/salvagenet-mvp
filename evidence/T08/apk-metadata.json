@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
+  "testedGitCommit": "7120316e69ad27b47a54108bd92ef49f94161a5a",
   "artifactPath": "android/podroid/app/build/outputs/apk/debug/app-debug.apk",
   "committed": false,
-  "sizeBytes": 348464044,
-  "sha256": "df413b753f6e1effe62a2911c26f0cfddb893af8c4ba591bf16b06850ae4a1a3",
+  "sizeBytes": 348494941,
+  "sha256": "7f9d8b9f483fb527d675c2a711640f13312c0ed1ebf8009dcad837badc6c9eb4",
   "signature": {
     "verified": true,
     "schemes": {
@@ -42,6 +43,6 @@
     "tailscaleLock": "android/vendor/tailscale/tailscale.lock",
     "tailscaleAndroidCommit": "68dd0a5170999fa33c884cb58a8d1679234cc9a3"
   },
-  "verification": "prepare-runtime.py verified exact size and SHA-256 for all 42 Podroid lock entries; unzip/readelf separately confirmed required payload presence, AArch64 ELF type, and 16 KiB-compatible PT_LOAD alignment.",
+  "verification": "Clean full Gradle build; prepare-runtime.py exact verification of all 42 lock entries; apksigner; zipalign -P 16; zipfile/readelf checks for required payloads, AArch64 ELF identity, and 16 KiB-compatible PT_LOAD alignment.",
   "result": "PASS"
 }

@@ -1,170 +1,103 @@
 {
   "schemaVersion": 1,
-  "note": "Full logs are ignored local artifacts and are not committed; hashes bind the initial QA run and packaging-fix rerun.",
+  "recordedAt": "2026-07-29T16:06:56.421102+00:00",
+  "testedGitCommit": "7120316e69ad27b47a54108bd92ef49f94161a5a",
+  "note": "Full logs are ignored local artifacts and are not committed. Hashes bind successful final software evidence; e2e exit 77 is the expected hardware continuation block.",
   "logs": {
-    "apk-verification.log": {
-      "sha256": "531cd6a4a974cf9ffa379c6e2997d85dd588eb7d592ea44da21a42b4ad2e46c8",
-      "bytes": 27315
+    "clean-final.log": {
+      "sha256": "06d147a6a3ff8fff44ecf66f3d2345213de961dbf0e7aed6a5b09aefc211ed7e",
+      "bytes": 667,
+      "command": "cd android/podroid && ./gradlew clean; rm -rf android/podroid/build android/vendor/tailscale/build android/vendor/tailscale/src"
     },
-    "cli-tests.log": {
-      "sha256": "07d91a5f3700278a026a6acbd8e32c44dccf21e89f21a51f28eac29e686536ad",
-      "bytes": 117
+    "gradle-full-final.log": {
+      "sha256": "c5bbd89e6b3339cc1e2dc7d992b182ca9101721bdc95fe35f16fa5965e8fe930",
+      "bytes": 38805,
+      "command": "cd android/podroid && ./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease"
     },
-    "contracts-api-qemu.log": {
-      "sha256": "81ba53b8261dceb35f5c5cacee7dcfcb06f2216df2ce29a072d24387cb30cee5",
-      "bytes": 705
-    },
-    "device-facts.log": {
-      "sha256": "9c263c7b85b58d86894b72ed2352435c6b1ab4936f76801c2b5e50b06ed05653",
-      "bytes": 32
-    },
-    "e2e.log": {
-      "sha256": "2e6c2003de04b2f2c03c99c1e180c11dddd65a1a92c47c4139b0e3d9ee6d0db0",
-      "bytes": 9977
-    },
-    "emulator-cold-boot.log": {
-      "sha256": "7a2da5aed698d84dc98a8b891b8c524bfba767d8ee370d7a771b433f186352f9",
-      "bytes": 7142
-    },
-    "failure-mesh-tls.log": {
-      "sha256": "d129c0e555e6c94688d6eeda30b6f0ab66926f5d41175e5428491d12bfdc7460",
-      "bytes": 12005
-    },
-    "gradle-app.log": {
-      "sha256": "6d8644a89c2369693a6448dcf74707863cef0d692c757f0ae77379d7dd2a3225",
-      "bytes": 46405
-    },
-    "gradle-full.log": {
-      "sha256": "e4aa1a0e085b982d7b0299986770460f12dd654e8ff8ccb13324c41273d1d637",
-      "bytes": 109621
-    },
-    "headscale-lab.log": {
-      "sha256": "e7ed558ae0756749c1eb3825ed7911a4a70d82f12f064c388ec81477d60bb35d",
-      "bytes": 1497
-    },
-    "headscale-render-tests.log": {
-      "sha256": "d03ce458f2a6cd2b4f27522f3aacad03ce1872c028853507c3ad02ca621bdcad",
-      "bytes": 103
-    },
-    "host-mesh-smoke.log": {
-      "sha256": "1b33cd9d0ada4af39cc4947e79fa2d8c5a56c6998a82ec3ab35fbba93754dc9b",
-      "bytes": 82
+    "make-test-jvm.log": {
+      "sha256": "49ccae053ed5a6bf2757ee57bf42725504c2b1b1f41194781d57e7890ca29b9c",
+      "bytes": 6149,
+      "command": "make test-jvm"
     },
     "make-test-android.log": {
-      "sha256": "9b0d4c70f4c2b5ac2f22fe7d4cc9a5f20eb85422f180f93b2e5784eddea993e6",
-      "bytes": 29134
+      "sha256": "440bf7ddb3c1e7a1624ad919e74f7e2e176a246209fa03663a4738cf7d02a959",
+      "bytes": 33572,
+      "command": "make test-android"
     },
     "make-test-guest.log": {
       "sha256": "0e83c7b2587b5f86e35c78ea11a29e33ee506a74e88147f3cfd8a5387b05bfb7",
-      "bytes": 42
-    },
-    "make-test-jvm.log": {
-      "sha256": "6f37b52dae13e555aeeb41bb322f29372c739070b7e6ec59807a8fb2d09aabe3",
-      "bytes": 5778
-    },
-    "make-validate-final.log": {
-      "sha256": "2d5e4c5b9b90ab6758a05cf926543506140672c50fc32306a8f41a786dbf5f75",
-      "bytes": 1412
-    },
-    "make-validate.log": {
-      "sha256": "7619ff3a4bf09b69621c5bc5a8b983856321609b80b34c6d4a01600af8619ecc",
-      "bytes": 1337
-    },
-    "mvp-plus-final.log": {
-      "sha256": "bd70b2c047804c4785d325a22acf70ee5d338a22c890b5f249dbdc85f4040fd9",
-      "bytes": 302
-    },
-    "mvp-plus.log": {
-      "sha256": "410e5ed24ac3072c4730dc18f93dfabd11cc1ebe33b13da869010545ad4f981a",
-      "bytes": 228
-    },
-    "python-all-tests.log": {
-      "sha256": "e70fec2825d9bf206d27463a792768195039599cb39bcca66339f47283f84cce",
-      "bytes": 108
-    },
-    "qemu-fixture-regression.log": {
-      "sha256": "a6707d4eff38012da33ddc34bc6dc076a3b17151cfc9aef223c8790cbe64c3da",
-      "bytes": 100
-    },
-    "security-release.log": {
-      "sha256": "5d59a83c6613bbf6c4b9bdbc53224a2785954ab328e97f9877a3f83972014560",
-      "bytes": 168
-    }
-  },
-  "rerunAt": "2026-07-29T16:53:27+02:00",
-  "rerunGitCommit": "bc23997c1a8cf7191b4dc72b2d3e0c272b4cb790",
-  "rerunLogs": {
-    "clean.log": {
-      "sha256": "97d35c2e5d9cb8533621309dc9250e32066aca225329cb59a2762b06d33f183c",
-      "bytes": 92
-    },
-    "gradle-test-final.log": {
-      "sha256": "b7bb829d5ac3d0e5fce7fbf198f246c4fcc920bd2fe4971bc58970ab7caa0648",
-      "bytes": 28920
-    },
-    "make-test-jvm.log": {
-      "sha256": "5c2cb5afee7d33c59fd54b6495f276993980c176939e5650272566f82cd11db5",
-      "bytes": 6130
-    },
-    "make-test-android.log": {
-      "sha256": "78865f58386abe04de9bcac109fb61dd067577650a1055933a22ed68e71cc737",
-      "bytes": 33162
-    },
-    "app-debug.log": {
-      "sha256": "0e89273c77e60859f903d619388ad6824bb4a0abc2139a8cfaa650a63b96d287",
-      "bytes": 28814
-    },
-    "mesh-release.log": {
-      "sha256": "7fdfafca890ab63c4247d4d2284bc0a5209399c592ed3afb122fd44f36a8da42",
-      "bytes": 3632
-    },
-    "app-release.log": {
-      "sha256": "9181fd1b4ad994ec3c0afd23260dfafea769ab5a288f0e792ffa6773379adaba",
-      "bytes": 24103
-    },
-    "apk-verification.log": {
-      "sha256": "f2ae73bdb8ffdd936f2b325f3447c211e8b484d1cd18931d7dd52d26bd9e75b3",
-      "bytes": 47646
-    },
-    "make-validate-final.log": {
-      "sha256": "7c3ddf397b84c87af7e0cd10cc653b2087604bb2220c1aee36fa5a43b61592d2",
-      "bytes": 1402
+      "bytes": 42,
+      "command": "make test-guest"
     },
     "python-explicit.log": {
-      "sha256": "181de1ef9bcd55bbb2c041de9f6dc9d0ceffb66506f23566de87594bcd02997b",
-      "bytes": 517
+      "sha256": "491879b9026ab48b555c51f27030e4eef9ee164ef9ef5e9468495075b9426586",
+      "bytes": 126,
+      "command": "python3 -m unittest tests/api/test_openapi.py tests/contracts/test_contracts.py tests/qemu/test_fixture.py tests/tools/test_context_pack.py tests/tools/test_guest_init_renderer.py"
     },
-    "python-controller.log": {
-      "sha256": "533d60fd8023e3a6bb096eb2cb86114b461843588f0d72b87f01b0a1e7b529bb",
-      "bytes": 117
+    "python-controller-cli.log": {
+      "sha256": "e1a5ef0646395e52a53594a397addaa4b5c1389c099ab7c963625c719d233c32",
+      "bytes": 117,
+      "command": "python3 -m unittest discover -s controller/mvp-cli/tests -p 'test_*.py'"
     },
     "python-headscale.log": {
       "sha256": "d03ce458f2a6cd2b4f27522f3aacad03ce1872c028853507c3ad02ca621bdcad",
-      "bytes": 103
-    },
-    "make-test-guest.log": {
-      "sha256": "0e83c7b2587b5f86e35c78ea11a29e33ee506a74e88147f3cfd8a5387b05bfb7",
-      "bytes": 42
+      "bytes": 103,
+      "command": "python3 -m unittest discover -s lab/headscale/tests -p 'test_*.py'"
     },
     "e2e.log": {
-      "sha256": "2a04ea284d03afb821b0377e2444d6a142541d6c6a693ebb185409a1e256d38f",
-      "bytes": 10377
+      "sha256": "178fcfcfd2e80dd819b2b28f15acc20bd8d3f301c13d36b9cf529c3a09c5e023",
+      "bytes": 10060,
+      "command": "tests/e2e/run.sh (fake path PASS; expected physical continuation exit 77)"
+    },
+    "focused-actor-maintenance.log": {
+      "sha256": "81562709c9b3e9ebce7aa2698d1df165db803265a83722dc73736b06006b2765",
+      "bytes": 9942,
+      "command": "focused ReconciliationActor maintenance tests"
+    },
+    "focused-disk-data-stop.log": {
+      "sha256": "448d7b59616ed225d73ce040af627cf691d53c0515b0213c93e88bb047ce9cb7",
+      "bytes": 10079,
+      "command": "focused AndroidQemuRuntimeBackend disk/data/graceful-stop tests"
+    },
+    "focused-enrollment-k3s-cancel.log": {
+      "sha256": "da3fed91350cc9c8fbc14d43ff6170c74fc18b4b4d87abee3077750922b5fa97",
+      "bytes": 10381,
+      "command": "focused enrollment recovery, K3s asset, and cancel race tests"
+    },
+    "focused-readiness-generation.log": {
+      "sha256": "6fb06e0e5785f363486838c96906ea94f005591f9a05506be06fb3793be48cdb",
+      "bytes": 10932,
+      "command": "focused readiness capability and runtime generation tests"
+    },
+    "focused-release-debug-https-mesh.log": {
+      "sha256": "75dd2301ce2d99af495abb278f0fe6edb4ffb2062b917df2201b4953d6c2d3e8",
+      "bytes": 4531,
+      "command": "focused release/debug mesh URL policy tests"
+    },
+    "focused-body-timeout-model-uri.log": {
+      "sha256": "36a0526ee0111be31836ac606f6b2fcfc88cbc5d916a78d19b733e3425c39da7",
+      "bytes": 5453,
+      "command": "focused bounded body timeout and model URI tests"
+    },
+    "focused-diagnostics-redaction.log": {
+      "sha256": "40931388af071b611e94d8ff43e9e8668ae274834ddbcdef5319c481c4858470",
+      "bytes": 4525,
+      "command": "focused OfficialLibtailscaleAdapter diagnostic redaction tests"
+    },
+    "apk-verification.log": {
+      "sha256": "92594fbf6c91512504d60d00f79ff55ef847eb5de79c9c5c3ff90b89bba871a0",
+      "bytes": 42991,
+      "command": ":app:verifyPodroidPackaging; prepare-runtime --verify-apk; apksigner; zipalign -P 16; zipfile/readelf assertions"
     },
     "mvp-plus.log": {
-      "sha256": "bd70b2c047804c4785d325a22acf70ee5d338a22c890b5f249dbdc85f4040fd9",
-      "bytes": 302
+      "sha256": "aabce7a60c82ad83a365fe9cf634671beccc74bdc0b2afdffb3d871b8ecc2f9a",
+      "bytes": 248,
+      "command": "python3 tools/ci/check-mvp-plus-gate.py --report-only"
     },
-    "schema-evidence-final.log": {
-      "sha256": "7a4991a9ad34bd5ece21cc1272535c567e92d22b0af73a34c838c7425e311bb2",
-      "bytes": 43
-    },
-    "mvp-plus-final.log": {
-      "sha256": "d6a0ea9f8769d3726daf8c9e53f71e9f71f62acde7f30e905b66c81c22fc9b6b",
-      "bytes": 292
-    },
-    "verify-scope.log": {
-      "sha256": "a7400193c15515152a64a0a6fe34c15950bec7be4eacc969c686ef4df1ccea56",
-      "bytes": 45
+    "make-validate-final.log": {
+      "sha256": "555912513e2d44a38a88e9e1f797688d9b5a40cd98cc50043c3dd3b5f11763c9",
+      "bytes": 1358,
+      "command": "make validate after generated vendor checkout removal"
     }
   }
 }

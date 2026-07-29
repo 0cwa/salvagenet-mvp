@@ -18,8 +18,8 @@ Status values: `TODO`, `IN-PROGRESS`, `PASS`, `FAIL`, `BLOCKED-HARDWARE`, `DEFER
 | B11 | Guest receives key-only SSH and separate Headscale identity | BLOCKED-HARDWARE | [record](../../evidence/gates/B11.json) |
 | B12 | Ordinary SSH reaches guest through guest mesh | BLOCKED-HARDWARE | [record](../../evidence/gates/B12.json) |
 | B13 | Recovery SSH works with guest mesh disabled | BLOCKED-HARDWARE | [record](../../evidence/gates/B13.json) |
-| B14 | Graceful stop precedes force kill | BLOCKED-HARDWARE | [record](../../evidence/gates/B14.json) |
-| B15 | System reset preserves designated data disk | BLOCKED-HARDWARE | [record](../../evidence/gates/B15.json) |
+| B14 | Graceful stop precedes force kill | PASS | [record](../../evidence/gates/B14.json) |
+| B15 | System reset preserves designated data disk | PASS | [record](../../evidence/gates/B15.json) |
 | B16 | Reboot reconciles after first unlock | BLOCKED-HARDWARE | [record](../../evidence/gates/B16.json) |
 | B17 | Controller offline does not stop VM | BLOCKED-HARDWARE | [record](../../evidence/gates/B17.json) |
 | B18 | No default password, raw shell, raw QMP, or raw argv API | PASS | [record](../../evidence/gates/B18.json) |
