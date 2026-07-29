@@ -106,6 +106,38 @@ class RoomOperationRepositoryTest {
     }
 
     @Test
+    fun systemReconciliationAttemptHasStableIdAndConcurrentWakeDeduplication() = runBlocking {
+        val userOperation = operation("op-500", "key-000000000500", 1)
+        repository.acceptDesiredRuntime(spec(1), userOperation)
+        repository.markSucceeded(userOperation.id)
+
+        val attempts = List(16) {
+            async(Dispatchers.Default) { repository.beginSystemReconciliation(spec(1)) }
+        }.awaitAll()
+
+        assertEquals(setOf("sys-reconcile-default-1-1"), attempts.map { it?.id?.value }.toSet())
+        assertEquals(OperationState.ACCEPTED, repository.operationForDesired(spec(1))?.state)
+        assertEquals(DesiredRuntimeState.RUNNING, repository.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState)
+    }
+
+    @Test
+    fun systemReconciliationAttemptsAreDurablyBounded() = runBlocking {
+        val userOperation = operation("op-600", "key-000000000600", 1)
+        repository.acceptDesiredRuntime(spec(1), userOperation)
+        repository.markSucceeded(userOperation.id)
+
+        repeat(RoomOperationRepository.MAX_SYSTEM_RECONCILIATION_ATTEMPTS) { index ->
+            val attempt = requireNotNull(repository.beginSystemReconciliation(spec(1)))
+            assertEquals(index + 1, attempt.id.value.substringAfterLast('-').toInt())
+            repository.markSucceeded(attempt.id)
+        }
+
+        val exhausted = requireNotNull(repository.beginSystemReconciliation(spec(1)))
+        assertEquals("sys-reconcile-default-1-32", exhausted.id.value)
+        assertEquals(OperationState.SUCCEEDED, exhausted.state)
+    }
+
+    @Test
     fun currentObservationIsDurableDerivedState() = runBlocking {
         repository.recordObservation(RuntimeObservation.Running(RuntimeId.DEFAULT, 42, guestReady = true))
         assertEquals(
