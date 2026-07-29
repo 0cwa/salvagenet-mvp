@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B19",
+  "status": "FAIL",
+  "recordedAt": "2026-07-29T14:23:43.704223+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "cd android/podroid && ./gradlew :app:assembleDebug && apksigner verify --verbose app/build/outputs/apk/debug/app-debug.apk && zipalign -c -P 16 -v 4 app/build/outputs/apk/debug/app-debug.apk",
+  "summary": "Signature and alignment checks pass, but the APK is missing required QEMU and launcher native entries; no device install was possible.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/apk-metadata.json",
+      "sha256": "fd80b0e15eac970a77ac85b1157ce45a0d226581baa50b160cc6a86aca2ee19d",
+      "note": null
+    }
+  ]
+}

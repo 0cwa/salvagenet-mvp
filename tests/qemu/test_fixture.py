@@ -16,8 +16,8 @@ class PodroidKnowledgeFixtureTest(unittest.TestCase):
         self.assertIn(self.invariants["managementForwardPrefix"], self.argv)
 
     def test_podroid_disk_order_is_documented(self) -> None:
-        state = self.argv.index("file=${FILES}/storage.img")
-        lower = self.argv.index("file=${FILES}/alpine-rootfs.squashfs")
+        state = self.argv.index("file=${FILES}/vms/default/storage.img")
+        lower = self.argv.index("file=${FILES}/vms/default/artifacts/alpine-rootfs.squashfs")
         self.assertLess(state, lower)
         self.assertIn("id=drive1", self.argv[state : state + 180])
         self.assertIn("id=drive2", self.argv[lower : lower + 180])

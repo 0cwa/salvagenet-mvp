@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "note": "Full logs are ignored local artifacts and are not committed; hashes bind this QA run.",
+  "logs": {
+    "apk-verification.log": {
+      "sha256": "531cd6a4a974cf9ffa379c6e2997d85dd588eb7d592ea44da21a42b4ad2e46c8",
+      "bytes": 27315
+    },
+    "cli-tests.log": {
+      "sha256": "07d91a5f3700278a026a6acbd8e32c44dccf21e89f21a51f28eac29e686536ad",
+      "bytes": 117
+    },
+    "contracts-api-qemu.log": {
+      "sha256": "81ba53b8261dceb35f5c5cacee7dcfcb06f2216df2ce29a072d24387cb30cee5",
+      "bytes": 705
+    },
+    "device-facts.log": {
+      "sha256": "9c263c7b85b58d86894b72ed2352435c6b1ab4936f76801c2b5e50b06ed05653",
+      "bytes": 32
+    },
+    "e2e.log": {
+      "sha256": "2e6c2003de04b2f2c03c99c1e180c11dddd65a1a92c47c4139b0e3d9ee6d0db0",
+      "bytes": 9977
+    },
+    "emulator-cold-boot.log": {
+      "sha256": "7a2da5aed698d84dc98a8b891b8c524bfba767d8ee370d7a771b433f186352f9",
+      "bytes": 7142
+    },
+    "failure-mesh-tls.log": {
+      "sha256": "d129c0e555e6c94688d6eeda30b6f0ab66926f5d41175e5428491d12bfdc7460",
+      "bytes": 12005
+    },
+    "gradle-app.log": {
+      "sha256": "6d8644a89c2369693a6448dcf74707863cef0d692c757f0ae77379d7dd2a3225",
+      "bytes": 46405
+    },
+    "gradle-full.log": {
+      "sha256": "e4aa1a0e085b982d7b0299986770460f12dd654e8ff8ccb13324c41273d1d637",
+      "bytes": 109621
+    },
+    "headscale-lab.log": {
+      "sha256": "e7ed558ae0756749c1eb3825ed7911a4a70d82f12f064c388ec81477d60bb35d",
+      "bytes": 1497
+    },
+    "headscale-render-tests.log": {
+      "sha256": "d03ce458f2a6cd2b4f27522f3aacad03ce1872c028853507c3ad02ca621bdcad",
+      "bytes": 103
+    },
+    "host-mesh-smoke.log": {
+      "sha256": "1b33cd9d0ada4af39cc4947e79fa2d8c5a56c6998a82ec3ab35fbba93754dc9b",
+      "bytes": 82
+    },
+    "make-test-android.log": {
+      "sha256": "9b0d4c70f4c2b5ac2f22fe7d4cc9a5f20eb85422f180f93b2e5784eddea993e6",
+      "bytes": 29134
+    },
+    "make-test-guest.log": {
+      "sha256": "0e83c7b2587b5f86e35c78ea11a29e33ee506a74e88147f3cfd8a5387b05bfb7",
+      "bytes": 42
+    },
+    "make-test-jvm.log": {
+      "sha256": "6f37b52dae13e555aeeb41bb322f29372c739070b7e6ec59807a8fb2d09aabe3",
+      "bytes": 5778
+    },
+    "make-validate-final.log": {
+      "sha256": "2d5e4c5b9b90ab6758a05cf926543506140672c50fc32306a8f41a786dbf5f75",
+      "bytes": 1412
+    },
+    "make-validate.log": {
+      "sha256": "7619ff3a4bf09b69621c5bc5a8b983856321609b80b34c6d4a01600af8619ecc",
+      "bytes": 1337
+    },
+    "mvp-plus-final.log": {
+      "sha256": "bd70b2c047804c4785d325a22acf70ee5d338a22c890b5f249dbdc85f4040fd9",
+      "bytes": 302
+    },
+    "mvp-plus.log": {
+      "sha256": "410e5ed24ac3072c4730dc18f93dfabd11cc1ebe33b13da869010545ad4f981a",
+      "bytes": 228
+    },
+    "python-all-tests.log": {
+      "sha256": "e70fec2825d9bf206d27463a792768195039599cb39bcca66339f47283f84cce",
+      "bytes": 108
+    },
+    "qemu-fixture-regression.log": {
+      "sha256": "a6707d4eff38012da33ddc34bc6dc076a3b17151cfc9aef223c8790cbe64c3da",
+      "bytes": 100
+    },
+    "security-release.log": {
+      "sha256": "5d59a83c6613bbf6c4b9bdbc53224a2785954ab328e97f9877a3f83972014560",
+      "bytes": 168
+    }
+  }
+}

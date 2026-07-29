@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "artifactPath": "android/podroid/app/build/outputs/apk/debug/app-debug.apk",
+  "committed": false,
+  "sizeBytes": 50637215,
+  "sha256": "10dd206bf1de0eb15a92de4c7f6695836e788923d3ac7e263f8dad0db6d3f7a1",
+  "signature": {
+    "verified": true,
+    "schemes": {
+      "v1": false,
+      "v2": true,
+      "v3": false,
+      "v3.1": false,
+      "v4": false
+    },
+    "signer": "C=US, O=Android, CN=Android Debug",
+    "certificateSha256": "24689c4c295ad216d6c3db447cb629385ffe0a4f8abbe5c7f8c663cffd0f4594"
+  },
+  "zipalign16KiBCheck": true,
+  "nativeLoadAlignment": {
+    "libtermux.so": "0x4000",
+    "libgojni.so": "0x4000",
+    "libdatastore_shared_counter.so": "0x4000",
+    "libandroidx.graphics.path.so": "0x4000"
+  },
+  "requiredNativeEntries": {
+    "lib/arm64-v8a/libqemu-system-aarch64.so": "MISSING",
+    "lib/arm64-v8a/libpodroid-launcher.so": "MISSING"
+  },
+  "result": "FAIL"
+}

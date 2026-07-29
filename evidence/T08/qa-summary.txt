@@ -1,0 +1,28 @@
+T08 integrated-base QA summary (2026-07-29)
+
+PASS
+- make validate (with the repository Python venv and JDK/SDK environment)
+- make test-jvm
+- make test-android
+- make test-guest
+- fake vertical e2e decision/composition path
+- controller CLI tests (18)
+- API, enrollment/profile contract tests and corrected QEMU fixture tests (24)
+- Headscale renderer tests (5)
+- focused Room migration/idempotency/cancellation races, mesh key lifecycle/redaction, TLS SAN, and reconciliation tests
+- app lintDebug and debug APK assembly
+- release-surface, secret, schema, and OpenAPI scans
+- disposable Headscale 0.28.0 Podman lab health on LAN 192.168.0.91:18080; three distinct one-use keys were minted without printing values; lab shut down
+- debug APK v2 signature and 16 KiB zip alignment; packaged native libraries have 0x4000 ELF LOAD alignment
+
+FAIL
+- The assembled debug APK lacks lib/arm64-v8a/libqemu-system-aarch64.so and libpodroid-launcher.so. B19 is FAIL and physical QEMU boot cannot proceed. Source/build-pipeline ownership: T00 (Podroid baseline native artifact production/packaging).
+- The complete Gradle `test lintDebug assembleDebug assembleRelease` suite fails because upstream terminal-emulator unit tests lack JUnit dependencies (T00 ownership) and mesh-tailscale cannot bundle its direct local libtailscale AAR (T05 ownership).
+- App release assembly independently fails because app:collectReleaseDependencies consumes buildLibtailscale output without a declared task dependency (T05 ownership). Debug assembly succeeds.
+
+BLOCKED-HARDWARE
+- No authorized physical Android device exists. No physical ARM64 APK install, packaged QEMU launch, VPN approval, live host/guest mesh, guest SSH/recovery, lifecycle/process-death-on-device, or reboot test was run.
+- API 36 x86_64 AVD nodehost-api36 is installed, but emulator 36.6.11 exits 139 (SIGSEGV) during cold boot with Vulkan explicitly disabled. It is not physical ARM64 evidence.
+
+MVP+
+- USB remains deferred/blocked because B19 is FAIL and physical base gates are BLOCKED-HARDWARE.

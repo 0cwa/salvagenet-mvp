@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B02",
+  "status": "BLOCKED-HARDWARE",
+  "recordedAt": "2026-07-29T14:23:42.787879+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "tests/device/collect-device-facts.sh",
+  "summary": "No authorized physical ARM64 Android device exists; known-good guest boot was not attempted.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/emulator-summary.txt",
+      "sha256": "f1d568eba3efbe1a80b24f0dd87f3cd2d602da4767fe18410627d8f8ee695509",
+      "note": null
+    }
+  ]
+}

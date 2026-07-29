@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B04",
+  "status": "PASS",
+  "recordedAt": "2026-07-29T14:23:42.894853+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "cd android/podroid && ./gradlew :runtime-qemu:testDebugUnitTest",
+  "summary": "Alpine direct and Ubuntu UEFI profiles resolve through the typed runtime backend tests.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/qa-summary.txt",
+      "sha256": "358d1d75829a96654e72e217cbb387bfaa6c6cf3b6f33521559098d799dc2791",
+      "note": null
+    }
+  ]
+}

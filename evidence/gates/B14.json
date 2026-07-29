@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B14",
+  "status": "BLOCKED-HARDWARE",
+  "recordedAt": "2026-07-29T14:23:43.435891+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "cd android/podroid && ./gradlew :node-core:testDebugUnitTest :node-shell:testDebugUnitTest",
+  "summary": "Planner/backend graceful-before-force tests pass, but behavior was not observed against live QEMU on physical Android.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/qa-summary.txt",
+      "sha256": "358d1d75829a96654e72e217cbb387bfaa6c6cf3b6f33521559098d799dc2791",
+      "note": null
+    }
+  ]
+}
