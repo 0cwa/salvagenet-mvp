@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Base64
 import java.io.File
 import java.security.MessageDigest
+import java.security.SecureRandom
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
@@ -34,10 +35,14 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
     override suspend fun commit(enrollmentId: String): Boolean = mutex.withLock {
         val value = state.read()?.let(::JSONObject) ?: return@withLock false
         if (value.optString("enrollmentId") != enrollmentId) return@withLock false
-        if (!value.optBoolean("committed", true)) {
-            value.put("committed", true)
-            state.write(value.toString())
+        var changed = false
+        if (!value.optBoolean("committed", true)) { value.put("committed", true); changed = true }
+        if (!value.has("callbackRootCapability") && value.has("callbackCapability")) {
+            value.put("callbackRootCapability", value.getString("callbackCapability")).remove("callbackCapability")
+            changed = true
         }
+        if (!value.has("readyCapability")) { value.put("readyCapability", ""); changed = true }
+        if (changed) state.write(value.toString())
         true
     }
 
@@ -58,7 +63,8 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
             .put("metaData", materialized.profile.metaData)
             .put("userData", materialized.profile.userData)
             .put("secret", Base64.encodeToString(payload, Base64.NO_WRAP))
-            .put("callbackCapability", materialized.callbackCapability.value)
+            .put("callbackRootCapability", materialized.callbackCapability.value)
+            .put("readyCapability", "")
             .put("consumed", false)
             .put("committed", false)
             .put("bootGeneration", 0)
@@ -71,6 +77,7 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
         if (!value.optBoolean("committed", true)) return@withLock null
         value.put("profileId", profileId.value)
         value.put("bootGeneration", value.optLong("bootGeneration", 0) + 1)
+        value.put("readyCapability", secureCapability())
         state.write(value.toString())
         File(application.filesDir, "vms/default/guest-ready").delete()
         value.getString("token")
@@ -91,7 +98,9 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
         val value = state.read()?.let(::JSONObject) ?: return@withLock null
         if (!value.optBoolean("committed", true) || !sameSecret(value.getString("token"), presentedToken)) return@withLock null
         when (value.optString("profileId")) {
-            "k3s-worker-lab" -> K3S_VENDOR_DATA.toByteArray()
+            "k3s-worker-lab" -> application.assets.open(K3S_VENDOR_ASSET).use { input ->
+                input.readBytes().also { require(it.size <= MAX_VENDOR_DATA_BYTES) { "K3s vendor data is out of bounds" } }
+            }
             else -> "#cloud-config\n".toByteArray()
         }
     }
@@ -106,14 +115,20 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
         payload
     }
 
+    override suspend fun readinessCapability(presentedRootCapability: String): ByteArray? = mutex.withLock {
+        val value = state.read()?.let(::JSONObject) ?: return@withLock null
+        val root = value.optString("callbackRootCapability")
+        val current = value.optString("readyCapability")
+        if (!value.optBoolean("committed", true) || root.isEmpty() || current.isEmpty() || !sameSecret(root, presentedRootCapability)) null
+        else current.toByteArray()
+    }
+
     override suspend fun markGuestReady(presentedCapability: String): Boolean = mutex.withLock {
         val value = state.read()?.let(::JSONObject) ?: return@withLock false
         if (!value.optBoolean("committed", true)) return@withLock false
-        val callback = value.optString("callbackCapability")
-        val accepted = (callback.isNotEmpty() && sameSecret(callback, presentedCapability)) ||
-            sameSecret(value.getString("token"), presentedCapability)
-        if (!accepted) return@withLock false
-        value.remove("callbackCapability")
+        val callback = value.optString("readyCapability")
+        if (callback.isEmpty() || !sameSecret(callback, presentedCapability)) return@withLock false
+        value.put("readyCapability", "")
         value.put("readyGeneration", value.optLong("bootGeneration", 0))
         state.write(value.toString())
         val directory = File(application.filesDir, "vms/default").apply { check(mkdirs() || isDirectory) }
@@ -123,24 +138,16 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
         true
     }
 
+    private fun secureCapability(): String = ByteArray(32).also(SecureRandom()::nextBytes)
+        .let { Base64.encodeToString(it, Base64.NO_WRAP or Base64.URL_SAFE or Base64.NO_PADDING) }
+
     private fun sameSecret(expected: String, presented: String): Boolean = MessageDigest.isEqual(
         MessageDigest.getInstance("SHA-256").digest(expected.toByteArray()),
         MessageDigest.getInstance("SHA-256").digest(presented.toByteArray()),
     )
 
     private companion object {
-        val K3S_VENDOR_DATA = """#cloud-config
-write_files:
-  - path: /usr/local/sbin/nodehost-qualify-k3s
-    permissions: '0755'
-    content: |
-      #!/bin/sh
-      set -eu
-      install -d -m 0700 /var/lib/nodehost
-      checks='cgroup-v2 namespaces overlayfs br-netfilter vxlan tun ip-forwarding'
-      printf '{\"profile\":\"k3s-worker-lab\",\"lineage\":\"ubuntu-2404-arm64-uefi\",\"checks\":\"%s\"}\n' "${'$'}checks" > /var/lib/nodehost/k3s-qualification.json
-runcmd:
-  - [/usr/local/sbin/nodehost-qualify-k3s]
-""".trimIndent()
+        const val K3S_VENDOR_ASSET = "nodehost/k3s-worker-lab-vendor-data.yaml"
+        const val MAX_VENDOR_DATA_BYTES = 128 * 1024
     }
 }

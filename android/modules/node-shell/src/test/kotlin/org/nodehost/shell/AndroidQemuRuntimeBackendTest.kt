@@ -3,6 +3,7 @@ package org.nodehost.shell
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
+import java.io.RandomAccessFile
 import java.security.MessageDigest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertArrayEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,6 +43,7 @@ class AndroidQemuRuntimeBackendTest {
         context.applicationInfo.nativeLibraryDir = File(context.filesDir, "native-libs").apply { mkdirs() }.path
         File(context.filesDir, "nodehost-artifacts").deleteRecursively()
         File(context.filesDir, "vms").deleteRecursively()
+        File(context.filesDir, "nodehost-durable").deleteRecursively()
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         installArtifacts()
     }
@@ -49,6 +52,7 @@ class AndroidQemuRuntimeBackendTest {
         scope.cancel()
         File(context.filesDir, "nodehost-artifacts").deleteRecursively()
         File(context.filesDir, "vms").deleteRecursively()
+        File(context.filesDir, "nodehost-durable").deleteRecursively()
     }
 
     @Test fun allAdvertisedProfilesResolveToBackedTypedBootModes() {
@@ -59,6 +63,43 @@ class AndroidQemuRuntimeBackendTest {
         assertTrue(k3s.boot is BootSpec.Uefi)
         assertEquals(VmProfileId("ubuntu-2404-arm64-uefi"), k3s.extends)
         assertTrue(k3s.requirements.qualificationChecks.contains("tailscale-reachability"))
+    }
+
+    @Test fun mutableSystemStateSurvivesRepeatedPreparationAfterBootstrapConsumption() = runBlocking {
+        val backend = backend(FakeQemuControl())
+        backend.execute(operationContext("prepare-1"), RuntimeStep.PrepareDisks)
+        val instance = File(context.filesDir, "vms/default")
+        val systemMutation = "mutated-system".toByteArray()
+        val varsMutation = "mutated-vars".toByteArray()
+        File(instance, "system.qcow2").writeBytes(systemMutation)
+        File(instance, "firmware-vars.fd").writeBytes(varsMutation)
+
+        backend.execute(operationContext("prepare-2"), RuntimeStep.PrepareDisks)
+
+        assertArrayEquals(systemMutation, File(instance, "system.qcow2").readBytes())
+        assertArrayEquals(varsMutation, File(instance, "firmware-vars.fd").readBytes())
+    }
+
+    @Test fun preservedDataMovesOutBeforeDeleteAndReattachesOnRecreate() = runBlocking {
+        val runtime = testRuntime(preserveData = true)
+        val backend = backend(FakeQemuControl(), runtime = runtime)
+        backend.execute(operationContext("prepare"), RuntimeStep.PrepareDisks)
+        val data = File(context.filesDir, "vms/default/data.raw")
+        RandomAccessFile(data, "rw").use { it.seek(7); it.write(byteArrayOf(42)) }
+
+        backend.execute(operationContext("remove"), RuntimeStep.RemoveSystem)
+        assertFalse(File(context.filesDir, "vms/default").exists())
+        assertTrue(File(context.filesDir, "nodehost-durable/vms/default/data.raw").isFile)
+        backend.execute(operationContext("recreate"), RuntimeStep.PrepareDisks)
+        RandomAccessFile(data, "r").use { it.seek(7); assertEquals(42, it.read()) }
+    }
+
+    @Test fun failedDataMoveAbortsDeletion() = runBlocking {
+        val backend = backend(FakeQemuControl(), runtime = testRuntime(preserveData = true), move = { _, _ -> error("move failed") })
+        backend.execute(operationContext("prepare"), RuntimeStep.PrepareDisks)
+        assertTrue(runCatching { backend.execute(operationContext("remove"), RuntimeStep.RemoveSystem) }.isFailure)
+        assertTrue(File(context.filesDir, "vms/default/system.qcow2").isFile)
+        assertTrue(File(context.filesDir, "vms/default/data.raw").isFile)
     }
 
     @Test fun gracefulDeadlineForceStopExitAndWakeAreObserved() = runBlocking {
@@ -99,14 +140,24 @@ class AndroidQemuRuntimeBackendTest {
     private fun backend(
         qemu: FakeQemuControl,
         elapsedRealtime: () -> Long = { 0L },
+        runtime: RuntimeSpec = testRuntime(),
+        move: (File, File) -> Unit = { source, target -> java.nio.file.Files.move(source.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE) },
     ) = AndroidQemuRuntimeBackend(
         context,
-        desiredRuntime = { RuntimeSpec(generation = 1, desiredState = DesiredRuntimeState.RUNNING, profileId = VmProfileId("ubuntu-2404-arm64-uefi"), memoryMiB = 1024, vcpus = 2, dataDiskGiB = 8) },
+        desiredRuntime = { runtime },
         beginBootToken = { "b".repeat(43) },
+        recoveryPort = org.nodehost.qemu.RecoverySshHostPort(19922),
         qemu = qemu,
         elapsedRealtimeMillis = elapsedRealtime,
         gracefulStopMillis = 10,
         forceExitMillis = 1_000,
+        atomicMove = move,
+    )
+
+    private fun testRuntime(preserveData: Boolean = false) = RuntimeSpec(
+        generation = 1, desiredState = DesiredRuntimeState.RUNNING,
+        profileId = VmProfileId("ubuntu-2404-arm64-uefi"), memoryMiB = 1024,
+        vcpus = 2, dataDiskGiB = 8, preserveDataOnDelete = preserveData,
     )
 
     private fun operationContext(step: String) = OperationContext(OperationId("op-qemu-test"), step, 1)

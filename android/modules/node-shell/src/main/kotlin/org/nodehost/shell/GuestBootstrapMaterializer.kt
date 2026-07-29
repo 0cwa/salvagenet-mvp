@@ -44,9 +44,15 @@ data class GuestBootstrapProfile(
 
 /** Materializes NoCloud documents and a single-use secret without passwords or reusable defaults. */
 class GuestBootstrapMaterializer(
+    private val allowInsecureMeshUrls: Boolean = BuildConfig.DEBUG,
     private val tokenFactory: () -> String,
 ) {
     fun validate(enrollment: NodeEnrollment, artifact: GuestBootstrapSecretArtifact) {
+        if (!allowInsecureMeshUrls) {
+            require(enrollment.hostMesh.controlUrl.startsWith("https://") && artifact.mesh.controlUrl.startsWith("https://")) {
+                "release enrollment requires HTTPS mesh control URLs"
+            }
+        }
         require(artifact.enrollmentId == enrollment.id.value) { "guest bootstrap enrollment binding mismatch" }
         require(artifact.issuerSpkiSha256 == enrollment.controller.spkiSha256) { "guest bootstrap issuer fingerprint mismatch" }
         require(artifact.mesh.controlUrl == enrollment.hostMesh.controlUrl) {
@@ -111,8 +117,7 @@ trap 'rm -f "${'$'}secret"' EXIT
 curl --fail --silent --show-error --max-time 30 --max-filesize 65536 --proto '=http' \
   -H "Authorization: Bearer ${'$'}NODEHOST_BOOTSTRAP_TOKEN" \
   "${'$'}{NODEHOST_METADATA_BASE}bootstrap-secret" -o "${'$'}secret"
-# Once redemption succeeds this token can no longer retrieve secret material; retain it root-only for per-boot readiness.
-ready_capability=${'$'}NODEHOST_BOOTSTRAP_TOKEN
+# Bootstrap token is never retained after redemption. A distinct root-only credential fetches each boot's one-use readiness capability.
 unset NODEHOST_BOOTSTRAP_TOKEN
 rm -f /var/lib/nodehost/bootstrap.env
 control_url=${'$'}(jq -er '.mesh.controlUrl|select(test("^https?://"))' "${'$'}secret")
@@ -140,16 +145,20 @@ systemctl enable --now tailscaled
 tailscale up --login-server "${'$'}control_url" --auth-key "${'$'}auth_key" --hostname "${'$'}hostname" --accept-dns=true
 unset auth_key
 callback=${'$'}(jq -er '.callback.readyUrl' "${'$'}secret")
+readiness_root=${'$'}(jq -er '.callback.capability|select(length>=16 and length<=512)' "${'$'}secret")
 rm -f "${'$'}secret"
 trap - EXIT
 install -d -m 0700 /var/lib/nodehost
-printf '%s\n' "${'$'}ready_capability" > /var/lib/nodehost/ready-capability
+printf '%s\n' "${'$'}readiness_root" > /var/lib/nodehost/readiness-root
 cat > /usr/local/sbin/nodehost-ready <<'READY'
 #!/bin/sh
 set -eu
-capability=${'$'}(cat /var/lib/nodehost/ready-capability)
+root=${'$'}(cat /var/lib/nodehost/readiness-root)
+capability=${'$'}(curl --fail --silent --show-error --max-time 30 --proto '=http' \
+  -H "Authorization: Bearer ${'$'}root" http://10.0.2.2:8080/v1/bootstrap/readiness-capability)
 curl --fail --silent --show-error --max-time 30 --proto '=http' -X POST \
   -H "Authorization: Bearer ${'$'}capability" http://10.0.2.2:8080/v1/bootstrap/ready
+unset capability
 READY
 chmod 0700 /usr/local/sbin/nodehost-ready
 cat > /etc/systemd/system/nodehost-ready.service <<'UNIT'

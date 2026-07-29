@@ -129,7 +129,7 @@ class AndroidHostResourceQueries(
     }
 }
 
-class AndroidHostMutations(
+internal class AndroidHostMutations(
     context: Context,
     private val database: NodeHostDatabase,
     private val operations: RoomOperationRepository,
@@ -139,6 +139,7 @@ class AndroidHostMutations(
     private val clockMillis: () -> Long = System::currentTimeMillis,
     private val serviceScope: CoroutineScope? = null,
     private val addressResolver: (String) -> List<InetAddress> = { InetAddress.getAllByName(it).toList() },
+    private val beforePublicationClaim: suspend (OperationId) -> Unit = {},
 ) : HostMutationUseCases {
     private val artifacts = File(context.filesDir, "nodehost-artifacts")
     private val pendingImports = File(context.filesDir, "nodehost-imports")
@@ -220,9 +221,8 @@ class AndroidHostMutations(
             val completed = lock.withLock {
                 val latest = requireNotNull(operations.load(operationId))
                 if (latest.blocksArtifactEffects) latest else {
-                    val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
-                    val preparing = update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
-                    val prepared = update(preparing, preparing.transitionTo(OperationState.PREPARING_BOOT, "image.publish"))
+                    check(latest.state == OperationState.PREPARING_DISKS) { "image was not claimed for publication" }
+                    val prepared = update(latest, latest.transitionTo(OperationState.PREPARING_BOOT, "image.publish"))
                     update(prepared, prepared.transitionTo(OperationState.SUCCEEDED, null))
                 }
             }
@@ -275,11 +275,40 @@ class AndroidHostMutations(
     }
 
     override suspend fun cancelOperation(id: String, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord = lock.withLock {
-        operations.cancelOperation(
-            OperationId(id),
-            setOf(OperationState.ACCEPTED, OperationState.FETCHING, OperationState.FAILED_RETRYABLE),
-        )
+        require(idempotencyKey.length in 16..200) { "invalid idempotency key length" }
+        require(canonicalRequest.isNotEmpty() && canonicalRequest.size <= MAX_CANONICAL_REQUEST_BYTES) { "canonical cancel request is out of bounds" }
+        val digest = sha256(canonicalRequest)
+        database.withTransaction {
+            val db = database.openHelper.writableDatabase
+            db.execSQL("CREATE TABLE IF NOT EXISTS cancel_operation_receipts (idempotencyKey TEXT PRIMARY KEY NOT NULL, requestDigest TEXT NOT NULL, targetOperationId TEXT NOT NULL, resultJson TEXT NOT NULL)")
+            db.query("SELECT requestDigest,targetOperationId,resultJson FROM cancel_operation_receipts WHERE idempotencyKey = ?", arrayOf(idempotencyKey)).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    require(cursor.getString(0) == digest && cursor.getString(1) == id) { "idempotency key reused with different cancel request" }
+                    return@withTransaction JSONObject(cursor.getString(2)).operationRecord()
+                }
+            }
+            val count = db.query("SELECT COUNT(*) FROM cancel_operation_receipts").use { it.moveToFirst(); it.getInt(0) }
+            require(count < MAX_CANCEL_RECEIPTS) { "cancel receipt capacity exceeded" }
+            val result = operations.cancelOperation(
+                OperationId(id), setOf(OperationState.ACCEPTED, OperationState.FETCHING, OperationState.FAILED_RETRYABLE),
+            )
+            db.execSQL("INSERT INTO cancel_operation_receipts VALUES (?,?,?,?)", arrayOf<Any?>(idempotencyKey, digest, id, result.receiptJson().toString()))
+            result
+        }
     }
+
+    private fun OperationRecord.receiptJson() = JSONObject()
+        .put("id", id.value).put("idempotencyKey", idempotencyKey).put("requestDigest", requestDigest)
+        .put("runtimeId", runtimeId?.value ?: JSONObject.NULL).put("desiredGeneration", desiredGeneration ?: JSONObject.NULL)
+        .put("state", state.name).put("currentStepId", currentStepId ?: JSONObject.NULL).put("errorCode", errorCode ?: JSONObject.NULL)
+
+    private fun JSONObject.operationRecord() = OperationRecord(
+        OperationId(getString("id")), getString("idempotencyKey"), getString("requestDigest"),
+        if (isNull("runtimeId")) null else getString("runtimeId").let(::RuntimeId),
+        if (isNull("desiredGeneration")) null else getLong("desiredGeneration"), OperationState.valueOf(getString("state")),
+        if (isNull("currentStepId")) null else getString("currentStepId"),
+        if (isNull("errorCode")) null else getString("errorCode"),
+    )
 
     override suspend fun revokeController(id: String, idempotencyKey: String, canonicalRequest: ByteArray) {
         // The MVP enrollment carries one controller. Revocation is fail-closed and durable.
@@ -288,9 +317,16 @@ class AndroidHostMutations(
 
     private suspend fun downloadVerified(request: ImageImportRequest, authority: URI, imageId: String, operationId: OperationId) = withContext(Dispatchers.IO) {
         check(artifacts.mkdirs() || artifacts.isDirectory) { "artifact directory unavailable" }
-        val manifest = File(artifacts, "$imageId.manifest.json")
-        val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
-        if (isInstalled(imageId, request)) return@withContext
+        if (isInstalled(imageId, request)) {
+            lock.withLock {
+                val latest = requireNotNull(operations.load(operationId))
+                if (!latest.blocksArtifactEffects && latest.state == OperationState.FETCHING) {
+                    val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
+                    update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
+                }
+            }
+            return@withContext
+        }
         val temporary = File(artifacts, ".$imageId.${System.nanoTime()}.part")
         val deadline = SystemClock.elapsedRealtime() + DOWNLOAD_DEADLINE_MILLIS
         var current = URI(request.sourceUrl)
@@ -347,23 +383,48 @@ class AndroidHostMutations(
                     } finally { connection.disconnect() }
                 }
             }
-            val versionDirectory = requireNotNull(versionPayload.parentFile)
-            check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
+            publishVerifiedDownload(operationId, imageId, request, temporary)
+        } finally { temporary.delete() }
+    }
+
+    /** Cancellation is sampled under the same lock as the durable publication claim. */
+    internal suspend fun publishVerifiedDownload(
+        operationId: OperationId,
+        imageId: String,
+        request: ImageImportRequest,
+        temporary: File,
+    ): Boolean {
+        beforePublicationClaim(operationId)
+        val claimed = lock.withLock {
+            val latest = requireNotNull(operations.load(operationId))
+            if (latest.blocksArtifactEffects) false else {
+                check(latest.state == OperationState.FETCHING)
+                val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
+                update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
+                true
+            }
+        }
+        if (!claimed) return false
+        // PREPARING_DISKS is the durable non-cancellable publication claim. Cancellation can no longer win.
+        val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
+        val versionDirectory = requireNotNull(versionPayload.parentFile)
+        check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
+        java.nio.file.Files.move(
+            temporary.toPath(), versionPayload.toPath(),
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+        )
+        val manifest = File(artifacts, "$imageId.manifest.json")
+        val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
+        try {
+            val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
+                .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
+            FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
             java.nio.file.Files.move(
-                temporary.toPath(), versionPayload.toPath(),
+                manifestTemporary.toPath(), manifest.toPath(),
                 java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
             )
-            val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
-            try {
-                val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
-                    .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
-                FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
-                java.nio.file.Files.move(
-                    manifestTemporary.toPath(), manifest.toPath(),
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                )
-            } finally { manifestTemporary.delete() }
-        } finally { temporary.delete() }
+        } finally { manifestTemporary.delete() }
+        return true
     }
 
     internal fun cleanupInterruptedPublications() {
@@ -502,6 +563,8 @@ class AndroidHostMutations(
         const val ARTIFACT_QUOTA_BYTES = 96L * 1024 * 1024 * 1024
         const val MIN_FREE_BYTES = 256L * 1024 * 1024
         const val MAX_MANIFEST_BYTES = 4096L
+        const val MAX_CANONICAL_REQUEST_BYTES = 64 * 1024
+        const val MAX_CANCEL_RECEIPTS = 256
     }
 }
 

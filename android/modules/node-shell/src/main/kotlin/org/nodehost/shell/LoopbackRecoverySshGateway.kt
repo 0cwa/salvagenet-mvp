@@ -10,14 +10,13 @@ import org.nodehost.api.RecoverySshGateway
 import org.nodehost.api.RecoverySshSession
 import org.nodehost.core.ControllerPrincipal
 import org.nodehost.model.RuntimeId
+import org.nodehost.qemu.RecoverySshHostPort
 
-/** VM-scoped recovery bridge. It can reach only the fixed QEMU loopback SSH forward. */
+/** VM-scoped recovery bridge. It can reach only the allocated QEMU loopback SSH forward. */
 class LoopbackRecoverySshGateway(
-    private val hostPort: Int = 19922,
+    private val hostPort: RecoverySshHostPort,
 ) : RecoverySshGateway {
     private val active = AtomicBoolean(false)
-
-    init { require(hostPort in 1024..65535) }
 
     override suspend fun open(vmId: RuntimeId, principal: ControllerPrincipal): RecoverySshSession {
         require(vmId == RuntimeId.DEFAULT) { "MVP supports one runtime" }
@@ -27,7 +26,7 @@ class LoopbackRecoverySshGateway(
             val socket = withContext(Dispatchers.IO) {
                 Socket().apply {
                     soTimeout = IO_TIMEOUT_MILLIS
-                    connect(InetSocketAddress(InetAddress.getLoopbackAddress(), hostPort), CONNECT_TIMEOUT_MILLIS)
+                    connect(InetSocketAddress(InetAddress.getLoopbackAddress(), hostPort.value), CONNECT_TIMEOUT_MILLIS)
                 }
             }
             SocketRecoverySession(socket) { active.set(false) }
