@@ -9,6 +9,5 @@
   "dataDisk": {
     "sizeGiB": 8,
     "preserveOnDelete": true
-  },
-  "guestEnrollmentSecretId": "example-secret-id"
+  }
 }

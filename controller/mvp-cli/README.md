@@ -7,8 +7,14 @@ This dependency-light Python client is a disposable API exerciser and OpenSSH
 cp controller.example.json controller.json
 # Replace endpoint/capability and optionally provide a CA file.
 ./bin/phonectl-mvp --config controller.json status
+./bin/phonectl-mvp --config controller.json import-image image-import.json
 ./bin/phonectl-mvp --config controller.json apply-vm default request.json
+./bin/phonectl-mvp --config controller.json operations
 ./bin/phonectl-mvp --config controller.json wait <operation-id>
+
+Every OpenAPI resource is available as a command; run `phonectl-mvp --help` for
+the bounded list. Instead of `--config`, `NODEHOST_ENDPOINT`,
+`NODEHOST_CONTROLLER_CAPABILITY`, and optionally `NODEHOST_CA_FILE` may be used.
 ```
 
 The MVP client accepts only HTTPS. It uses the configured CA or the platform

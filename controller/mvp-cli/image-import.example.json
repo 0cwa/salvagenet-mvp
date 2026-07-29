@@ -1,0 +1,5 @@
+{
+  "sourceUrl": "https://artifacts.example.invalid/ubuntu-arm64.img",
+  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expectedSizeBytes": 1073741824
+}
