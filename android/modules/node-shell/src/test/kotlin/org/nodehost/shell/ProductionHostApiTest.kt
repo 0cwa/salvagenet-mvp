@@ -7,6 +7,8 @@ import java.io.File
 import java.net.InetAddress
 import java.net.URI
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
@@ -35,6 +37,7 @@ class ProductionHostApiTest {
         context = ApplicationProvider.getApplicationContext()
         File(context.filesDir, "nodehost-artifacts").deleteRecursively()
         File(context.filesDir, "nodehost-imports").deleteRecursively()
+        context.getSharedPreferences("nodehost_cancel_receipts_secure_v1", Context.MODE_PRIVATE).edit().clear().commit()
         database = Room.inMemoryDatabaseBuilder(context, NodeHostDatabase::class.java).build()
         operations = RoomOperationRepository(database, object : Clock { override fun epochMillis() = 1000L })
     }
@@ -75,6 +78,16 @@ class ProductionHostApiTest {
             listOf("alpine-direct-qualification", "ubuntu-2404-arm64-uefi", "k3s-worker-lab"),
             queries.profiles().map { it.id },
         )
+    }
+
+    @Test fun packagedK3sVendorDataDeploysReviewedQualifierAndReportSemantics() {
+        val vendor = context.assets.open("nodehost/k3s-worker-lab-vendor-data.yaml").bufferedReader().use { it.readText() }
+        assertTrue(vendor.contains("schemaVersion: 1"))
+        assertTrue(vendor.contains("joinedCluster: false"))
+        assertTrue(vendor.contains("tailscaleReachable"))
+        assertTrue(vendor.contains("minimumStorage"))
+        assertTrue(vendor.contains("mv -f \"${'$'}temporary\" \"${'$'}output_path\""))
+        assertFalse(vendor.contains("checks='cgroup-v2"))
     }
 
     @Test fun publicGuestBootstrapArtifactIsStrictAndCarriesSeparateOneUseKey() {
@@ -119,6 +132,21 @@ class ProductionHostApiTest {
         assertEquals(OperationState.FAILED_RETRYABLE.name, journaled!!.state)
         val replay = mutations.importImage(request, "image-import-key-0001", canonical)
         assertEquals(OperationState.FAILED_RETRYABLE, replay.state)
+    }
+
+    @Test fun concurrentCancelReplaysExactReceiptAndRejectsMismatchedKeyReuse() = runBlocking {
+        val mutations = AndroidHostMutations(
+            context, database, operations, ApplyRuntimeUseCase(operations, SecureOperationIdFactory()),
+            enrolledRepositoryOrigin = { URI("https://127.0.0.1") },
+        )
+        val request = ImageImportRequest("https://127.0.0.1/image", "a".repeat(64), 1)
+        val accepted = runCatching { mutations.importImage(request, "cancel-source-key-0001", "source".toByteArray()) }
+        assertTrue(accepted.isFailure)
+        val target = checkNotNull(database.dao().operationByKey("cancel-source-key-0001")).id
+        val calls = (1..12).map { async { mutations.cancelOperation(target, "cancel-receipt-key-0001", "cancel-request".toByteArray()) } }.awaitAll()
+        assertEquals(1, calls.map { it }.distinct().size)
+        assertEquals(OperationState.CANCELLED, calls.first().state)
+        assertTrue(runCatching { mutations.cancelOperation(target, "cancel-receipt-key-0001", "different".toByteArray()) }.isFailure)
     }
 
     @Test fun controllerRevocationIsDurableAndAuthenticatorFailsClosed() = runBlocking {

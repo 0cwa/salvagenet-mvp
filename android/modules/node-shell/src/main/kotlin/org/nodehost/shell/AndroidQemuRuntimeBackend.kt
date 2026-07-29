@@ -6,6 +6,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.security.MessageDigest
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -74,6 +76,9 @@ internal class AndroidQemuRuntimeBackend(
     private val elapsedRealtimeMillis: () -> Long = android.os.SystemClock::elapsedRealtime,
     private val gracefulStopMillis: Long = GRACEFUL_STOP_MILLIS,
     private val forceExitMillis: Long = FORCE_EXIT_MILLIS,
+    private val atomicMove: (File, File) -> Unit = { source, target ->
+        Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+    },
 ) : RuntimeBackend {
     private val application = context.applicationContext
     private val artifactRoot = File(application.filesDir, "nodehost-artifacts")
@@ -196,7 +201,13 @@ internal class AndroidQemuRuntimeBackend(
                 check(synchronized(stateLock) { handle == null }) { "cannot remove a running runtime" }
                 val instance = instanceDirectory()
                 val data = File(instance, "data.raw")
-                if (desired.preserveDataOnDelete && data.exists()) data.renameTo(File(application.filesDir, "preserved-data.raw"))
+                if (desired.preserveDataOnDelete && data.exists()) {
+                    val durable = durableDataFile()
+                    check(durable.parentFile?.mkdirs() == true || durable.parentFile?.isDirectory == true) { "durable data directory unavailable" }
+                    check(!durable.exists()) { "durable data disk already exists" }
+                    atomicMove(data, durable) // Failure aborts before any system deletion.
+                    check(durable.isFile && !data.exists()) { "data disk preservation was not atomic" }
+                }
                 deleteBounded(instance, MAX_DELETE_ENTRIES)
                 StepOutcome(true, "system-removed")
             }
@@ -268,13 +279,28 @@ internal class AndroidQemuRuntimeBackend(
             }
             UBUNTU_PROFILE, K3S_PROFILE -> {
                 copyVerified("aavmf-code", File(artifacts, "AAVMF_CODE.fd"))
-                copyVerified("aavmf-vars", File(instance, "firmware-vars.fd"))
-                copyVerified("ubuntu-2404-arm64-cloud", File(instance, "system.qcow2"))
+                // These are mutable VM state. Verify the imported source, but create each target exactly once.
+                copyVerifiedOnce("aavmf-vars", File(instance, "firmware-vars.fd"))
+                copyVerifiedOnce("ubuntu-2404-arm64-cloud", File(instance, "system.qcow2"))
                 val data = File(instance, "data.raw")
+                val durable = durableDataFile()
+                if (!data.exists() && durable.exists()) {
+                    atomicMove(durable, data)
+                    check(data.isFile && !durable.exists()) { "data disk restoration was not atomic" }
+                }
                 if (!data.exists()) RandomAccessFile(data, "rw").use { it.setLength(runtime.dataDiskGiB * GIB) }
             }
             else -> error("unsupported profile: ${runtime.profileId.value}")
         }
+    }
+
+    private fun copyVerifiedOnce(id: String, target: File) {
+        artifact(id, true)
+        if (target.exists()) {
+            require(target.isFile && target.length() in 1..MAX_ARTIFACT_BYTES) { "mutable system state is invalid: ${target.name}" }
+            return
+        }
+        copyVerified(id, target)
     }
 
     private fun copyVerified(id: String, target: File) {
@@ -316,6 +342,7 @@ internal class AndroidQemuRuntimeBackend(
     }
 
     private fun instanceDirectory() = File(application.filesDir, "vms/default")
+    private fun durableDataFile() = File(application.filesDir, "nodehost-durable/vms/default/data.raw")
 
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")

@@ -18,6 +18,7 @@ internal interface BootstrapRequestStore {
     suspend fun profile(presentedToken: String): GuestBootstrapProfile?
     suspend fun vendorData(presentedToken: String): ByteArray?
     suspend fun redeem(presentedToken: String): ByteArray?
+    suspend fun readinessCapability(presentedRootCapability: String): ByteArray? = null
     suspend fun markGuestReady(presentedCapability: String): Boolean
 }
 
@@ -119,6 +120,10 @@ internal class BootstrapMetadataServer(
     }
 
     private suspend fun route(method: String, path: String, authorization: String?): Pair<String, ByteArray> {
+        if (method == "GET" && path == "/v1/bootstrap/readiness-capability") {
+            val root = authorization?.removePrefix("Bearer ").takeUnless { it == authorization }.orEmpty()
+            return store.readinessCapability(root)?.let { "200 OK" to it } ?: ("401 Unauthorized" to ByteArray(0))
+        }
         if (method == "POST" && path == "/v1/bootstrap/ready") {
             val capability = authorization?.removePrefix("Bearer ").takeUnless { it == authorization }.orEmpty()
             return if (store.markGuestReady(capability)) "204 No Content" to ByteArray(0)

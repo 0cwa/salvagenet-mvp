@@ -151,6 +151,19 @@ class VerticalIntegrationTest {
         actor.close()
     }
 
+    @Test fun releaseMaterializationRejectsHttpMeshWhileDebugLabPolicyAllowsIt() {
+        val enrollmentObject = JSONObject(enrollmentJson().toString(Charsets.UTF_8))
+        enrollmentObject.getJSONObject("hostMesh").put("controlUrl", "http://mesh.lab.test")
+        val guestObject = JSONObject(guestBootstrapSecretJson().toString(Charsets.UTF_8))
+        guestObject.getJSONObject("mesh").put("controlUrl", "http://mesh.lab.test")
+        val enrollment = EnrollmentJson.parse(enrollmentObject.toString().toByteArray())
+        val guest = GuestBootstrapSecretJson.parse(guestObject.toString().toByteArray())
+        assertTrue(runCatching {
+            GuestBootstrapMaterializer(allowInsecureMeshUrls = false, tokenFactory = { "r".repeat(43) }).validate(enrollment, guest)
+        }.isFailure)
+        GuestBootstrapMaterializer(allowInsecureMeshUrls = true, tokenFactory = { "d".repeat(43) }).validate(enrollment, guest)
+    }
+
     @Test fun persistedAuthorityCanEraseOneTimeCredentialsWithoutLosingRestartAuthority() {
         val enrollment = EnrollmentJson.parse(enrollmentJson())
         val operation = OperationRecord(
