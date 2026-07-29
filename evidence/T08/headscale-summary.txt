@@ -1,0 +1,7 @@
+Disposable Headscale lab verification
+- Image/version: Headscale 0.28.0 under Podman
+- LAN endpoint: http://192.168.0.91:18080 (free port selected for this run)
+- Config validation and /health: PASS
+- Separate one-use controller, Android-host, and VM-guest keys: minted to ignored secrets directory; values were never printed or committed
+- Shutdown: PASS; no nodehost lab containers remained in podman ps or podman ps -a
+- Scope: infrastructure readiness only; no Android VPN or live mesh join occurred because no authorized physical device exists

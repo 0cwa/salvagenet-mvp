@@ -1,0 +1,26 @@
+T08 integrated-base QA summary (initial run 2026-07-29; packaging rerun 2026-07-29)
+
+PASS
+- Clean packaging rerun removed app/build and vendor/tailscale/build before rebuilding.
+- Full `./gradlew test`, make test-jvm, make test-android, and make test-guest.
+- App lintDebug/assembleDebug, mesh-tailscale assembleRelease, and app assembleRelease with a temporary test-only keystore that was deleted and never committed.
+- `:app:verifyPodroidPackaging` and the direct prepare-runtime verifier checked all 42 exact pinned runtime entries.
+- Debug APK v2 signature and `zipalign -c -P 16 -v 4` checks.
+- unzip/readelf confirmed QEMU, launcher, SLIRP, bridge, libgojni, kernel, initrd, rootfs, EFI, and all 34 pinned keymaps are present; all five required AArch64 ELF payloads have PT_LOAD alignment of at least 0x4000.
+- Debug APK: 348464044 bytes; SHA-256 df413b753f6e1effe62a2911c26f0cfddb893af8c4ba591bf16b06850ae4a1a3. The APK remains an ignored, uncommitted build artifact.
+- make validate, including strict schema/evidence validation, release-surface and secret scans.
+- Explicit API (5), contract (17), QEMU fixture (2), tools (3), controller CLI (18), and Headscale renderer (5) Python tests.
+- Fake vertical e2e decision/composition path; its hardware continuation exited 77 as designed.
+
+RESOLVED SOFTWARE BLOCKERS
+- T00 packaging fixes now produce and package the pinned QEMU, launcher, SLIRP, bridge, kernel, initrd, rootfs, EFI, and keymap payloads. B19 changed from FAIL to PASS.
+- T00 terminal-emulator test dependencies now permit full Gradle `test` aggregation.
+- T05 generated libtailscale inputs and task wiring now permit clean libgojni generation, mesh release assembly, and app release assembly.
+
+PRESERVED PRIOR HARDWARE EVIDENCE
+- The earlier API 36 x86_64 emulator 36.6.11 cold boot exited 139 with Vulkan disabled; this remains truthful but is not physical ARM64 evidence.
+- No authorized physical ARM64 Android device exists. No physical APK install/QEMU boot, VPN approval, live host/guest mesh, guest SSH/recovery, lifecycle/process-death-on-device, or reboot test was run.
+- B02 and B07-B17 remain BLOCKED-HARDWARE.
+
+MVP+
+- `check-mvp-plus-gate.py --report-only` remains BLOCKED solely because physical base gates are BLOCKED-HARDWARE. No executable USB work was enabled.

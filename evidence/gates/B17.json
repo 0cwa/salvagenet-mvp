@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "gateId": "B17",
+  "status": "BLOCKED-HARDWARE",
+  "recordedAt": "2026-07-29T14:23:43.596930+00:00",
+  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
+  "command": "tests/device/lifecycle-smoke.sh",
+  "summary": "No physical hosted VM exists for controller-disconnection persistence evidence.",
+  "environment": {},
+  "artifacts": [
+    {
+      "path": "evidence/T08/qa-summary.txt",
+      "sha256": "358d1d75829a96654e72e217cbb387bfaa6c6cf3b6f33521559098d799dc2791",
+      "note": null
+    }
+  ]
+}
