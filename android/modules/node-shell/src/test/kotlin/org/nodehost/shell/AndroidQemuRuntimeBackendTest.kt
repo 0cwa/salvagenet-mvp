@@ -146,6 +146,7 @@ class AndroidQemuRuntimeBackendTest {
         context,
         desiredRuntime = { runtime },
         beginBootToken = { "b".repeat(43) },
+        recoveryPort = org.nodehost.qemu.RecoverySshHostPort(19922),
         qemu = qemu,
         elapsedRealtimeMillis = elapsedRealtime,
         gracefulStopMillis = 10,

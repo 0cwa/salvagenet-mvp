@@ -71,7 +71,7 @@ internal class AndroidQemuRuntimeBackend(
     context: Context,
     private val desiredRuntime: suspend () -> RuntimeSpec?,
     private val beginBootToken: suspend (VmProfileId) -> String?,
-    private val recoveryPort: RecoverySshHostPort = RecoverySshHostPort(19922),
+    private val recoveryPort: RecoverySshHostPort,
     private val qemu: QemuProcessControl = RuntimeQemuProcessControl(),
     private val elapsedRealtimeMillis: () -> Long = android.os.SystemClock::elapsedRealtime,
     private val gracefulStopMillis: Long = GRACEFUL_STOP_MILLIS,

@@ -42,8 +42,16 @@ internal class BootstrapMetadataServer(
 
     @Synchronized fun start() {
         if (server != null) return
-        val opened = ServerSocket(port, MAX_PENDING_CONNECTIONS, InetAddress.getLoopbackAddress()).apply {
-            soTimeout = ACCEPT_POLL_MILLIS
+        val opened = try {
+            ServerSocket(port, MAX_PENDING_CONNECTIONS, InetAddress.getLoopbackAddress()).apply {
+                soTimeout = ACCEPT_POLL_MILLIS
+            }
+        } catch (failure: java.io.IOException) {
+            close()
+            throw IllegalStateException(
+                "fixed bootstrap loopback port $port is unavailable; public NoCloud contract cannot be served",
+                failure,
+            )
         }
         server = opened
         acceptExecutor.execute { acceptLoop(opened) }

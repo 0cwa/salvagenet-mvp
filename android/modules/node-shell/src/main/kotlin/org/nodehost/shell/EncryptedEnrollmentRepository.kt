@@ -49,6 +49,12 @@ class EncryptedEnrollmentRepository(context: Context) : EnrollmentRepository {
         state.write(EnrollmentJson.encodeStored(current.first, current.second, includeOneTimeCredentials = false))
     }
 
+    suspend fun hasOneTimeCredentials(): Boolean = mutex.withLock {
+        val enrollment = state.read()?.let(::JSONObject)?.optJSONObject("enrollment") ?: return@withLock false
+        enrollment.optJSONObject("controller")?.has("oneTimeEnrollmentToken") == true &&
+            enrollment.optJSONObject("hostMesh")?.has("oneUseAuthKey") == true
+    }
+
     suspend fun clearAuthority() = mutex.withLock { state.clear() }
 
     override suspend fun acceptEnrollment(
@@ -97,6 +103,10 @@ object EnrollmentJson {
         } else {
             GuestSshAuthorization.AuthorizedKeys(guestAccess.stringSet("emergencyAuthorizedKeys", 4))
         }
+        val desiredState = initial.string("desiredState")
+        require(desiredState == desiredState.lowercase() && desiredState in setOf("running", "stopped", "absent")) {
+            "desiredState must use the lowercase schema value"
+        }
         return NodeEnrollment(
             EnrollmentId(metadata.string("enrollmentId")),
             NodeName(metadata.string("nodeName")),
@@ -108,7 +118,7 @@ object EnrollmentJson {
             ArtifactDefaults(artifacts.string("repositoryUrl"), artifacts.stringSet("profileIds", 16).map(::VmProfileId).toSet()),
             InitialRuntimeDefaults(
                 VmProfileId(initial.string("profileId")),
-                DesiredRuntimeState.valueOf(initial.string("desiredState").uppercase()),
+                DesiredRuntimeState.valueOf(desiredState.uppercase()),
                 initial.intValue("memoryMiB"), initial.intValue("vcpus"), initial.intValue("dataDiskGiB"),
             ),
         )
@@ -192,6 +202,7 @@ internal class AndroidEncryptedBlob(
     private val preferencesName: String,
     private val preferenceKey: String,
     private val keyAlias: String,
+    private val maxPlaintextBytes: Int = EnrollmentJson.MAX_ENROLLMENT_BYTES + 4096,
 ) {
     private val preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
     private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -211,7 +222,7 @@ internal class AndroidEncryptedBlob(
     }
 
     @Synchronized fun write(value: String) {
-        require(value.toByteArray().size <= EnrollmentJson.MAX_ENROLLMENT_BYTES + 4096)
+        require(value.toByteArray().size <= maxPlaintextBytes)
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val encoded = Base64.encodeToString(cipher.iv + cipher.doFinal(value.toByteArray()), Base64.NO_WRAP)

@@ -109,7 +109,7 @@ class VerticalIntegrationTest {
             EmptyQueries,
             UnsupportedMutations,
             ApplyRuntimeUseCase(operations, OperationIdFactory { OperationId("op-controller-apply") }),
-            LoopbackRecoverySshGateway(),
+            LoopbackRecoverySshGateway(org.nodehost.qemu.RecoverySshHostPort(19922)),
             AcceptedOperationDispatcher {
                 check(actor.wake(WakeReason.DESIRED_STATE_CHANGED)) { "reconciliation actor is unavailable" }
             },
@@ -151,6 +151,75 @@ class VerticalIntegrationTest {
         actor.close()
     }
 
+    @Test fun restartConvergesAfterEveryEnrollmentBoundaryWithoutDuplicateAuthorityOrDesiredStateLoss() = runBlocking {
+        EnrollmentPhase.entries.forEachIndexed { index, failedPhase ->
+            val localDatabase = Room.inMemoryDatabaseBuilder(
+                ApplicationProvider.getApplicationContext<Context>(), NodeHostDatabase::class.java,
+            ).build()
+            try {
+                val localOperations = RoomOperationRepository(localDatabase, object : Clock { override fun epochMillis() = 1_000L })
+                val repository = InMemoryEnrollmentRepository()
+                val bootstrap = RecordingBootstrapStore()
+                val mesh = RecordingMesh()
+                val phases = RecordingPhaseStore()
+                var injected = false
+                fun installer() = EnrollmentInstaller(
+                    repository, localOperations, mesh, bootstrap, {},
+                    object : Clock { override fun epochMillis() = 1_000L },
+                    phaseStore = phases,
+                    operationIds = OperationIdFactory { OperationId("op-phase-${index.toString().padStart(3, '0')}") },
+                    materializer = GuestBootstrapMaterializer { "p".repeat(43) },
+                    boundaryHook = EnrollmentBoundaryHook { phase ->
+                        if (!injected && phase == failedPhase) { injected = true; error("injected after $phase") }
+                    },
+                )
+                val firstInstaller = installer()
+                if (failedPhase == EnrollmentPhase.BOOTSTRAP_COMMITTED_API_READY) {
+                    firstInstaller.install(enrollmentJson(), guestBootstrapSecretJson(), "phase-recovery-${index.toString().padStart(4, '0')}", "a".repeat(64))
+                    assertTrue(runCatching { firstInstaller.markBootstrapCommittedApiReady() }.isFailure)
+                    assertNotNull(installer().recoverOnStartup())
+                    installer().markBootstrapCommittedApiReady()
+                } else {
+                    assertTrue(runCatching {
+                        firstInstaller.install(enrollmentJson(), guestBootstrapSecretJson(), "phase-recovery-${index.toString().padStart(4, '0')}", "a".repeat(64))
+                    }.isFailure)
+                    if (failedPhase == EnrollmentPhase.VALIDATED_STAGED) {
+                        assertNull(installer().recoverOnStartup())
+                        assertNull(bootstrap.materialized)
+                        installer().install(enrollmentJson(), guestBootstrapSecretJson(), "phase-recovery-${index.toString().padStart(4, '0')}", "a".repeat(64))
+                    } else {
+                        assertNotNull(installer().recoverOnStartup())
+                    }
+                }
+                assertEquals(1, repository.acceptedCount)
+                assertEquals("stopped", localOperations.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState?.name?.lowercase())
+                assertTrue(mesh.started)
+                assertEquals(1, mesh.configureCalls)
+                assertTrue(bootstrap.committed)
+                assertEquals(
+                    if (failedPhase == EnrollmentPhase.BOOTSTRAP_COMMITTED_API_READY) EnrollmentPhase.BOOTSTRAP_COMMITTED_API_READY
+                    else EnrollmentPhase.HOST_MESH_ENROLLED_KEY_ERASED,
+                    phases.state?.phase,
+                )
+            } finally { localDatabase.close() }
+        }
+    }
+
+    @Test fun enrollmentDesiredStateRejectsNonLowercaseSchemaValue() {
+        val enrollment = JSONObject(enrollmentJson().toString(Charsets.UTF_8))
+        enrollment.getJSONObject("initialRuntime").put("desiredState", "STOPPED")
+        assertTrue(runCatching { EnrollmentJson.parse(enrollment.toString().toByteArray()) }.isFailure)
+    }
+
+    @Test fun recoveryPortAllocationRetriesPreBoundCollision() {
+        val occupied = ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())
+        try {
+            val free = ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress()).use { it.localPort }
+            val candidates = ArrayDeque(listOf(occupied.localPort, free))
+            assertEquals(free, RecoverySshPortAllocator(candidate = { candidates.removeFirst() }, attempts = 2).allocate().value)
+        } finally { occupied.close() }
+    }
+
     @Test fun releaseMaterializationRejectsHttpMeshWhileDebugLabPolicyAllowsIt() {
         val enrollmentObject = JSONObject(enrollmentJson().toString(Charsets.UTF_8))
         enrollmentObject.getJSONObject("hostMesh").put("controlUrl", "http://mesh.lab.test")
@@ -182,7 +251,7 @@ class VerticalIntegrationTest {
         val installer = EnrollmentInstaller(
             repository, operations, RecordingMesh(), RecordingBootstrapStore(), {},
             object : Clock { override fun epochMillis() = 1_000L },
-            OperationIdFactory { OperationId("op-binding-test") },
+            operationIds = OperationIdFactory { OperationId("op-binding-test") },
             materializer = GuestBootstrapMaterializer { "c".repeat(43) },
         )
         val mismatched = JSONObject(guestBootstrapSecretJson().toString(Charsets.UTF_8))
@@ -207,7 +276,7 @@ class VerticalIntegrationTest {
                 socket.getOutputStream().write(echoed)
             }
         }.apply { start() }
-        val gateway = LoopbackRecoverySshGateway(server.localPort)
+        val gateway = LoopbackRecoverySshGateway(org.nodehost.qemu.RecoverySshHostPort(server.localPort))
         val principal = org.nodehost.core.ControllerPrincipal("controller-1", setOf("admin"))
         val session = gateway.open(RuntimeId.DEFAULT, principal)
         val duplicate = runCatching { gateway.open(RuntimeId.DEFAULT, principal) }
@@ -274,19 +343,32 @@ class VerticalIntegrationTest {
     private class RecordingMesh : HostMesh {
         var configuration: HostMeshConfiguration? = null
         var started = false
-        override suspend fun configure(configuration: HostMeshConfiguration) { this.configuration = configuration }
+        var configureCalls = 0
+        override suspend fun configure(configuration: HostMeshConfiguration) { this.configuration = configuration; configureCalls++ }
         override suspend fun start() { started = true }
         override suspend fun stop() { started = false }
         override suspend fun status() = HostMeshStatus(if (started) HostMeshStatus.State.RUNNING else HostMeshStatus.State.STOPPED)
         override suspend fun clearIdentity() { started = false; configuration = null }
     }
 
+    private class RecordingPhaseStore : EnrollmentPhaseStore {
+        var state: EnrollmentRecoveryState? = null
+        override suspend fun load() = state
+        override suspend fun save(state: EnrollmentRecoveryState) { this.state = state.copy(
+            rawEnrollment = state.rawEnrollment.copyOf(),
+            rawGuestBootstrapSecret = state.rawGuestBootstrapSecret.copyOf(),
+        ) }
+        override suspend fun clear() { state = null }
+    }
+
     private class InMemoryEnrollmentRepository : EnrollmentRepository {
         var installed: Pair<NodeEnrollment, OperationRecord>? = null
+        var acceptedCount = 0
         override suspend fun load() = installed?.first
         override suspend fun acceptEnrollment(enrollment: NodeEnrollment, operation: OperationRecord): EnrollmentAcceptance {
             if (installed != null) return EnrollmentAcceptance.Replay(installed!!.second)
             installed = enrollment to operation
+            acceptedCount++
             return EnrollmentAcceptance.Accepted
         }
     }

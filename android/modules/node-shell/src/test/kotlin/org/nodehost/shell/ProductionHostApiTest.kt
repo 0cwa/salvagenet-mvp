@@ -24,6 +24,7 @@ import org.nodehost.core.ApplyRuntimeUseCase
 import org.nodehost.core.Clock
 import org.nodehost.model.OperationState
 import org.nodehost.store.NodeHostDatabase
+import org.nodehost.store.OperationEntity
 import org.nodehost.store.RoomOperationRepository
 import org.robolectric.RobolectricTestRunner
 
@@ -132,6 +133,51 @@ class ProductionHostApiTest {
         assertEquals(OperationState.FAILED_RETRYABLE.name, journaled!!.state)
         val replay = mutations.importImage(request, "image-import-key-0001", canonical)
         assertEquals(OperationState.FAILED_RETRYABLE, replay.state)
+    }
+
+    @Test fun cancellationWinningAtPublicationBoundaryCannotPublishImage() = runBlocking {
+        val operationId = org.nodehost.model.OperationId("op-publication-race")
+        database.dao().insertOperation(OperationEntity(
+            operationId.value, "publication-race-source", "d".repeat(64), null, null,
+            OperationState.FETCHING.name, "image.fetch", null, 1_000L, 1_000L,
+        ))
+        val root = File(context.filesDir, "nodehost-artifacts").apply { mkdirs() }
+        val temporary = File(root, ".race.part").apply { writeText("payload") }
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(temporary.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        val request = ImageImportRequest("https://artifacts.example.test/race-image", digest, temporary.length())
+        val mutations = AndroidHostMutations(
+            context, database, operations, ApplyRuntimeUseCase(operations, SecureOperationIdFactory()),
+            enrolledRepositoryOrigin = { URI("https://artifacts.example.test") },
+            beforePublicationClaim = { operations.cancelOperation(it, setOf(OperationState.FETCHING)) },
+        )
+
+        assertFalse(mutations.publishVerifiedDownload(operationId, "race-image", request, temporary))
+        assertEquals(OperationState.CANCELLED, operations.load(operationId)?.state)
+        assertFalse(File(root, "race-image.manifest.json").exists())
+        assertFalse(File(root, "versions/race-image/$digest/payload").exists())
+    }
+
+    @Test fun cancelReceiptCapacityFailsDeterministicallyWithoutEvictingIdempotencyHistory() = runBlocking {
+        val operationId = org.nodehost.model.OperationId("op-cancel-capacity")
+        database.dao().insertOperation(OperationEntity(
+            operationId.value, "cancel-capacity-source", "e".repeat(64), null, null,
+            OperationState.FETCHING.name, "image.fetch", null, 1_000L, 1_000L,
+        ))
+        val mutations = AndroidHostMutations(
+            context, database, operations, ApplyRuntimeUseCase(operations, SecureOperationIdFactory()),
+            enrolledRepositoryOrigin = { URI("https://artifacts.example.test") },
+        )
+        repeat(256) { index ->
+            mutations.cancelOperation(operationId.value, "cancel-capacity-${index.toString().padStart(4, '0')}", "cancel-$index".toByteArray())
+        }
+        val failure = runCatching {
+            mutations.cancelOperation(operationId.value, "cancel-capacity-overflow", "overflow".toByteArray())
+        }.exceptionOrNull()
+        assertTrue(failure?.message.orEmpty().contains("cancel receipt capacity exceeded"))
+        assertEquals(OperationState.CANCELLED, mutations.cancelOperation(
+            operationId.value, "cancel-capacity-0000", "cancel-0".toByteArray(),
+        ).state)
     }
 
     @Test fun concurrentCancelReplaysExactReceiptAndRejectsMismatchedKeyReuse() = runBlocking {

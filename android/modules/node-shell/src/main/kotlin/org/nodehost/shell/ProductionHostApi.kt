@@ -139,6 +139,7 @@ internal class AndroidHostMutations(
     private val clockMillis: () -> Long = System::currentTimeMillis,
     private val serviceScope: CoroutineScope? = null,
     private val addressResolver: (String) -> List<InetAddress> = { InetAddress.getAllByName(it).toList() },
+    private val beforePublicationClaim: suspend (OperationId) -> Unit = {},
 ) : HostMutationUseCases {
     private val artifacts = File(context.filesDir, "nodehost-artifacts")
     private val pendingImports = File(context.filesDir, "nodehost-imports")
@@ -316,8 +317,6 @@ internal class AndroidHostMutations(
 
     private suspend fun downloadVerified(request: ImageImportRequest, authority: URI, imageId: String, operationId: OperationId) = withContext(Dispatchers.IO) {
         check(artifacts.mkdirs() || artifacts.isDirectory) { "artifact directory unavailable" }
-        val manifest = File(artifacts, "$imageId.manifest.json")
-        val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
         if (isInstalled(imageId, request)) {
             lock.withLock {
                 val latest = requireNotNull(operations.load(operationId))
@@ -384,34 +383,48 @@ internal class AndroidHostMutations(
                     } finally { connection.disconnect() }
                 }
             }
-            val claimed = lock.withLock {
-                val latest = requireNotNull(operations.load(operationId))
-                if (latest.blocksArtifactEffects) false else {
-                    check(latest.state == OperationState.FETCHING)
-                    val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
-                    update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
-                    true
-                }
+            publishVerifiedDownload(operationId, imageId, request, temporary)
+        } finally { temporary.delete() }
+    }
+
+    /** Cancellation is sampled under the same lock as the durable publication claim. */
+    internal suspend fun publishVerifiedDownload(
+        operationId: OperationId,
+        imageId: String,
+        request: ImageImportRequest,
+        temporary: File,
+    ): Boolean {
+        beforePublicationClaim(operationId)
+        val claimed = lock.withLock {
+            val latest = requireNotNull(operations.load(operationId))
+            if (latest.blocksArtifactEffects) false else {
+                check(latest.state == OperationState.FETCHING)
+                val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
+                update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
+                true
             }
-            if (!claimed) return@withContext
-            // PREPARING_DISKS is the durable non-cancellable publication claim. Cancellation can no longer win.
-            val versionDirectory = requireNotNull(versionPayload.parentFile)
-            check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
+        }
+        if (!claimed) return false
+        // PREPARING_DISKS is the durable non-cancellable publication claim. Cancellation can no longer win.
+        val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
+        val versionDirectory = requireNotNull(versionPayload.parentFile)
+        check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
+        java.nio.file.Files.move(
+            temporary.toPath(), versionPayload.toPath(),
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+        )
+        val manifest = File(artifacts, "$imageId.manifest.json")
+        val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
+        try {
+            val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
+                .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
+            FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
             java.nio.file.Files.move(
-                temporary.toPath(), versionPayload.toPath(),
+                manifestTemporary.toPath(), manifest.toPath(),
                 java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
             )
-            val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
-            try {
-                val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
-                    .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
-                FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
-                java.nio.file.Files.move(
-                    manifestTemporary.toPath(), manifest.toPath(),
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                )
-            } finally { manifestTemporary.delete() }
-        } finally { temporary.delete() }
+        } finally { manifestTemporary.delete() }
+        return true
     }
 
     internal fun cleanupInterruptedPublications() {

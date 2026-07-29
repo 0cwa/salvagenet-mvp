@@ -1,6 +1,7 @@
 package org.nodehost.shell
 
 import java.net.InetAddress
+import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -15,6 +16,14 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class BootstrapMetadataServerTest {
     private val token = "t".repeat(43)
+
+    @Test fun occupiedContractPortFailsImmediatelyAndExplicitly() {
+        ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { occupied ->
+            val failure = runCatching { BootstrapMetadataServer(RecordingStore(), occupied.localPort).start() }.exceptionOrNull()
+            assertTrue(failure is IllegalStateException)
+            assertTrue(failure?.message.orEmpty().contains("public NoCloud contract"))
+        }
+    }
 
     @Test fun oversizedRequestLineIsRejectedBeforeStoreAccess() {
         val store = RecordingStore()
