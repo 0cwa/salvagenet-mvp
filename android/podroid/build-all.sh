@@ -11,6 +11,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JNILIBS="${SCRIPT_DIR}/app/src/main/jniLibs/arm64-v8a"
 ASSETS="${SCRIPT_DIR}/app/src/main/assets"
 
+if [ -n "${PODROID_CONTAINER_ENGINE:-}" ]; then
+    CONTAINER_ENGINE="$PODROID_CONTAINER_ENGINE"
+elif command -v podman >/dev/null 2>&1; then
+    CONTAINER_ENGINE="podman"
+elif command -v docker >/dev/null 2>&1; then
+    CONTAINER_ENGINE="docker"
+else
+    echo "ERROR: Podman or Docker is required for native runtime source builds." >&2
+    exit 1
+fi
+command -v "$CONTAINER_ENGINE" >/dev/null 2>&1 || {
+    echo "ERROR: configured container engine not found: $CONTAINER_ENGINE" >&2
+    exit 1
+}
+
 # ── Colors ────────────────────────────────────────────────────────────────────
 BLUE='\033[1;34m'
 GREEN='\033[1;32m'
@@ -89,34 +104,34 @@ EOF
 build_kernel() {
     local kernel_ver
     kernel_ver=$(grep -E '^podroidKernelVersion=' "${SCRIPT_DIR}/gradle.properties" | cut -d= -f2)
-    log "Building custom kernel ${kernel_ver} for aarch64 (Docker)..."
-    docker build --network=host \
+    log "Building custom kernel ${kernel_ver} for aarch64 (${CONTAINER_ENGINE})..."
+    "$CONTAINER_ENGINE" build --network=host \
         --build-arg "KERNEL_VERSION=${kernel_ver}" \
         -t podroid-kernel-builder --target kernel-builder "$SCRIPT_DIR"
     log "Extracting kernel artifact..."
-    docker rm -f podroid-kernel-extract 2>/dev/null || true
-    docker create --name podroid-kernel-extract podroid-kernel-builder
+    "$CONTAINER_ENGINE" rm -f podroid-kernel-extract 2>/dev/null || true
+    "$CONTAINER_ENGINE" create --name podroid-kernel-extract podroid-kernel-builder
     mkdir -p "$ASSETS"
-    docker cp podroid-kernel-extract:/output/vmlinuz-virt "$ASSETS/vmlinuz-virt"
-    docker rm podroid-kernel-extract >/dev/null
+    "$CONTAINER_ENGINE" cp podroid-kernel-extract:/output/vmlinuz-virt "$ASSETS/vmlinuz-virt"
+    "$CONTAINER_ENGINE" rm podroid-kernel-extract >/dev/null
     success "Custom kernel ready."
 }
 
 build_initramfs() {
     local kernel_ver
     kernel_ver=$(grep -E '^podroidKernelVersion=' "${SCRIPT_DIR}/gradle.properties" | cut -d= -f2)
-    log "Building custom kernel + Alpine Initramfs (Docker)..."
-    docker build --network=host \
+    log "Building custom kernel + Alpine Initramfs (${CONTAINER_ENGINE})..."
+    "$CONTAINER_ENGINE" build --network=host \
         --build-arg "KERNEL_VERSION=${kernel_ver}" \
         -t podroid-builder --target packer "$SCRIPT_DIR"
 
     log "Extracting initramfs artifacts..."
-    docker rm podroid-extract 2>/dev/null || true
-    docker create --name podroid-extract podroid-builder /bin/true
+    "$CONTAINER_ENGINE" rm -f podroid-extract 2>/dev/null || true
+    "$CONTAINER_ENGINE" create --name podroid-extract podroid-builder /bin/true
     mkdir -p "$ASSETS"
-    docker cp podroid-extract:/output/vmlinuz-virt "$ASSETS/vmlinuz-virt"
-    docker cp podroid-extract:/output/initrd.img "$ASSETS/initrd.img"
-    docker rm podroid-extract >/dev/null
+    "$CONTAINER_ENGINE" cp podroid-extract:/output/vmlinuz-virt "$ASSETS/vmlinuz-virt"
+    "$CONTAINER_ENGINE" cp podroid-extract:/output/initrd.img "$ASSETS/initrd.img"
+    "$CONTAINER_ENGINE" rm podroid-extract >/dev/null
     success "Kernel + initramfs ready."
 }
 
@@ -124,7 +139,7 @@ build_rootfs() {
     log "Building Alpine rootfs squashfs..."
     local sysver
     sysver=$(grep -E '^[[:space:]]*versionCode[[:space:]]*=' "${SCRIPT_DIR}/app/build.gradle.kts" | grep -oE '[0-9]+' | head -1)
-    docker build -f "${SCRIPT_DIR}/build-rootfs/Dockerfile.rootfs" \
+    "$CONTAINER_ENGINE" build -f "${SCRIPT_DIR}/build-rootfs/Dockerfile.rootfs" \
         -t podroid-rootfs:latest \
         --build-arg "SYSTEM_VERSION=${sysver:-0}" \
         --output type=local,dest="${ASSETS}" \
@@ -135,23 +150,23 @@ build_rootfs() {
 build_qemu() {
     local qemu_ver
     qemu_ver=$(grep -E '^podroidQemuVersion=' "${SCRIPT_DIR}/gradle.properties" | cut -d= -f2)
-    log "Building QEMU ${qemu_ver} for Android ARM64 (Docker)..."
+    log "Building QEMU ${qemu_ver} for Android ARM64 (${CONTAINER_ENGINE})..."
     
-    docker build --build-arg "QEMU_VERSION=${qemu_ver}" \
+    "$CONTAINER_ENGINE" build --build-arg "QEMU_VERSION=${qemu_ver}" \
         -t podroid-qemu-builder --target final "${SCRIPT_DIR}"
         
     log "Extracting QEMU artifacts..."
-    docker rm -f podroid-qemu-extract 2>/dev/null || true
-    docker create --name podroid-qemu-extract podroid-qemu-builder /bin/true
+    "$CONTAINER_ENGINE" rm -f podroid-qemu-extract 2>/dev/null || true
+    "$CONTAINER_ENGINE" create --name podroid-qemu-extract podroid-qemu-builder /bin/true
     
     mkdir -p "$JNILIBS" "$ASSETS/qemu/keymaps"
-    docker cp podroid-qemu-extract:/libqemu-system-aarch64.so "$JNILIBS/"
-    docker cp podroid-qemu-extract:/libslirp.so               "$JNILIBS/"
-    docker cp podroid-qemu-extract:/libpodroid-bridge.so      "$JNILIBS/"
-    docker cp podroid-qemu-extract:/libpodroid-launcher.so    "$JNILIBS/"
-    docker cp podroid-qemu-extract:/qemu/efi-virtio.rom        "$ASSETS/qemu/"
-    docker cp podroid-qemu-extract:/qemu/keymaps/.             "$ASSETS/qemu/keymaps/"
-    docker rm podroid-qemu-extract >/dev/null
+    "$CONTAINER_ENGINE" cp podroid-qemu-extract:/libqemu-system-aarch64.so "$JNILIBS/"
+    "$CONTAINER_ENGINE" cp podroid-qemu-extract:/libslirp.so               "$JNILIBS/"
+    "$CONTAINER_ENGINE" cp podroid-qemu-extract:/libpodroid-bridge.so      "$JNILIBS/"
+    "$CONTAINER_ENGINE" cp podroid-qemu-extract:/libpodroid-launcher.so    "$JNILIBS/"
+    "$CONTAINER_ENGINE" cp podroid-qemu-extract:/qemu/efi-virtio.rom        "$ASSETS/qemu/"
+    "$CONTAINER_ENGINE" cp podroid-qemu-extract:/qemu/keymaps/.             "$ASSETS/qemu/keymaps/"
+    "$CONTAINER_ENGINE" rm podroid-qemu-extract >/dev/null
     
     verify_16kb_align "$JNILIBS/libqemu-system-aarch64.so"
     success "QEMU and bridge ready."
@@ -262,7 +277,7 @@ case "$1" in
     clean)
         log "Cleaning up..."
         ./gradlew clean
-        docker rmi podroid-builder podroid-qemu-builder podroid-rootfs:latest 2>/dev/null || true
+        "$CONTAINER_ENGINE" rmi podroid-builder podroid-qemu-builder podroid-rootfs:latest 2>/dev/null || true
         success "Cleaned."
         ;;
     *)
