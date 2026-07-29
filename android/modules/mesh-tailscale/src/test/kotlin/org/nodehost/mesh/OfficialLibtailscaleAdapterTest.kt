@@ -1,5 +1,6 @@
 package org.nodehost.mesh
 
+import android.content.pm.ApplicationInfo
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.runBlocking
 import libtailscale.Application
@@ -26,8 +27,15 @@ class OfficialLibtailscaleAdapterTest {
         SensitiveValue("fake-one-use-key-abcdefghijklmnop"),
     )
 
+    @Test fun `cleartext policy is derived only from Android debuggable flag`() {
+        assertFalse(ControlUrlPolicy.fromApplicationFlags(0).allowCleartextForDebugLab)
+        assertTrue(
+            ControlUrlPolicy.fromApplicationFlags(ApplicationInfo.FLAG_DEBUGGABLE).allowCleartextForDebugLab,
+        )
+    }
+
     @Test fun `official prefs request carries typed URL and hostname`() {
-        val call = OfficialLocalApiRequests.configure(configuration)
+        val call = OfficialLocalApiRequests.configure(configuration, ControlUrlPolicy.RELEASE)
         val body = JSONObject(String(call.body!!))
 
         assertEquals("PATCH", call.method)
@@ -37,6 +45,24 @@ class OfficialLibtailscaleAdapterTest {
         assertEquals(true, body.getBoolean("ControlURLSet"))
         assertEquals(true, body.getBoolean("HostnameSet"))
         assertFalse(body.has("AuthKey"))
+    }
+
+    @Test fun `official prefs request rejects cleartext before LocalAPI`() {
+        val cleartext = configuration.copy(controlUrl = "http://headscale.lab.test:8080")
+
+        assertThrows(IllegalArgumentException::class.java) {
+            OfficialLocalApiRequests.configure(cleartext, ControlUrlPolicy.RELEASE)
+        }
+    }
+
+    @Test fun `official prefs request permits cleartext for debug lab policy`() {
+        val cleartext = configuration.copy(controlUrl = "http://headscale.lab.test:8080")
+
+        val body = JSONObject(
+            String(OfficialLocalApiRequests.configure(cleartext, ControlUrlPolicy.DEBUG_LAB).body!!),
+        )
+
+        assertEquals(cleartext.controlUrl, body.getString("ControlURL"))
     }
 
     @Test fun `official start request carries key only when enrollment still needs it`() {

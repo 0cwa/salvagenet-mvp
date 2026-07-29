@@ -48,6 +48,7 @@ internal object AndroidLibtailscaleRuntime {
 
 internal class AndroidLibtailscaleBackend(private val context: Context) : HostMeshBackend {
     private val secureState = AndroidSecureState(context)
+    private val controlUrlPolicy = ControlUrlPolicy.fromAndroid(context)
     private val platformContext by lazy { AndroidPlatformContext(context, secureState) }
     private val application: Application by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         val stateDirectory = context.filesDir.resolve("mesh-tailscale").apply { mkdirs() }
@@ -65,7 +66,7 @@ internal class AndroidLibtailscaleBackend(private val context: Context) : HostMe
     private val localApi by lazy { OfficialLocalApiClient { application } }
 
     override suspend fun configure(configuration: HostMeshConfiguration) {
-        localApi.execute(OfficialLocalApiRequests.configure(configuration))
+        localApi.execute(OfficialLocalApiRequests.configure(configuration, controlUrlPolicy))
     }
 
     override suspend fun start(oneUseAuthKey: String?) {
@@ -149,17 +150,20 @@ internal suspend fun revokeVpn(
 internal data class LocalApiCall(val method: String, val endpoint: String, val body: ByteArray? = null)
 
 internal object OfficialLocalApiRequests {
-    fun configure(configuration: HostMeshConfiguration) = LocalApiCall(
-        "PATCH",
-        "prefs",
-        JSONObject()
-            .put("ControlURL", configuration.controlUrl)
-            .put("ControlURLSet", true)
-            .put("Hostname", configuration.hostname)
-            .put("HostnameSet", true)
-            .toString()
-            .toByteArray(),
-    )
+    fun configure(configuration: HostMeshConfiguration, controlUrlPolicy: ControlUrlPolicy): LocalApiCall {
+        validateControlUrl(configuration.controlUrl, controlUrlPolicy)
+        return LocalApiCall(
+            "PATCH",
+            "prefs",
+            JSONObject()
+                .put("ControlURL", configuration.controlUrl)
+                .put("ControlURLSet", true)
+                .put("Hostname", configuration.hostname)
+                .put("HostnameSet", true)
+                .toString()
+                .toByteArray(),
+        )
+    }
 
     fun start(oneUseAuthKey: String?): LocalApiCall {
         val options = JSONObject()
