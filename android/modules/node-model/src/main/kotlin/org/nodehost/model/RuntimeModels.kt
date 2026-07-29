@@ -51,7 +51,18 @@ sealed interface RuntimeObservation {
     data class Absent(override val id: RuntimeId) : RuntimeObservation
     data class Stopped(override val id: RuntimeId, val profileId: VmProfileId?) : RuntimeObservation
     data class Starting(override val id: RuntimeId, val processId: Long?) : RuntimeObservation
-    data class Running(override val id: RuntimeId, val processId: Long?, val guestReady: Boolean) : RuntimeObservation
+    data class Running(
+        override val id: RuntimeId,
+        val processId: Long?,
+        val guestReady: Boolean,
+        val appliedGeneration: Long? = null,
+    ) : RuntimeObservation {
+        init {
+            require(appliedGeneration == null || appliedGeneration >= 1) {
+                "appliedGeneration must be positive when known"
+            }
+        }
+    }
     data class Stopping(
         override val id: RuntimeId,
         val processId: Long?,

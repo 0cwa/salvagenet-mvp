@@ -7,14 +7,19 @@ import org.nodehost.model.RuntimeSpec
 object NodePlanner {
     fun plan(desired: RuntimeSpec, observed: RuntimeObservation): RuntimePlan =
         when (desired.desiredState) {
-            DesiredRuntimeState.RUNNING -> planRunning(observed)
+            DesiredRuntimeState.RUNNING -> planRunning(desired, observed)
             DesiredRuntimeState.STOPPED -> planStopped(observed)
             DesiredRuntimeState.ABSENT -> planAbsent(observed)
         }
 
-    private fun planRunning(observed: RuntimeObservation): RuntimePlan =
+    private fun planRunning(desired: RuntimeSpec, observed: RuntimeObservation): RuntimePlan =
         when (observed) {
-            is RuntimeObservation.Running -> RuntimePlan(emptyList())
+            is RuntimeObservation.Running ->
+                if (observed.appliedGeneration != null && observed.appliedGeneration != desired.generation) {
+                    RuntimePlan(listOf(RuntimeStep.RequestShutdown))
+                } else {
+                    RuntimePlan(emptyList())
+                }
             is RuntimeObservation.Starting -> RuntimePlan(
                 listOf(RuntimeStep.WaitForQmp, RuntimeStep.WaitForGuest),
             )
