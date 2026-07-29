@@ -1,15 +1,15 @@
-T08 final integrated QA refresh (2026-07-29)
-Tested source commit: 7120316e69ad27b47a54108bd92ef49f94161a5a
+T08 final source-seal QA refresh (2026-07-29)
+Tested source commit: cdf65b20a8e28abd9b9b930ffec35fb73da76a6d
 
 PASS
-- Clean generated-output run: Gradle clean completed, Podroid/build and generated Tailscale checkout/build were removed, then full `./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease` passed.
-- `make validate`, `make test-jvm`, `make test-android`, and `make test-guest` passed with the pinned Python/JDK/Go/Android toolchains.
+- Generated Gradle outputs and the generated Tailscale checkout/build were removed before a clean full `./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging` run passed.
+- `make validate`, `make test-jvm`, `make test-android`, and `make test-guest` passed with the pinned Python/JDK/Go/Android toolchains. Validation was repeated after removing the generated vendor checkout.
 - Explicit API, contract, QEMU fixture, context/guest-init tool, controller CLI, and Headscale renderer Python suites passed (50 tests total).
-- Fake vertical e2e passed the complete decision/composition path; its physical continuation exited 77 as designed because no authorized device/controller configuration is available.
-- Focused actor maintenance/restart, mutable system and preserved data-disk persistence, graceful-before-force stop, enrollment phase recovery, deployed K3s qualifier asset, cancel receipt/publication races, readiness capability/runtime generation, release/debug mesh HTTPS policy, bounded body timeout/cancellation, and constrained model URI tests passed.
+- Fake vertical e2e passed the complete decision/composition path; its physical continuation exited 77 as designed because no authorized device and controller configuration are available.
+- Focused rerun tests passed for 65 maintenance cycles with bounded durable compaction, graceful running-generation replacement through the production backend, and restart recovery at every enrollment boundary including `VALIDATED_STAGED`; corrupt, unapproved, and expired staged enrollment state also failed closed.
 - Runtime packaging verification passed all 42 exact pinned Podroid entries. Debug APK v2 signature, `zipalign -c -P 16 -v 4`, AArch64 ELF identity, and minimum 0x4000 PT_LOAD alignment checks passed for QEMU, launcher, SLIRP, bridge, and libgojni.
-- Debug APK: 348494941 bytes; SHA-256 7f9d8b9f483fb527d675c2a711640f13312c0ed1ebf8009dcad837badc6c9eb4. The APK remains an ignored, uncommitted build artifact.
-- B04, B05, B06, B14, B15, B18, and B20 have current focused software evidence and remain PASS. B19 packaging evidence also remains PASS.
+- Debug APK: 357663739 bytes; SHA-256 af7084df7250e3679668bea2923966275a32fce91ef37efc3dc955c6cfb4ccc7. The APK remains an ignored, uncommitted build artifact.
+- Automated PASS gates are rebound to the tested source and refreshed evidence hashes.
 
 BLOCKED-HARDWARE
 - No authorized physical ARM64 Android device exists. No physical APK install/QEMU boot, Activity/service/process-death lifecycle, VPN approval, live host/guest mesh, controller-through-mesh, guest/recovery SSH, or first-unlock reboot test was run.
@@ -19,5 +19,5 @@ MVP+
 - U01-U04 remain DEFERRED. `check-mvp-plus-gate.py --report-only` remains blocked only by the unchanged physical base gates. No executable USB work was enabled.
 
 HYGIENE
-- Full logs remain ignored under `.local/experiments/E08-final/`; committed log metadata contains only sizes and SHA-256 hashes.
-- The generated `android/vendor/tailscale/build` checkout was removed before final validation and scope verification.
+- Full logs remain ignored under `.local/experiments/E08-seal/`; committed log metadata contains only sizes and SHA-256 hashes.
+- The generated `android/vendor/tailscale/build` and `android/vendor/tailscale/src` trees were removed before final validation, scope verification, and commit.

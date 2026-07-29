@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "gateId": "B14",
   "status": "PASS",
-  "recordedAt": "2026-07-29T16:06:00.638627+00:00",
-  "gitCommit": "7120316e69ad27b47a54108bd92ef49f94161a5a",
+  "recordedAt": "2026-07-29T16:52:20.867773+00:00",
+  "gitCommit": "cdf65b20a8e28abd9b9b930ffec35fb73da76a6d",
   "command": "cd android/podroid && ./gradlew :node-shell:testDebugUnitTest --tests 'org.nodehost.shell.AndroidQemuRuntimeBackendTest.gracefulDeadlineForceStopExitAndWakeAreObserved'",
   "summary": "The focused backend test proves a graceful request and bounded deadline observation precede force stop; physical launch remains covered by separate hardware gates.",
   "environment": {},
   "artifacts": [
     {
       "path": "evidence/T08/qa-summary.txt",
-      "sha256": "f01667f353b6c5cfa46d5122591a4a48bb38ad8abe8d45a2696f1cce7b3eeb70",
+      "sha256": "d6f1e0dfcce77286b41003354d80b8237d49ca54f0365ca519496d660b930fd5",
       "note": null
     }
   ]

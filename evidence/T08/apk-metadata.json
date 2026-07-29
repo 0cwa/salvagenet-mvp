@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "testedGitCommit": "7120316e69ad27b47a54108bd92ef49f94161a5a",
+  "testedGitCommit": "cdf65b20a8e28abd9b9b930ffec35fb73da76a6d",
   "artifactPath": "android/podroid/app/build/outputs/apk/debug/app-debug.apk",
   "committed": false,
-  "sizeBytes": 348494941,
-  "sha256": "7f9d8b9f483fb527d675c2a711640f13312c0ed1ebf8009dcad837badc6c9eb4",
+  "sizeBytes": 357663739,
+  "sha256": "af7084df7250e3679668bea2923966275a32fce91ef37efc3dc955c6cfb4ccc7",
   "signature": {
     "verified": true,
     "schemes": {
