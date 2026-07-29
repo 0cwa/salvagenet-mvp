@@ -25,10 +25,12 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
 import io.ktor.utils.io.writeFully
 import java.net.InetAddress
 import java.security.KeyStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -36,6 +38,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
 import org.nodehost.core.ControllerPrincipal
 
 class TlsServerCredentials(
@@ -61,6 +65,8 @@ class HostControlServer(
         require(port in 1..65535) { "invalid API port" }
         check(server == null) { "Host API already started" }
         server = embeddedServer(CIO, configure = {
+            // Bounds idle connections before an application route receives a request.
+            connectionIdleTimeoutSeconds = REQUEST_CONNECTION_IDLE_TIMEOUT_SECONDS
             sslConnector(
                 keyStore = tls.keyStore,
                 keyAlias = tls.keyAlias,
@@ -80,6 +86,9 @@ class HostControlServer(
                 }
                 exception<HostApiRateLimitException> { call, cause ->
                     call.problem(HttpStatusCode.TooManyRequests, "RATE_LIMITED", cause.message ?: "rate limited")
+                }
+                exception<HostApiRequestTimeoutException> { call, _ ->
+                    call.problem(HttpStatusCode.RequestTimeout, "REQUEST_TIMEOUT", "request body timed out")
                 }
                 exception<Throwable> { call, _ ->
                     // Deliberately omit exception detail: it can contain adapter or credential data.
@@ -249,6 +258,9 @@ class HostControlServer(
         const val RECOVERY_IDLE_TIMEOUT_MILLIS = 30_000L
         const val RECOVERY_OVERALL_TIMEOUT_MILLIS = 15L * 60 * 1_000
         const val RECOVERY_CLOSE_TIMEOUT_MILLIS = 5_000L
+        const val REQUEST_BODY_IDLE_TIMEOUT_MILLIS = 5_000L
+        const val REQUEST_BODY_OVERALL_TIMEOUT_MILLIS = 15_000L
+        const val REQUEST_CONNECTION_IDLE_TIMEOUT_SECONDS = 30
 
         fun requireSafeBindAddress(value: String) {
             val address = runCatching { InetAddress.getByName(value) }.getOrElse {
@@ -282,23 +294,67 @@ internal class RecoveryByteBudget(private val maximumBytes: Long) {
     }
 }
 
+internal class HostApiRequestTimeoutException : RuntimeException("request body timed out")
+
 private suspend fun ApplicationCall.boundedBody(): ByteArray {
     val declared = request.header("Content-Length")?.toLongOrNull()
     require(declared == null || declared in 0..HostApiController.MAX_REQUEST_BYTES.toLong()) {
         "request body is too large"
     }
-    val channel = receiveChannel()
-    val output = java.io.ByteArrayOutputStream()
-    val buffer = ByteArray(8192)
-    while (true) {
-        val count = channel.readAvailable(buffer)
-        if (count == -1) break
-        if (count == 0) continue
-        require(output.size() + count <= HostApiController.MAX_REQUEST_BYTES) { "request body is too large" }
-        output.write(buffer, 0, count)
-    }
-    return output.toByteArray()
+    return readBoundedBody(
+        receive = { receiveChannel() },
+        maximumBytes = HostApiController.MAX_REQUEST_BYTES,
+        idleTimeoutMillis = HostControlServer.REQUEST_BODY_IDLE_TIMEOUT_MILLIS,
+        overallTimeoutMillis = HostControlServer.REQUEST_BODY_OVERALL_TIMEOUT_MILLIS,
+    )
 }
+
+/** Reads one request under monotonic coroutine deadlines and always cancels an incomplete transport. */
+internal suspend fun readBoundedBody(
+    receive: suspend () -> ByteReadChannel,
+    maximumBytes: Int,
+    idleTimeoutMillis: Long,
+    overallTimeoutMillis: Long,
+): ByteArray {
+    require(maximumBytes > 0) { "maximumBytes must be positive" }
+    require(idleTimeoutMillis > 0) { "idleTimeoutMillis must be positive" }
+    require(overallTimeoutMillis > 0) { "overallTimeoutMillis must be positive" }
+
+    var channel: ByteReadChannel? = null
+    try {
+        val body = withTimeoutOrNull(overallTimeoutMillis) {
+            channel = receive()
+            val output = java.io.ByteArrayOutputStream(minOf(maximumBytes, BODY_CHUNK_BYTES))
+            val buffer = ByteArray(BODY_CHUNK_BYTES)
+            while (true) {
+                val count = withTimeoutOrNull(idleTimeoutMillis) {
+                    var read: Int
+                    do {
+                        read = channel!!.readAvailable(buffer)
+                        if (read == 0) yield() // A zero read made no progress; do not spin.
+                    } while (read == 0)
+                    read
+                } ?: throw HostApiRequestTimeoutException()
+                if (count == -1) return@withTimeoutOrNull output.toByteArray()
+                require(output.size() <= maximumBytes - count) { "request body is too large" }
+                output.write(buffer, 0, count)
+            }
+            error("unreachable")
+        }
+        return body ?: throw HostApiRequestTimeoutException()
+    } catch (cause: HostApiRequestTimeoutException) {
+        channel?.cancel(cause)
+        throw cause
+    } catch (cause: CancellationException) {
+        channel?.cancel(cause)
+        throw cause
+    } catch (cause: Throwable) {
+        channel?.cancel(cause)
+        throw cause
+    }
+}
+
+private const val BODY_CHUNK_BYTES = 8 * 1024
 
 private fun ApplicationCall.pathParameter(name: String): String =
     parameters[name] ?: throw IllegalArgumentException("missing $name")
