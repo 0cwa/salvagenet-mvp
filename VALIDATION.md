@@ -16,8 +16,9 @@ Validated on **2026-07-29** in the artifact-generation environment.
 - pure Kotlin domain/application compilation;
 - Python unit tests and bytecode compilation;
 - acceptance-evidence schema checks;
-- enforcement that USB MVP+ is blocked while any base gate is not `PASS`.
-- task-wave worktree creation, scoped context generation, and Git branch layout in a disposable clone.
+- enforcement that USB MVP+ is blocked while any base gate is not `PASS`;
+- task-wave worktree creation, scoped context generation, and Git branch layout in a disposable clone;
+- scoped task-branch verification, non-fast-forward integration, and full post-merge validation in a disposable clone.
 
 ## Environment audit
 
