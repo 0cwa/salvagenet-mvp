@@ -137,7 +137,9 @@ class ReconciliationActor(
 
 private fun org.nodehost.model.RuntimeSpec.isConverged(observed: RuntimeObservation): Boolean =
     when (desiredState) {
-        DesiredRuntimeState.RUNNING -> observed is RuntimeObservation.Running && observed.guestReady
+        DesiredRuntimeState.RUNNING -> observed is RuntimeObservation.Running &&
+            observed.guestReady &&
+            (observed.appliedGeneration == null || observed.appliedGeneration == generation)
         DesiredRuntimeState.STOPPED -> observed is RuntimeObservation.Stopped || observed is RuntimeObservation.Absent
         DesiredRuntimeState.ABSENT -> observed is RuntimeObservation.Absent
     }

@@ -3,8 +3,11 @@ package org.nodehost.shell
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import java.io.File
 import java.net.ServerSocket
 import java.net.Socket
+import java.security.MessageDigest
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -50,12 +53,17 @@ import org.nodehost.core.HostMesh
 import org.nodehost.core.HostMeshConfiguration
 import org.nodehost.core.HostMeshStatus
 import org.nodehost.core.OperationIdFactory
+import org.nodehost.model.DesiredRuntimeState
 import org.nodehost.model.NodeEnrollment
 import org.nodehost.model.OperationId
 import org.nodehost.model.OperationRecord
 import org.nodehost.model.OperationState
 import org.nodehost.model.RuntimeId
+import org.nodehost.model.RuntimeSpec
 import org.nodehost.model.SensitiveValue
+import org.nodehost.model.VmProfileId
+import org.nodehost.qemu.QemuExit
+import org.nodehost.qemu.QemuLaunchPlan
 import org.nodehost.store.NodeHostDatabase
 import org.nodehost.store.RoomOperationRepository
 import org.nodehost.testsupport.FakeRuntimeBackend
@@ -151,6 +159,55 @@ class VerticalIntegrationTest {
         actor.close()
     }
 
+    @Test fun productionBackendGracefullyReplacesGenerationAndAppliesK3sAllocation() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.applicationInfo.nativeLibraryDir = File(context.filesDir, "native-libs").apply { mkdirs() }.path
+        installRuntimeArtifacts(context)
+        File(context.filesDir, "vms").deleteRecursively()
+        val qemu = ReplacingQemuControl(File(context.filesDir, "vms/default"))
+        val bootProfiles = CopyOnWriteArrayList<VmProfileId>()
+        val backend = AndroidQemuRuntimeBackend(
+            context,
+            desiredRuntime = { operations.loadDesiredRuntime(RuntimeId.DEFAULT) },
+            beginBootToken = { profile -> bootProfiles += profile; "v".repeat(43) },
+            recoveryPort = org.nodehost.qemu.RecoverySshHostPort(19922),
+            qemu = qemu,
+            gracefulStopMillis = 1_000,
+        )
+        val actor = ReconciliationActor(scope, operations, backend)
+        backend.attachLifecycle(scope) { actor.wake(WakeReason.RUNTIME_EVENT) }
+        val ids = ArrayDeque(listOf("op-production-g1", "op-production-g2"))
+        val apply = ApplyRuntimeUseCase(operations, OperationIdFactory { OperationId(ids.removeFirst()) })
+        val generation1 = RuntimeSpec(
+            generation = 1, desiredState = DesiredRuntimeState.RUNNING,
+            profileId = VmProfileId("ubuntu-2404-arm64-uefi"), memoryMiB = 1024,
+            vcpus = 2, dataDiskGiB = 8,
+        )
+        val first = apply.apply(generation1, "production-gen-0001", "generation-1".toByteArray())
+        actor.wake(WakeReason.DESIRED_STATE_CHANGED)
+        withTimeout(5_000) { while (operations.load(first.id)?.state != OperationState.SUCCEEDED) kotlinx.coroutines.yield() }
+        assertEquals(1L, (backend.observe(RuntimeId.DEFAULT) as org.nodehost.model.RuntimeObservation.Running).appliedGeneration)
+
+        val generation2 = generation1.copy(
+            generation = 2, profileId = VmProfileId("k3s-worker-lab"),
+            memoryMiB = 2048, vcpus = 4, dataDiskGiB = 9,
+        )
+        val second = apply.apply(generation2, "production-gen-0002", "generation-2-k3s".toByteArray())
+        actor.wake(WakeReason.DESIRED_STATE_CHANGED)
+        withTimeout(5_000) { while (operations.load(second.id)?.state != OperationState.SUCCEEDED) kotlinx.coroutines.yield() }
+
+        assertEquals(1, qemu.gracefulShutdowns)
+        assertEquals(0, qemu.forceStops)
+        assertEquals(1, qemu.maximumConcurrentProcesses)
+        assertEquals(listOf(1L, 2L), qemu.startedRuntimes.map(RuntimeSpec::generation))
+        assertEquals(generation2, qemu.startedRuntimes.last())
+        assertEquals(listOf("ubuntu-2404-arm64-uefi", "k3s-worker-lab"), bootProfiles.map(VmProfileId::value))
+        val running = backend.observe(RuntimeId.DEFAULT) as org.nodehost.model.RuntimeObservation.Running
+        assertEquals(2L, running.appliedGeneration)
+        assertTrue(running.guestReady)
+        actor.close()
+    }
+
     @Test fun restartConvergesAfterEveryEnrollmentBoundaryWithoutDuplicateAuthorityOrDesiredStateLoss() = runBlocking {
         EnrollmentPhase.entries.forEachIndexed { index, failedPhase ->
             val localDatabase = Room.inMemoryDatabaseBuilder(
@@ -183,13 +240,8 @@ class VerticalIntegrationTest {
                     assertTrue(runCatching {
                         firstInstaller.install(enrollmentJson(), guestBootstrapSecretJson(), "phase-recovery-${index.toString().padStart(4, '0')}", "a".repeat(64))
                     }.isFailure)
-                    if (failedPhase == EnrollmentPhase.VALIDATED_STAGED) {
-                        assertNull(installer().recoverOnStartup())
-                        assertNull(bootstrap.materialized)
-                        installer().install(enrollmentJson(), guestBootstrapSecretJson(), "phase-recovery-${index.toString().padStart(4, '0')}", "a".repeat(64))
-                    } else {
-                        assertNotNull(installer().recoverOnStartup())
-                    }
+                    // A new installer instance represents process restart and must finish from encrypted staging.
+                    assertNotNull(installer().recoverOnStartup())
                 }
                 assertEquals(1, repository.acceptedCount)
                 assertEquals("stopped", localOperations.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState?.name?.lowercase())
@@ -202,6 +254,52 @@ class VerticalIntegrationTest {
                     phases.state?.phase,
                 )
             } finally { localDatabase.close() }
+        }
+    }
+
+    @Test fun corruptUnapprovedAndExpiredPersistedStagesFailClosedAndClear() = runBlocking {
+        val cases = listOf(
+            EnrollmentRecoveryClassification.CORRUPT_STAGE to { state: EnrollmentRecoveryState ->
+                state.copy(requestDigest = "0".repeat(64))
+            },
+            EnrollmentRecoveryClassification.UNAPPROVED_STAGE to { state: EnrollmentRecoveryState ->
+                state.copy(approvedIssuerSpkiSha256 = "b".repeat(64))
+            },
+            EnrollmentRecoveryClassification.EXPIRED_STAGE to { state: EnrollmentRecoveryState ->
+                val expired = JSONObject(state.rawEnrollment.toString(Charsets.UTF_8))
+                expired.getJSONObject("metadata").put("expiresAt", "1970-01-01T00:00:01Z")
+                state.copy(rawEnrollment = expired.toString().toByteArray())
+            },
+        )
+        cases.forEachIndexed { index, (expected, corrupt) ->
+            val repository = InMemoryEnrollmentRepository()
+            val bootstrap = RecordingBootstrapStore()
+            val phases = RecordingPhaseStore()
+            var interrupted = false
+            fun installer(hook: Boolean) = EnrollmentInstaller(
+                repository, operations, RecordingMesh(), bootstrap, {},
+                object : Clock { override fun epochMillis() = 1_000L },
+                phaseStore = phases,
+                operationIds = OperationIdFactory { OperationId("op-corrupt-${index.toString().padStart(3, '0')}") },
+                materializer = GuestBootstrapMaterializer { "s".repeat(43) },
+                boundaryHook = EnrollmentBoundaryHook { phase ->
+                    if (hook && !interrupted && phase == EnrollmentPhase.VALIDATED_STAGED) {
+                        interrupted = true
+                        error("process stopped after staging")
+                    }
+                },
+            )
+            assertTrue(runCatching {
+                installer(true).install(enrollmentJson(), guestBootstrapSecretJson(), "corrupt-stage-${index.toString().padStart(4, '0')}", "a".repeat(64))
+            }.isFailure)
+            phases.state = corrupt(checkNotNull(phases.state))
+
+            val failure = runCatching { installer(false).recoverOnStartup() }.exceptionOrNull()
+            assertTrue(failure is EnrollmentRecoveryException)
+            assertEquals(expected, (failure as EnrollmentRecoveryException).classification)
+            assertNull(repository.installed)
+            assertNull(phases.state)
+            assertNull(bootstrap.materialized)
         }
     }
 
@@ -324,6 +422,58 @@ class VerticalIntegrationTest {
         override suspend fun removeVm(id: RuntimeId, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord = error("not used")
         override suspend fun cancelOperation(id: String, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord = error("not used")
         override suspend fun revokeController(id: String, idempotencyKey: String, canonicalRequest: ByteArray) = error("not used")
+    }
+
+    private fun installRuntimeArtifacts(context: Context) {
+        val root = File(context.filesDir, "nodehost-artifacts").apply { deleteRecursively(); mkdirs() }
+        listOf(
+            "podroid-kernel", "podroid-initramfs", "podroid-alpine-squashfs",
+            "ubuntu-2404-arm64-cloud", "aavmf-code", "aavmf-vars",
+        ).forEach { id ->
+            val bytes = "vertical-fixture-$id".toByteArray()
+            File(root, id).writeBytes(bytes)
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            File(root, "$id.sha256").writeText("$digest\n")
+        }
+    }
+
+    private class ReplacingQemuControl(private val instance: File) : QemuProcessControl {
+        private var activeExit: CompletableDeferred<QemuExit>? = null
+        val startedRuntimes = CopyOnWriteArrayList<RuntimeSpec>()
+        var gracefulShutdowns = 0
+        var forceStops = 0
+        var maximumConcurrentProcesses = 0
+        private var concurrentProcesses = 0
+
+        override suspend fun start(plan: QemuLaunchPlan, runtime: RuntimeSpec): ManagedQemuProcess {
+            check(activeExit == null) { "a second QEMU process started concurrently" }
+            val exit = CompletableDeferred<QemuExit>()
+            activeExit = exit
+            concurrentProcesses++
+            maximumConcurrentProcesses = maxOf(maximumConcurrentProcesses, concurrentProcesses)
+            startedRuntimes += runtime
+            instance.mkdirs()
+            File(instance, "qmp.sock").createNewFile()
+            File(instance, "guest-ready").createNewFile()
+            return ManagedQemuProcess(
+                processId = 100L + runtime.generation,
+                awaitExit = {
+                    exit.await().also {
+                        if (activeExit === exit) activeExit = null
+                        concurrentProcesses--
+                    }
+                },
+                requestGuestShutdown = {
+                    gracefulShutdowns++
+                    exit.complete(QemuExit(0, listOf("graceful")))
+                },
+            )
+        }
+
+        override fun forceStop() {
+            forceStops++
+            activeExit?.complete(QemuExit(137, emptyList()))
+        }
     }
 
     private class RecordingBootstrapStore : GuestBootstrapStore {

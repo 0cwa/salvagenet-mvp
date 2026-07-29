@@ -135,7 +135,10 @@ object NodeHostGraph {
         graph.apiStartJob = scope.launch {
             repeat(API_START_ATTEMPTS) { attempt ->
                 runCatching { enrollmentInstaller(graph).recoverOnStartup() }
-                    .onFailure { Log.w(TAG, "Enrollment recovery attempt ${attempt + 1} failed class=${it::class.java.simpleName}") }
+                    .onFailure {
+                        val classification = (it as? EnrollmentRecoveryException)?.classification ?: it::class.java.simpleName
+                        Log.w(TAG, "Enrollment recovery attempt ${attempt + 1} failed class=$classification")
+                    }
                 val meshStatus = graph.mesh.status()
                 val address = meshStatus.addresses.firstNotNullOfOrNull { raw -> runCatching { TailnetBindAddress(raw) }.getOrNull() }
                 if (meshStatus.state == org.nodehost.core.HostMeshStatus.State.RUNNING && address != null) {
