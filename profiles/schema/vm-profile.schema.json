@@ -1,267 +1,151 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nodehost.example/schema/vm-profile-v1alpha1.json",
+  "title": "VirtualMachineProfile",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "apiVersion",
-    "kind",
-    "metadata",
-    "spec"
-  ],
+  "required": ["apiVersion", "kind", "metadata", "spec"],
   "properties": {
-    "apiVersion": {
-      "const": "nodehost.example/v1alpha1"
-    },
-    "kind": {
-      "const": "VirtualMachineProfile"
-    },
+    "apiVersion": {"const": "nodehost.example/v1alpha1"},
+    "kind": {"const": "VirtualMachineProfile"},
     "metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "version"
-      ],
+      "required": ["id", "version"],
       "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
-        },
-        "version": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "extends": {
-          "type": "string"
-        }
+        "id": {"$ref": "#/$defs/id"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "extends": {"$ref": "#/$defs/id"}
       }
     },
     "spec": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "architecture",
-        "machine",
-        "boot",
-        "systemDisk",
-        "initialization",
-        "network",
-        "health",
-        "requirements"
-      ],
+      "required": ["architecture", "machine", "boot", "systemDisk", "initialization", "network", "health", "requirements"],
       "properties": {
-        "architecture": {
-          "const": "aarch64"
-        },
+        "architecture": {"const": "aarch64"},
         "machine": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "family",
-            "acceleration",
-            "deviceTransport"
-          ],
+          "required": ["family", "acceleration", "deviceTransport"],
           "properties": {
-            "family": {
-              "const": "virt"
-            },
-            "acceleration": {
-              "enum": [
-                "tcg"
-              ]
-            },
-            "deviceTransport": {
-              "enum": [
-                "pci"
-              ]
-            },
-            "cpuModel": {
-              "type": "string"
-            }
+            "family": {"const": "virt"},
+            "acceleration": {"const": "tcg"},
+            "deviceTransport": {"const": "pci"},
+            "cpuModel": {"type": "string", "pattern": "^[a-z0-9_-]{1,32}$"}
           }
         },
         "boot": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "type"
-          ],
+          "required": ["type"],
           "properties": {
-            "type": {
-              "enum": [
-                "direct-kernel",
-                "uefi"
-              ]
+            "type": {"enum": ["direct-kernel", "uefi"]},
+            "kernelArtifact": {"$ref": "#/$defs/artifactId"},
+            "initramfsArtifact": {"$ref": "#/$defs/artifactId"},
+            "firmwareCodeArtifact": {"$ref": "#/$defs/artifactId"},
+            "firmwareVarsArtifact": {"$ref": "#/$defs/artifactId"},
+            "kernelArgumentProfile": {"$ref": "#/$defs/id"}
+          },
+          "oneOf": [
+            {
+              "properties": {"type": {"const": "direct-kernel"}},
+              "required": ["kernelArtifact", "initramfsArtifact", "kernelArgumentProfile"],
+              "not": {"anyOf": [{"required": ["firmwareCodeArtifact"]}, {"required": ["firmwareVarsArtifact"]}]}
             },
-            "kernelArtifact": {
-              "type": "string"
-            },
-            "initramfsArtifact": {
-              "type": "string"
-            },
-            "firmwareCodeArtifact": {
-              "type": "string"
-            },
-            "firmwareVarsArtifact": {
-              "type": "string"
-            },
-            "kernelArgumentProfile": {
-              "type": "string"
+            {
+              "properties": {"type": {"const": "uefi"}},
+              "required": ["firmwareCodeArtifact", "firmwareVarsArtifact"],
+              "not": {"anyOf": [{"required": ["kernelArtifact"]}, {"required": ["initramfsArtifact"]}, {"required": ["kernelArgumentProfile"]}]}
             }
-          }
+          ]
         },
         "systemDisk": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "artifact",
-            "format",
-            "writableLayer"
-          ],
+          "required": ["artifact", "format", "writableLayer"],
           "properties": {
-            "artifact": {
-              "type": "string"
-            },
-            "format": {
-              "enum": [
-                "raw",
-                "qcow2",
-                "squashfs"
-              ]
-            },
-            "writableLayer": {
-              "enum": [
-                "qcow2-overlay",
-                "separate-ext4-overlay",
-                "none"
-              ]
-            }
+            "artifact": {"$ref": "#/$defs/artifactId"},
+            "format": {"enum": ["raw", "qcow2", "squashfs"]},
+            "writableLayer": {"enum": ["qcow2-overlay", "separate-ext4-overlay", "none"]}
           }
         },
         "dataDisk": {
           "type": "object",
           "additionalProperties": false,
+          "required": ["format", "defaultSizeGiB", "persistent"],
           "properties": {
-            "format": {
-              "enum": [
-                "raw"
-              ]
-            },
-            "defaultSizeGiB": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1024
-            },
-            "persistent": {
-              "type": "boolean"
-            }
+            "format": {"const": "raw"},
+            "defaultSizeGiB": {"type": "integer", "minimum": 1, "maximum": 1024},
+            "persistent": {"type": "boolean"}
           }
         },
         "initialization": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "type"
-          ],
+          "required": ["type", "vendorData"],
           "properties": {
-            "type": {
-              "enum": [
-                "legacy-podroid",
-                "nocloud-net"
-              ]
-            },
-            "vendorData": {
-              "type": "string"
-            },
-            "metadataPath": {
-              "type": "string"
+            "type": {"enum": ["legacy-podroid", "nocloud-net"]},
+            "vendorData": {"type": "string", "pattern": "^guest-init/[a-z0-9./_-]+$", "maxLength": 256},
+            "metadataPath": {"type": "string", "pattern": "^/v1/bootstrap/\\{token\\}/$", "maxLength": 128}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"type": {"const": "nocloud-net"}}},
+              "then": {"required": ["metadataPath"]},
+              "else": {"not": {"required": ["metadataPath"]}}
             }
-          }
+          ]
         },
         "network": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "primary",
-            "recoverySsh"
-          ],
+          "required": ["primary", "recoverySsh"],
           "properties": {
             "primary": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "type"
-              ],
-              "properties": {
-                "type": {
-                  "const": "slirp"
-                }
-              }
+              "type": "object", "additionalProperties": false, "required": ["type"],
+              "properties": {"type": {"const": "slirp"}}
             },
             "recoverySsh": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "guestPort",
-                "bind"
-              ],
-              "properties": {
-                "guestPort": {
-                  "const": 22
-                },
-                "bind": {
-                  "const": "loopback"
-                }
-              }
+              "type": "object", "additionalProperties": false, "required": ["guestPort", "bind"],
+              "properties": {"guestPort": {"const": 22}, "bind": {"const": "loopback"}}
             }
           }
         },
         "health": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "type"
-          ],
+          "required": ["type"],
           "properties": {
-            "type": {
-              "enum": [
-                "console-marker",
-                "metadata-callback",
-                "ssh"
-              ]
-            },
-            "marker": {
-              "type": "string"
+            "type": {"enum": ["console-marker", "metadata-callback", "ssh"]},
+            "marker": {"type": "string", "minLength": 1, "maxLength": 128}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"type": {"const": "console-marker"}}},
+              "then": {"required": ["marker"]},
+              "else": {"not": {"required": ["marker"]}}
             }
-          }
+          ]
         },
         "requirements": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "minimumMemoryMiB",
-            "minimumStorageGiB"
-          ],
+          "required": ["minimumMemoryMiB", "minimumStorageGiB"],
           "properties": {
-            "minimumMemoryMiB": {
-              "type": "integer",
-              "minimum": 256
-            },
-            "minimumStorageGiB": {
-              "type": "integer",
-              "minimum": 1
-            },
+            "minimumMemoryMiB": {"type": "integer", "minimum": 256, "maximum": 16384},
+            "minimumStorageGiB": {"type": "integer", "minimum": 1, "maximum": 1024},
             "qualificationChecks": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "uniqueItems": true
+              "type": "array", "maxItems": 32, "uniqueItems": true,
+              "items": {"$ref": "#/$defs/id"}
             }
           }
         }
       }
     }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+    "artifactId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,127}$"}
   }
 }

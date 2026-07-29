@@ -14,35 +14,44 @@ class ApplyRuntimeUseCase(
         idempotencyKey: String,
         canonicalRequest: ByteArray,
     ): OperationRecord {
-        require(idempotencyKey.length in 16..200)
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(canonicalRequest)
-            .joinToString(separator = "") { byte -> "%02x".format(byte) }
-
-        operations.findByIdempotencyKey(idempotencyKey)?.let { existing ->
-            require(existing.requestDigest == digest) {
-                "idempotency key reused with different request"
-            }
-            return existing
-        }
-
-        val current = operations.loadDesiredRuntime(spec.id)
-        require(
-            current == null ||
-                spec.generation > current.generation ||
-                (spec.generation == current.generation && spec == current),
-        ) { "generation must advance when desired state changes" }
-
+        validateMutationInput(idempotencyKey, canonicalRequest)
         val operation = OperationRecord(
             id = operationIds.newId(),
             idempotencyKey = idempotencyKey,
-            requestDigest = digest,
+            requestDigest = requestDigest(canonicalRequest),
             runtimeId = spec.id,
             desiredGeneration = spec.generation,
             state = OperationState.ACCEPTED,
             currentStepId = null,
         )
-        operations.acceptDesiredRuntime(spec, operation)
-        return operation
+
+        return when (val result = operations.acceptDesiredRuntime(spec, operation)) {
+            DesiredRuntimeAcceptance.Accepted -> operation
+            is DesiredRuntimeAcceptance.Replay -> result.operation.also {
+                require(
+                    it.idempotencyKey == operation.idempotencyKey &&
+                        it.requestDigest == operation.requestDigest &&
+                        it.runtimeId == spec.id &&
+                        it.desiredGeneration == spec.generation,
+                ) { "repository returned an invalid replay" }
+            }
+            DesiredRuntimeAcceptance.IdempotencyConflict ->
+                throw IllegalArgumentException("idempotency key reused with different request")
+            is DesiredRuntimeAcceptance.GenerationRejected ->
+                throw IllegalArgumentException("generation rejected: ${result.decision}")
+        }
     }
 }
+
+internal const val MAX_CANONICAL_REQUEST_BYTES = 1_048_576
+
+internal fun validateMutationInput(idempotencyKey: String, canonicalRequest: ByteArray) {
+    require(idempotencyKey.length in 16..200) { "invalid idempotency key length" }
+    require(canonicalRequest.isNotEmpty()) { "canonical request must not be empty" }
+    require(canonicalRequest.size <= MAX_CANONICAL_REQUEST_BYTES) { "canonical request is too large" }
+}
+
+internal fun requestDigest(canonicalRequest: ByteArray): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(canonicalRequest)
+        .joinToString(separator = "") { byte -> "%02x".format(byte) }

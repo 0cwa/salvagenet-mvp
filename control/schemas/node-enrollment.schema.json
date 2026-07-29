@@ -4,214 +4,104 @@
   "title": "NodeEnrollment",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "apiVersion",
-    "kind",
-    "metadata",
-    "controller",
-    "hostMesh",
-    "hostAccess",
-    "guestAccess",
-    "artifacts",
-    "initialRuntime"
-  ],
+  "required": ["apiVersion", "kind", "metadata", "controller", "hostMesh", "hostAccess", "guestAccess", "artifacts", "initialRuntime"],
   "properties": {
-    "apiVersion": {
-      "const": "nodehost.example/v1alpha1"
-    },
-    "kind": {
-      "const": "NodeEnrollment"
-    },
+    "apiVersion": {"const": "nodehost.example/v1alpha1"},
+    "kind": {"const": "NodeEnrollment"},
     "metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "enrollmentId",
-        "nodeName",
-        "expiresAt"
-      ],
+      "required": ["enrollmentId", "nodeName", "expiresAt"],
       "properties": {
-        "enrollmentId": {
-          "type": "string",
-          "minLength": 8,
-          "maxLength": 128
-        },
-        "nodeName": {
-          "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "enrollmentId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$"},
+        "nodeName": {"$ref": "#/$defs/hostname"},
+        "expiresAt": {"type": "string", "format": "date-time"}
       }
     },
     "controller": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "endpoint",
-        "spkiSha256",
-        "oneTimeEnrollmentToken"
-      ],
+      "required": ["endpoint", "spkiSha256", "oneTimeEnrollmentToken"],
       "properties": {
-        "endpoint": {
-          "type": "string",
-          "pattern": "^https://"
-        },
-        "spkiSha256": {
-          "type": "string",
-          "pattern": "^[A-Fa-f0-9]{64}$"
-        },
-        "oneTimeEnrollmentToken": {
-          "type": "string",
-          "minLength": 32,
-          "maxLength": 512
-        }
+        "endpoint": {"type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048},
+        "spkiSha256": {"$ref": "#/$defs/sha256"},
+        "oneTimeEnrollmentToken": {"$ref": "#/$defs/secret"}
       }
     },
     "hostMesh": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "controlUrl",
-        "oneUseAuthKey",
-        "hostname",
-        "expectedTags"
-      ],
+      "required": ["controlUrl", "oneUseAuthKey", "hostname", "expectedTags"],
       "properties": {
-        "controlUrl": {
-          "type": "string",
-          "pattern": "^https?://"
-        },
-        "oneUseAuthKey": {
-          "type": "string",
-          "minLength": 20,
-          "maxLength": 512
-        },
-        "hostname": {
-          "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
-        },
+        "controlUrl": {"type": "string", "format": "uri", "pattern": "^https?://", "maxLength": 2048},
+        "oneUseAuthKey": {"$ref": "#/$defs/secret"},
+        "hostname": {"$ref": "#/$defs/hostname"},
         "expectedTags": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 8,
-          "items": {
-            "type": "string",
-            "pattern": "^tag:[a-z0-9-]+$"
-          },
-          "uniqueItems": true
+          "type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^tag:[a-z0-9][a-z0-9-]{0,62}$"}
         }
       }
     },
     "hostAccess": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "controllerCapability",
-        "allowedControllerId"
-      ],
+      "required": ["controllerCapability", "allowedControllerId"],
       "properties": {
-        "controllerCapability": {
-          "type": "string",
-          "minLength": 32,
-          "maxLength": 512
-        },
-        "allowedControllerId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
-        }
+        "controllerCapability": {"$ref": "#/$defs/secret"},
+        "allowedControllerId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}
       }
     },
     "guestAccess": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "sshUser",
-        "sshUserCaPublicKey"
-      ],
+      "required": ["sshUser"],
       "properties": {
-        "sshUser": {
-          "type": "string",
-          "pattern": "^[a-z_][a-z0-9_-]{0,31}$"
-        },
-        "sshUserCaPublicKey": {
-          "type": "string",
-          "pattern": "^ssh-(ed25519|rsa) "
-        },
+        "sshUser": {"type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,31}$"},
+        "sshUserCaPublicKey": {"$ref": "#/$defs/sshPublicKey"},
         "emergencyAuthorizedKeys": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "type": "string",
-            "pattern": "^ssh-(ed25519|rsa) "
-          }
+          "type": "array", "maxItems": 4, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sshPublicKey"}
         }
-      }
+      },
+      "oneOf": [
+        {"required": ["sshUserCaPublicKey"]},
+        {
+          "required": ["emergencyAuthorizedKeys"],
+          "properties": {"emergencyAuthorizedKeys": {"minItems": 1}},
+          "not": {"required": ["sshUserCaPublicKey"]}
+        }
+      ]
     },
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "repositoryUrl",
-        "profileIds"
-      ],
+      "required": ["repositoryUrl", "profileIds"],
       "properties": {
-        "repositoryUrl": {
-          "type": "string",
-          "pattern": "^https://"
-        },
+        "repositoryUrl": {"type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048},
         "profileIds": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
-          },
-          "uniqueItems": true
+          "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/profileId"}
         }
       }
     },
     "initialRuntime": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "profileId",
-        "desiredState",
-        "memoryMiB",
-        "vcpus",
-        "dataDiskGiB"
-      ],
+      "required": ["profileId", "desiredState", "memoryMiB", "vcpus", "dataDiskGiB"],
       "properties": {
-        "profileId": {
-          "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
-        },
-        "desiredState": {
-          "enum": [
-            "stopped",
-            "running"
-          ]
-        },
-        "memoryMiB": {
-          "type": "integer",
-          "minimum": 256,
-          "maximum": 16384
-        },
-        "vcpus": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 16
-        },
-        "dataDiskGiB": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1024
-        }
+        "profileId": {"$ref": "#/$defs/profileId"},
+        "desiredState": {"enum": ["stopped", "running"]},
+        "memoryMiB": {"type": "integer", "minimum": 256, "maximum": 16384},
+        "vcpus": {"type": "integer", "minimum": 1, "maximum": 16},
+        "dataDiskGiB": {"type": "integer", "minimum": 1, "maximum": 1024}
       }
     }
+  },
+  "$defs": {
+    "hostname": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"},
+    "profileId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "secret": {"type": "string", "minLength": 16, "maxLength": 512},
+    "sshPublicKey": {"type": "string", "minLength": 24, "maxLength": 16384, "pattern": "^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+(?: .{1,128})?$"}
   }
 }
