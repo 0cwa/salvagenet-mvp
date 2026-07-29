@@ -32,6 +32,17 @@ internal fun interface EnrollmentBoundaryHook {
     suspend fun after(phase: EnrollmentPhase)
 }
 
+internal enum class EnrollmentRecoveryClassification {
+    CORRUPT_STAGE,
+    UNAPPROVED_STAGE,
+    EXPIRED_STAGE,
+}
+
+internal class EnrollmentRecoveryException(
+    val classification: EnrollmentRecoveryClassification,
+    cause: Throwable? = null,
+) : IllegalStateException("enrollment recovery failed: $classification", cause)
+
 /** Durable ordered enrollment transaction. Each effect is replay-safe before the next phase is recorded. */
 internal class EnrollmentInstaller(
     private val enrollments: org.nodehost.core.EnrollmentRepository,
@@ -108,20 +119,76 @@ internal class EnrollmentInstaller(
         }
     }
 
-    /** Startup recovery deletes an unauthoritative stage and resumes every authoritative boundary. */
+    /** Startup recovery revalidates an unauthoritative stage before accepting any persisted input. */
     suspend fun recoverOnStartup(): InstalledNode? {
-        val phase = phaseStore.load()
+        val phase = try {
+            phaseStore.load()
+        } catch (failure: Exception) {
+            throw clearInvalidStage(EnrollmentRecoveryClassification.CORRUPT_STAGE, failure)
+        }
         val authority = enrollments.load()
         if (authority == null) {
-            if (phase?.phase == EnrollmentPhase.VALIDATED_STAGED || bootstrapStore.hasDurableState()) {
-                bootstrapStore.clear()
-                phaseStore.clear()
+            if (phase == null) {
+                if (bootstrapStore.hasDurableState()) bootstrapStore.clear()
+                return null
             }
-            return null
+            if (phase.phase != EnrollmentPhase.VALIDATED_STAGED) {
+                throw clearInvalidStage(
+                    EnrollmentRecoveryClassification.CORRUPT_STAGE,
+                    IllegalStateException("enrollment recovery phase has no authority"),
+                )
+            }
+            return recoverValidatedStage(phase)
         }
         if (phase == null) return resumeExistingAuthority(authority)
         require(phase.enrollmentId == authority.id.value) { "enrollment phase does not match authority" }
         return resume(phase, authority, null, null)
+    }
+
+    private suspend fun recoverValidatedStage(phase: EnrollmentRecoveryState): InstalledNode {
+        try {
+            val enrollment = EnrollmentJson.parse(phase.rawEnrollment)
+            val guestSecret = GuestBootstrapSecretJson.parse(phase.rawGuestBootstrapSecret)
+            materializer.validate(enrollment, guestSecret)
+            require(phase.enrollmentId == enrollment.id.value) { "staged enrollment id mismatch" }
+            require(phase.idempotencyKey.length in 16..200) { "invalid staged idempotency key" }
+            require(phase.approvedIssuerSpkiSha256.matches(Regex("[a-f0-9]{64}"))) {
+                "invalid staged approved fingerprint"
+            }
+            if (!MessageDigest.isEqual(
+                    enrollment.controller.spkiSha256.toByteArray(),
+                    phase.approvedIssuerSpkiSha256.toByteArray(),
+                )
+            ) throw EnrollmentRecoveryException(EnrollmentRecoveryClassification.UNAPPROVED_STAGE)
+            if (enrollment.expiresAtEpochMs <= clock.epochMillis()) {
+                throw EnrollmentRecoveryException(EnrollmentRecoveryClassification.EXPIRED_STAGE)
+            }
+            val canonical = phase.rawEnrollment + byteArrayOf(0) + phase.rawGuestBootstrapSecret
+            require(canonical.isNotEmpty() && canonical.size <= 1_048_576) { "staged enrollment is out of bounds" }
+            val digest = MessageDigest.getInstance("SHA-256").digest(canonical)
+                .joinToString("") { "%02x".format(it) }
+            require(MessageDigest.isEqual(digest.toByteArray(), phase.requestDigest.toByteArray())) {
+                "staged enrollment digest mismatch"
+            }
+            require(bootstrapStore.hasDurableState() && bootstrapStore.enrollmentId() == enrollment.id.value) {
+                "staged bootstrap is unavailable or mismatched"
+            }
+            return resume(phase, enrollment, canonical, null)
+        } catch (failure: EnrollmentRecoveryException) {
+            throw clearInvalidStage(failure.classification, failure)
+        } catch (failure: Exception) {
+            throw clearInvalidStage(EnrollmentRecoveryClassification.CORRUPT_STAGE, failure)
+        }
+    }
+
+    private suspend fun clearInvalidStage(
+        classification: EnrollmentRecoveryClassification,
+        cause: Exception,
+    ): EnrollmentRecoveryException {
+        val classified = EnrollmentRecoveryException(classification, cause)
+        runCatching { bootstrapStore.clear() }.exceptionOrNull()?.let(classified::addSuppressed)
+        runCatching { phaseStore.clear() }.exceptionOrNull()?.let(classified::addSuppressed)
+        return classified
     }
 
     private suspend fun resume(

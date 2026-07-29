@@ -54,12 +54,12 @@ internal data class ManagedQemuProcess(
 )
 
 internal interface QemuProcessControl {
-    suspend fun start(plan: QemuLaunchPlan): ManagedQemuProcess
+    suspend fun start(plan: QemuLaunchPlan, runtime: RuntimeSpec): ManagedQemuProcess
     fun forceStop()
 }
 
 private class RuntimeQemuProcessControl(private val adapter: QemuRuntimeAdapter = QemuRuntimeAdapter()) : QemuProcessControl {
-    override suspend fun start(plan: QemuLaunchPlan): ManagedQemuProcess {
+    override suspend fun start(plan: QemuLaunchPlan, runtime: RuntimeSpec): ManagedQemuProcess {
         val handle = adapter.start(plan)
         return ManagedQemuProcess(handle.processId, { adapter.awaitExit(handle) }, { adapter.requestGuestShutdown(handle) })
     }
@@ -85,8 +85,9 @@ internal class AndroidQemuRuntimeBackend(
     private val resolver = QemuProfileResolver()
     private val stateLock = Any()
     private var handle: ManagedQemuProcess? = null
-    private var launchPlan: QemuLaunchPlan? = null
+    private var preparedLaunch: Pair<QemuLaunchPlan, RuntimeSpec>? = null
     private var profileId: VmProfileId? = null
+    private var appliedGeneration: Long? = null
     private var qmpReady = false
     private var guestReady = false
     private var stopping = false
@@ -109,7 +110,10 @@ internal class AndroidQemuRuntimeBackend(
                 id, handle?.processId,
                 gracefulDeadlineElapsedRealtime?.let { elapsedRealtimeMillis() >= it } == true,
             )
-            handle != null && qmpReady -> RuntimeObservation.Running(id, handle?.processId, guestReady)
+            handle != null && qmpReady -> RuntimeObservation.Running(
+                id, handle?.processId, guestReady,
+                checkNotNull(appliedGeneration) { "running QEMU process has no applied generation" },
+            )
             handle != null -> RuntimeObservation.Starting(id, handle?.processId)
             instanceDirectory().isDirectory -> RuntimeObservation.Stopped(id, profileId)
             else -> RuntimeObservation.Absent(id)
@@ -138,14 +142,15 @@ internal class AndroidQemuRuntimeBackend(
                 val token = beginBootToken(desired.profileId)?.let(::BootstrapToken)
                 val allocation = QemuRuntimeAllocation.fromApplication(application, recoveryPort, token)
                 val resolved = resolver.resolve(profile(desired.profileId, verifyArtifacts = true), desired, allocation)
-                synchronized(stateLock) { launchPlan = resolved; profileId = desired.profileId }
+                synchronized(stateLock) { preparedLaunch = resolved to desired; profileId = desired.profileId }
                 StepOutcome(true, "boot-prepared")
             }
             RuntimeStep.StartProcess -> {
-                val plan = synchronized(stateLock) { checkNotNull(launchPlan) { "boot is not prepared" } }
-                val started = qemu.start(plan)
+                val prepared = synchronized(stateLock) { checkNotNull(preparedLaunch) { "boot is not prepared" } }
+                val started = qemu.start(prepared.first, prepared.second)
                 synchronized(stateLock) {
                     handle = started
+                    appliedGeneration = prepared.second.generation
                     qmpReady = false
                     guestReady = false
                     stopping = false
@@ -209,6 +214,11 @@ internal class AndroidQemuRuntimeBackend(
                     check(durable.isFile && !data.exists()) { "data disk preservation was not atomic" }
                 }
                 deleteBounded(instance, MAX_DELETE_ENTRIES)
+                synchronized(stateLock) {
+                    preparedLaunch = null
+                    profileId = null
+                    appliedGeneration = null
+                }
                 StepOutcome(true, "system-removed")
             }
         }
@@ -331,6 +341,7 @@ internal class AndroidQemuRuntimeBackend(
             synchronized(stateLock) {
                 if (handle === started) {
                     handle = null
+                    appliedGeneration = null
                     qmpReady = false
                     guestReady = false
                     stopping = false

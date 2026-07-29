@@ -124,6 +124,33 @@ class AndroidQemuRuntimeBackendTest {
         assertTrue(backend.observe(RuntimeId.DEFAULT) is RuntimeObservation.Absent)
     }
 
+    @Test fun runningObservationRetainsPreparedGenerationWhenDesiredChanges() = runBlocking {
+        var desired = testRuntime()
+        val qemu = FakeQemuControl()
+        val backend = AndroidQemuRuntimeBackend(
+            context,
+            desiredRuntime = { desired },
+            beginBootToken = { "b".repeat(43) },
+            recoveryPort = org.nodehost.qemu.RecoverySshHostPort(19922),
+            qemu = qemu,
+        )
+        backend.attachLifecycle(scope) {}
+        backend.execute(operationContext("prepare"), RuntimeStep.PrepareBoot)
+        backend.execute(operationContext("start"), RuntimeStep.StartProcess)
+        desired = testRuntime().copy(generation = 2, profileId = VmProfileId("k3s-worker-lab"), memoryMiB = 2048)
+        File(context.filesDir, "vms/default").mkdirs()
+        File(context.filesDir, "vms/default/qmp.sock").createNewFile()
+        backend.execute(operationContext("qmp"), RuntimeStep.WaitForQmp)
+
+        val running = backend.observe(RuntimeId.DEFAULT) as RuntimeObservation.Running
+        assertEquals(1L, running.appliedGeneration)
+        assertEquals(1L, qemu.startedRuntimes.single().generation)
+
+        qemu.exit.complete(QemuExit(0, emptyList()))
+        withTimeout(2_000) { while (backend.observe(RuntimeId.DEFAULT) is RuntimeObservation.Running) kotlinx.coroutines.yield() }
+        assertTrue(backend.observe(RuntimeId.DEFAULT) !is RuntimeObservation.Running)
+    }
+
     @Test fun spontaneousProcessExitClearsRuntimeAndWakesReconciliation() = runBlocking {
         var wakes = 0
         val qemu = FakeQemuControl()
@@ -177,9 +204,13 @@ class AndroidQemuRuntimeBackendTest {
 
     private class FakeQemuControl : QemuProcessControl {
         val exit = CompletableDeferred<QemuExit>()
+        val startedRuntimes = mutableListOf<RuntimeSpec>()
         var shutdownRequests = 0
         var forceStops = 0
-        override suspend fun start(plan: QemuLaunchPlan) = ManagedQemuProcess(42, { exit.await() }, { shutdownRequests++ })
+        override suspend fun start(plan: QemuLaunchPlan, runtime: RuntimeSpec): ManagedQemuProcess {
+            startedRuntimes += runtime
+            return ManagedQemuProcess(42, { exit.await() }, { shutdownRequests++ })
+        }
         override fun forceStop() {
             forceStops++
             exit.complete(QemuExit(137, emptyList()))

@@ -219,6 +219,26 @@ class ReconciliationActorTest {
     }
 
     @Test
+    fun guestReadyOldGenerationDoesNotConvergeRunningOperation() = runBlocking {
+        val operation = acceptDesired()
+        val executed = CopyOnWriteArrayList<String>()
+        val runtime = object : RuntimeBackend {
+            override suspend fun observe(id: RuntimeId) = RuntimeObservation.Running(
+                id, processId = 42, guestReady = true, appliedGeneration = 2,
+            )
+            override suspend fun execute(context: OperationContext, step: RuntimeStep): StepOutcome {
+                executed += step.id
+                return StepOutcome(true)
+            }
+        }
+
+        runActor(runtime)
+
+        assertEquals(listOf(RuntimeStep.RequestShutdown.id), executed)
+        assertEquals(OperationState.ACCEPTED, store.load(operation.id)?.state)
+    }
+
+    @Test
     fun ignoredGracefulShutdownCannotSucceedAndDeadlineWakeForceStops() = runBlocking {
         val operation = acceptDesired(DesiredRuntimeState.STOPPED)
         var observation: RuntimeObservation = RuntimeObservation.Running(RuntimeId.DEFAULT, 42, true)
