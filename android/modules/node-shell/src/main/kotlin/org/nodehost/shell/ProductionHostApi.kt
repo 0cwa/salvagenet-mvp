@@ -35,6 +35,9 @@ import org.nodehost.store.NodeHostDatabase
 import org.nodehost.store.OperationEntity
 import org.nodehost.store.RoomOperationRepository
 
+private val OperationRecord.blocksArtifactEffects: Boolean
+    get() = state.terminal || state == OperationState.CANCELLING
+
 @JvmInline
 value class TailnetBindAddress(val value: String) {
     init {
@@ -121,8 +124,8 @@ class AndroidHostMutations(
             }
             val accepted = OperationRecord(operationIds.newId(), idempotencyKey, digest, null, null, OperationState.ACCEPTED, null)
             insert(accepted)
-            val preflight = update(accepted.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
-            update(preflight.transitionTo(OperationState.FETCHING, "image.fetch")) to true
+            val preflight = update(accepted, accepted.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
+            update(preflight, preflight.transitionTo(OperationState.FETCHING, "image.fetch")) to true
         }
         if (!newlyAccepted) return operation
         try {
@@ -130,19 +133,19 @@ class AndroidHostMutations(
             downloadVerified(request, enrolledRepositoryOrigin(), imageId, operation.id)
             return lock.withLock {
                 val latest = requireNotNull(operations.load(operation.id))
-                if (latest.state == OperationState.CANCELLED) latest
+                if (latest.blocksArtifactEffects) latest
                 else {
-                    val verified = update(latest.transitionTo(OperationState.VERIFYING, "image.verify"))
-                    val preparing = update(verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
-                    val prepared = update(preparing.transitionTo(OperationState.PREPARING_BOOT, "image.publish"))
-                    update(prepared.transitionTo(OperationState.SUCCEEDED, null))
+                    val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
+                    val preparing = update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
+                    val prepared = update(preparing, preparing.transitionTo(OperationState.PREPARING_BOOT, "image.publish"))
+                    update(prepared, prepared.transitionTo(OperationState.SUCCEEDED, null))
                 }
             }
         } catch (failure: Throwable) {
             lock.withLock {
                 val latest = requireNotNull(operations.load(operation.id))
-                if (latest.state != OperationState.CANCELLED) {
-                    update(latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.fetch", "IMAGE_IMPORT_FAILED"))
+                if (!latest.blocksArtifactEffects) {
+                    update(latest, latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.fetch", "IMAGE_IMPORT_FAILED"))
                 }
             }
             throw failure
@@ -156,12 +159,10 @@ class AndroidHostMutations(
     }
 
     override suspend fun cancelOperation(id: String, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord = lock.withLock {
-        val target = requireNotNull(operations.load(OperationId(id))) { "operation not found" }
-        if (target.state.terminal) return@withLock target
-        require(target.state in setOf(OperationState.ACCEPTED, OperationState.FETCHING, OperationState.FAILED_RETRYABLE)) {
-            "operation cannot be cancelled at its current step"
-        }
-        update(target.transitionTo(OperationState.CANCELLING).transitionTo(OperationState.CANCELLED))
+        operations.cancelOperation(
+            OperationId(id),
+            setOf(OperationState.ACCEPTED, OperationState.FETCHING, OperationState.FAILED_RETRYABLE),
+        )
     }
 
     override suspend fun revokeController(id: String, idempotencyKey: String, canonicalRequest: ByteArray) {
@@ -239,7 +240,7 @@ class AndroidHostMutations(
 
     private fun operationCancelled(id: OperationId): Boolean =
         database.openHelper.readableDatabase.query("SELECT state FROM operations WHERE id = ?", arrayOf(id.value)).use {
-            it.moveToFirst() && it.getString(0) == OperationState.CANCELLED.name
+            it.moveToFirst() && OperationState.valueOf(it.getString(0)).let { state -> state.terminal || state == OperationState.CANCELLING }
         }
 
     private fun validateArtifactUri(uri: URI, authority: URI) {
@@ -268,10 +269,9 @@ class AndroidHostMutations(
         require(database.dao().operationCount() < RoomOperationRepository.MAX_RETAINED_OPERATIONS) { "operation journal capacity exceeded" }
         database.dao().insertOperation(record.toEntity(clockMillis()))
     }
-    private suspend fun update(record: OperationRecord): OperationRecord {
-        val existing = requireNotNull(database.dao().operation(record.id.value))
-        database.dao().updateOperation(record.toEntity(existing.createdAtEpochMillis))
-        return record
+    private suspend fun update(expected: OperationRecord, updated: OperationRecord): OperationRecord {
+        check(operations.compareAndSetOperation(expected, updated)) { "operation changed concurrently" }
+        return updated
     }
     private fun OperationRecord.toEntity(created: Long) = OperationEntity(id.value, idempotencyKey, requestDigest, runtimeId?.value, desiredGeneration, state.name, currentStepId, errorCode, created, clockMillis())
     private fun OperationEntity.toRecord() = OperationRecord(OperationId(id), idempotencyKey, requestDigest, runtimeId?.let(::RuntimeId), desiredGeneration, OperationState.valueOf(state), currentStepId, errorCode)
