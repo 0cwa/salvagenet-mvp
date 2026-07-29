@@ -1,0 +1,265 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "version": "v1.2.6",
+    "url": "https://github.com/ExTV/Podroid/releases/download/v1.2.6/Podroid-v1.2.6-release.apk",
+    "fileName": "Podroid-v1.2.6-release.apk",
+    "size": 314739363,
+    "sha256": "40ee65c248592e2c7249228417725a3f8f2b097bf38cca04ad8c88d9298b5d5e",
+    "publishedBy": "GitHub release asset digest"
+  },
+  "artifacts": [
+    {
+      "apkPath": "lib/arm64-v8a/libqemu-system-aarch64.so",
+      "size": 38360472,
+      "sha256": "78bf84a790d8d05774ed1816fea5a2616715874e5bd2ca45d65efda32a8f00d9",
+      "generated": true
+    },
+    {
+      "apkPath": "lib/arm64-v8a/libslirp.so",
+      "size": 1079560,
+      "sha256": "349aeb91b0e998c2dc6d34e8e4a92f578402bec6210b781a0a37e36a4fa3515e",
+      "generated": true
+    },
+    {
+      "apkPath": "lib/arm64-v8a/libpodroid-bridge.so",
+      "size": 9896,
+      "sha256": "1c661e3e00f9369d5643b0d6fff7a6f67911a2bf713c84c36f8534fc1b768ccb",
+      "generated": true
+    },
+    {
+      "apkPath": "lib/arm64-v8a/libpodroid-launcher.so",
+      "size": 4944,
+      "sha256": "2f0500066836432742e2f7162c0ab15e6d789a71e926006edb15186535d48fc5",
+      "generated": true
+    },
+    {
+      "apkPath": "assets/vmlinuz-virt",
+      "size": 20086848,
+      "sha256": "9be1095a3d21a488c6a41299ae937fecabec4481c390d27f7da0d4fb0ea72b4b",
+      "generated": true
+    },
+    {
+      "apkPath": "assets/initrd.img",
+      "size": 42195106,
+      "sha256": "7c245ce7bb144008bf2869722226f6abd87b129bdc8b341da9918d4be8392b80",
+      "generated": true
+    },
+    {
+      "apkPath": "assets/alpine-rootfs.squashfs",
+      "size": 228204544,
+      "sha256": "9c992e851df2a24c66c384267e3c49d3b46397041ba9e9047905c97f4e041631",
+      "generated": true
+    },
+    {
+      "apkPath": "assets/qemu/efi-virtio.rom",
+      "size": 160768,
+      "sha256": "26be36901db7f8181c306cc62bd74891d8646528965a78e40cceadba5dd7c8e7",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/ar",
+      "size": 28605,
+      "sha256": "059ab719df4296edb800d399501e3823e1e6f470cc06a3a4564f4bb2dbd5c1fc",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/bepo",
+      "size": 27809,
+      "sha256": "01ccdb7e2d0b20f517e03d39cc70802ad83dfc1ed2e5d50ff9b4a4f77e37a9f8",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/cz",
+      "size": 29209,
+      "sha256": "3664b3f13e6cfff0e6d05f12000aa6610eff04f570707261ec35ca830ded6c36",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/da",
+      "size": 29230,
+      "sha256": "95ef0c168f0b25e936a7ff944da820a43af8028b515cc6709724f457e105c187",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/de",
+      "size": 29183,
+      "sha256": "cda7dc9656f007ca3e88e5bac50f20c7f61f934bcec2e87c6d61859e632ddb98",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/de-ch",
+      "size": 29214,
+      "sha256": "3260cb64fdcdf48e2b53c5d0573dc2a9410d7d3aae227ed42dda945f9ab74e06",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/en-gb",
+      "size": 29219,
+      "sha256": "e14229b7f9165bf226bf4de968fd5f6a504014a2179de08c2b2184cefe68174e",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/en-us",
+      "size": 27086,
+      "sha256": "52cf4c523e686078699ed58761c7e1443080305237a5f67a3716832570c5c8e5",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/es",
+      "size": 29203,
+      "sha256": "d9b1da8193232882705bd4a312c0923b6d91268f1e1a8eed2afbd7fc37681c06",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/et",
+      "size": 27291,
+      "sha256": "95af1e25132185e3cb271d491086ccf09cb667033afb718f1a11e974e80a838f",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/fi",
+      "size": 28604,
+      "sha256": "4c5cd5359c18635187d7af9570088a7bbd21f96d961aedbc4c9fb1e5df099281",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/fo",
+      "size": 29217,
+      "sha256": "3750b8090caea3cf6c827b97f5ecc2d1172c33d960141c50f96e61c53f682ccf",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/fr",
+      "size": 29204,
+      "sha256": "60d9baa3565b7727b4178704100bffb02cbd5b527a9dcc9f9ca76d76767b166e",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/fr-be",
+      "size": 29211,
+      "sha256": "522b5e758375e3d796fba096a46077766bd44548c8c61a4abe946e3116c1ad97",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/fr-ca",
+      "size": 27564,
+      "sha256": "9ee3fc13beec6e74f40fb6d150d7fe3b0afe4557fdf0769601e662a122a88cc0",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/fr-ch",
+      "size": 29215,
+      "sha256": "7b2ad2929f3b7b4f5d60176bd7e1852f91efbcfe2700e8df9bc9b891609a7170",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/hr",
+      "size": 29255,
+      "sha256": "e8391ed09015ce8459a98e3470daddd3a6d95c4c7e93b750098f5a321fd57482",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/hu",
+      "size": 29207,
+      "sha256": "763a938ed2fdd224b9cb8ad606d02aabc93a0e3fb7a5e5e9caafa0ec8c05d422",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/is",
+      "size": 29254,
+      "sha256": "6eb4e5bd93ca2f7a2059a31fd014444108eb684ecd97902da2492b0a0f6e3cdc",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/it",
+      "size": 29312,
+      "sha256": "12d090cdcb6af0e95a0c0330b8b7f0ac0446ab8cf7140b4f8c6c797c08e9c219",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/ja",
+      "size": 27163,
+      "sha256": "a4561aefcc2fd2f4ba01604001c9c0dc67469514ea0a665063b72e79d5d9c687",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/lt",
+      "size": 29166,
+      "sha256": "0bfc98e913451c0b9082d0317deffa03c6f0c53a1422cb4f4c1ef64dc3939d2f",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/lv",
+      "size": 28618,
+      "sha256": "be4f1e28325ae2ea927bd51e31863a327e64c0a938725fd02c2a7260660bdf77",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/mk",
+      "size": 27685,
+      "sha256": "71068ffe163ce6684b35f423e897e00c97debe0c3df555c43d26b46a79ca68e7",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/nl",
+      "size": 29268,
+      "sha256": "70cb1b41f184d61520867e639e6b69cddea4b0e2458c5502c7c40512301876c7",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/no",
+      "size": 29563,
+      "sha256": "95b3fe5258264b827ba01acc7a774bd9edbaec52c54e582a0737c33087a92514",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/pl",
+      "size": 29327,
+      "sha256": "5f3da802f81f385c58179272e48c4f8680dfdfe55383c504a6d84b3b7a8aadfb",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/pt",
+      "size": 29195,
+      "sha256": "29161e1b8b61b761c3f3bff237ca73ce4ee3316a99090890b32469824b5eed8a",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/pt-br",
+      "size": 29175,
+      "sha256": "fbb9491c0bfc4253cced9d8a20965aca98d0249c4626fe6e7d31358b24e34e8d",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/ru",
+      "size": 27704,
+      "sha256": "afa015a736cd935fc38a0df62fd6ab2f3c64b44c48b3e6d95969cbbfcdc43e91",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/sl",
+      "size": 4632,
+      "sha256": "bea8fe8ac0ca281038ac0e1788c39f090507ff0646bd4f57cc18f6873b030147",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/sv",
+      "size": 3346,
+      "sha256": "97731fbe91f254d81c005ffc232180a8dd7baeb6d699f0f0fc15e341672f96b3",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/th",
+      "size": 27829,
+      "sha256": "6dd9562a2b10c81f658ad96075fd87832777e87357620e89c7d070e4097fbbb9",
+      "generated": false
+    },
+    {
+      "apkPath": "assets/qemu/keymaps/tr",
+      "size": 29142,
+      "sha256": "f59f8cc154f0dc8b45166b524b9c1e649ba027e39381aac286663ad2227ddce8",
+      "generated": false
+    }
+  ]
+}

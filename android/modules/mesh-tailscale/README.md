@@ -1,7 +1,11 @@
 # mesh-tailscale
 
 Android-aware embedded host-mesh adapter built against the pinned official
-`libtailscale` gomobile binding.
+`libtailscale` gomobile binding. Gradle generates the pinned vendor AAR, then
+exposes its classes, consumer rules, and ARM64 JNI library through supported
+generated JAR/JNI inputs. This lets both the library and consuming app variants
+carry the binding without committing binaries or depending directly on a local
+AAR.
 
 `LibtailscaleHostMesh` validates and persists the Headscale control URL,
 hostname, and one-use auth key in Android Keystore-backed AES-GCM state. It
