@@ -129,13 +129,22 @@ class LibtailscaleHostMeshTest {
         assertNull(fixture.store.value)
     }
 
-    @Test fun `enrollment observations are bounded and become typed failure`() = runBlocking {
-        val fixture = fixture(permission = true)
+    @Test fun `enrollment deadline uses elapsed time rather than status polling frequency`() = runBlocking {
+        var elapsed = 10L
+        val fixture = fixture(
+            permission = true,
+            elapsedRealtime = { elapsed },
+            enrollmentTimeoutMillis = 1_000L,
+        )
         fixture.mesh.configure(configuration)
         fixture.mesh.start()
         fixture.backend.observation = BackendMeshSnapshot(BackendMeshSnapshot.State.ENROLLING)
 
-        repeat(12) { assertEquals(HostMeshStatus.State.ENROLLING, fixture.mesh.status().state) }
+        repeat(100) { assertEquals(HostMeshStatus.State.ENROLLING, fixture.mesh.status().state) }
+        elapsed = 1_009L
+        assertEquals(HostMeshStatus.State.ENROLLING, fixture.mesh.status().state)
+        elapsed = 1_010L
+        assertEquals(HostMeshStatus.State.ERROR, fixture.mesh.status().state)
         assertEquals(HostMeshStatus.State.ERROR, fixture.mesh.status().state)
         assertEquals(configuration.oneUseAuthKey.value, fixture.store.value?.oneUseAuthKey)
     }
@@ -235,11 +244,16 @@ class LibtailscaleHostMeshTest {
     private fun fixture(
         permission: Boolean,
         controlUrlPolicy: ControlUrlPolicy = ControlUrlPolicy.RELEASE,
+        elapsedRealtime: () -> Long = { 0L },
+        enrollmentTimeoutMillis: Long = 120_000L,
     ): Fixture {
         val backend = FakeBackend()
         val store = FakeStore()
         return Fixture(
-            LibtailscaleHostMesh(backend, store, { permission }, controlUrlPolicy),
+            LibtailscaleHostMesh(
+                backend, store, { permission }, controlUrlPolicy,
+                elapsedRealtime, enrollmentTimeoutMillis,
+            ),
             backend,
             store,
         )

@@ -1,4 +1,6 @@
-# Scaffold manifest
+# Scaffold manifest (historical)
+
+> This records the initial scaffold before T00–T08 implementation. For current maturity and gate state, read `docs/STATUS.md` and the acceptance ledger.
 
 ## Product boundary
 

@@ -5,7 +5,7 @@ TASK ?=
 
 .PHONY: help install-go doctor validate import-podroid wire-podroid context lab-up lab-down lab-keys lab-status \
         integration-worktree test-jvm test-android test-guest test-static device-facts goal-preflight install-hooks \
-        provenance-report wave worktree integrate status emulator-install emulator-start emulator-stop qemu-lab-prepare qemu-lab-start qemu-lab-smoke qemu-lab-stop package
+        provenance-report wave worktree integrate status mvp-status emulator-install emulator-start emulator-stop qemu-lab-prepare qemu-lab-start qemu-lab-smoke qemu-lab-stop package
 
 help:
 	@printf '%s\n' \
@@ -20,6 +20,7 @@ help:
 	  'integrate TASK=T02 verify and merge one task into integration' \
 	  'wave WAVE=1     create all worktrees for one dependency wave' \
 	  'status          summarize task packets and git worktrees' \
+	  'mvp-status      regenerate docs/STATUS.md and README acceptance summary' \
 	  'lab-up          start the local Headscale lab' \
 	  'lab-keys        mint one-use lab host/guest keys' \
 	  'lab-down        stop the local Headscale lab' \
@@ -78,6 +79,9 @@ wave:
 
 status:
 	@tools/agents/status.sh
+
+mvp-status:
+	@python3 tools/status/generate.py --write
 
 lab-up:
 	@lab/headscale/scripts/up.sh

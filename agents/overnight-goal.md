@@ -1,6 +1,8 @@
-# Overnight goal-mode handoff
+# Overnight goal-mode handoff (historical cycle)
 
-## Goal
+> T00–T08 have been implemented and integrated. Do not restart this task graph for current development. Use [`device-validation-goal.md`](device-validation-goal.md) and [`../docs/roadmap/device-validation.md`](../docs/roadmap/device-validation.md) to close the remaining physical MVP gates.
+
+## Historical goal
 
 Implement as much of the base NodeHost MVP as can be completed and verified in one overnight agent-day, preserving the working Podroid QEMU path and the scaffold's module boundaries.
 

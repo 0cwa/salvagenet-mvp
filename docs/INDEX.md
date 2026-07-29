@@ -1,6 +1,10 @@
 # Documentation index
 
-The orchestrator should read only this index, `GOAL.md`, the active task packet, and generated context packs.
+The current acceptance state is generated in `STATUS.md`. Agents should read this index, `GOAL.md`, the active task or validation packet, and only the additional pages named by that packet.
+
+## Current status
+
+- `STATUS.md` — generated MVP gate summary and next validation sequence.
 
 ## Architecture
 
@@ -14,6 +18,7 @@ The orchestrator should read only this index, `GOAL.md`, the active task packet,
 - `architecture/control-plane.md` — API versus SSH responsibilities.
 - `architecture/security-boundaries.md` — trust boundaries and temporary MVP security.
 - `architecture/tool-radar.md` — dependency adoption status and reconsideration triggers.
+- `architecture/debt-register.md` — explicit technical debt, expiry triggers, and post-device-test refactors.
 - `architecture/decisions/` — concise ADRs.
 
 ## Development
@@ -41,6 +46,7 @@ The orchestrator should read only this index, `GOAL.md`, the active task packet,
 - `roadmap/overnight-plan.md` — one-agent-day parallel plan.
 - `roadmap/dependency-dag.md` — task dependencies and merge order.
 - `roadmap/acceptance-ledger.md` — base MVP and MVP+ acceptance ledger.
+- `roadmap/device-validation.md` — D00–D07 physical validation and release sequence.
 - `roadmap/post-mvp.md` — deliberately deferred work.
 
 ## Research

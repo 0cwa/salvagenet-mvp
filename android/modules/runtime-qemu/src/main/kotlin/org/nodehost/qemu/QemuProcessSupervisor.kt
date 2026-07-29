@@ -13,6 +13,11 @@ class QemuRuntimeAdapter {
 
     suspend fun start(plan: QemuLaunchPlan): QemuProcessHandle = supervisor.start(QemuCommandCompiler().compile(plan.resolved))
     suspend fun awaitExit(handle: QemuProcessHandle): QemuExit = handle.exit.await()
+    suspend fun awaitQmpReady(handle: QemuProcessHandle): String =
+        QmpSession(handle.qmpSocketPath).use { qmp ->
+            qmp.connect()
+            qmp.queryStatus()
+        }
     suspend fun requestGuestShutdown(handle: QemuProcessHandle) {
         QmpSession(handle.qmpSocketPath).use { qmp -> qmp.connect(); qmp.systemPowerdown() }
     }

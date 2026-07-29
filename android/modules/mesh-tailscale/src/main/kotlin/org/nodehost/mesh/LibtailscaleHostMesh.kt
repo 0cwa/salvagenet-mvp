@@ -21,17 +21,21 @@ class LibtailscaleHostMesh internal constructor(
     private val store: MeshConfigurationStore,
     private val hasVpnPermission: () -> Boolean,
     private val controlUrlPolicy: ControlUrlPolicy = ControlUrlPolicy.RELEASE,
+    private val elapsedRealtimeMillis: () -> Long = android.os.SystemClock::elapsedRealtime,
+    private val enrollmentTimeoutMillis: Long = DEFAULT_ENROLLMENT_TIMEOUT_MILLIS,
 ) : HostMesh {
     constructor(context: Context) : this(
         AndroidLibtailscaleRuntime.backend(context.applicationContext),
         AndroidMeshConfigurationStore(context.applicationContext),
         { VpnService.prepare(context.applicationContext) == null },
         ControlUrlPolicy.fromAndroid(context.applicationContext),
+        android.os.SystemClock::elapsedRealtime,
+        DEFAULT_ENROLLMENT_TIMEOUT_MILLIS,
     )
 
     private val operationLock = Mutex()
     private var current = HostMeshStatus(HostMeshStatus.State.STOPPED)
-    private var enrollmentObservations = 0
+    private var enrollmentDeadlineElapsedRealtime: Long? = null
 
     override suspend fun configure(configuration: HostMeshConfiguration) = operationLock.withLock {
         require(current.state != HostMeshStatus.State.RUNNING && current.state != HostMeshStatus.State.ENROLLING) {
@@ -70,10 +74,12 @@ class LibtailscaleHostMesh internal constructor(
             return@withLock
         }
         try {
+            require(enrollmentTimeoutMillis > 0) { "enrollment timeout must be positive" }
             backend.start(configuration.oneUseAuthKey)
-            enrollmentObservations = 0
+            enrollmentDeadlineElapsedRealtime = elapsedRealtimeMillis() + enrollmentTimeoutMillis
             current = HostMeshStatus(HostMeshStatus.State.ENROLLING)
         } catch (failure: Exception) {
+            enrollmentDeadlineElapsedRealtime = null
             current = failureStatus(failure)
             throw failure
         }
@@ -82,6 +88,7 @@ class LibtailscaleHostMesh internal constructor(
     override suspend fun stop() = operationLock.withLock {
         try {
             backend.stop()
+            enrollmentDeadlineElapsedRealtime = null
             current = HostMeshStatus(HostMeshStatus.State.STOPPED)
         } catch (failure: Exception) {
             current = failureStatus(failure)
@@ -96,24 +103,33 @@ class LibtailscaleHostMesh internal constructor(
         val observed = try {
             backend.snapshot()
         } catch (failure: Exception) {
+            enrollmentDeadlineElapsedRealtime = null
             current = failureStatus(failure)
             return@withLock current
         }
         current = when (observed.state) {
-            BackendMeshSnapshot.State.STOPPED -> HostMeshStatus(HostMeshStatus.State.STOPPED)
+            BackendMeshSnapshot.State.STOPPED -> {
+                enrollmentDeadlineElapsedRealtime = null
+                HostMeshStatus(HostMeshStatus.State.STOPPED)
+            }
             BackendMeshSnapshot.State.ENROLLING -> {
-                enrollmentObservations += 1
-                if (enrollmentObservations > MAX_ENROLLMENT_OBSERVATIONS) {
+                val deadline = enrollmentDeadlineElapsedRealtime
+                    ?: (elapsedRealtimeMillis() + enrollmentTimeoutMillis).also { enrollmentDeadlineElapsedRealtime = it }
+                if (elapsedRealtimeMillis() >= deadline) {
                     HostMeshStatus(HostMeshStatus.State.ERROR, detail = "enrollment_not_completed")
                 } else {
                     HostMeshStatus(HostMeshStatus.State.ENROLLING)
                 }
             }
-            BackendMeshSnapshot.State.ERROR -> HostMeshStatus(
-                HostMeshStatus.State.ERROR,
-                detail = observed.failure?.take(MAX_FAILURE_DETAIL_LENGTH) ?: "libtailscale_failure",
-            )
+            BackendMeshSnapshot.State.ERROR -> {
+                enrollmentDeadlineElapsedRealtime = null
+                HostMeshStatus(
+                    HostMeshStatus.State.ERROR,
+                    detail = observed.failure?.take(MAX_FAILURE_DETAIL_LENGTH) ?: "libtailscale_failure",
+                )
+            }
             BackendMeshSnapshot.State.RUNNING -> {
+                enrollmentDeadlineElapsedRealtime = null
                 try {
                     // Enrollment is confirmed by libtailscale before the one-use key is erased.
                     store.deleteOneUseAuthKey()
@@ -145,6 +161,7 @@ class LibtailscaleHostMesh internal constructor(
                 keyDeletionFailure?.let(failure::addSuppressed)
                 throw failure
             }
+            enrollmentDeadlineElapsedRealtime = null
             current = HostMeshStatus(HostMeshStatus.State.STOPPED)
         } catch (failure: Exception) {
             current = failureStatus(failure)
@@ -170,7 +187,7 @@ class LibtailscaleHostMesh internal constructor(
         const val MAX_CONTROL_URL_LENGTH = 2048
         const val MAX_ADDRESSES = 16
         const val MAX_FAILURE_DETAIL_LENGTH = 128
-        const val MAX_ENROLLMENT_OBSERVATIONS = 12
+        const val DEFAULT_ENROLLMENT_TIMEOUT_MILLIS = 120_000L
         val HOSTNAME = Regex("[a-z0-9][a-z0-9-]{0,62}")
     }
 }
