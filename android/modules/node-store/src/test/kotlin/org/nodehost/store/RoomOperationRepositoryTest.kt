@@ -121,20 +121,46 @@ class RoomOperationRepositoryTest {
     }
 
     @Test
-    fun systemReconciliationAttemptsAreDurablyBounded() = runBlocking {
+    fun completedDriftCyclesRecoverForeverWithBoundedDurableHistory() = runBlocking {
+        val desired = spec(1)
         val userOperation = operation("op-600", "key-000000000600", 1)
-        repository.acceptDesiredRuntime(spec(1), userOperation)
+        repository.acceptDesiredRuntime(desired, userOperation)
         repository.markSucceeded(userOperation.id)
 
-        repeat(RoomOperationRepository.MAX_SYSTEM_RECONCILIATION_ATTEMPTS) { index ->
-            val attempt = requireNotNull(repository.beginSystemReconciliation(spec(1)))
-            assertEquals(index + 1, attempt.id.value.substringAfterLast('-').toInt())
-            repository.markSucceeded(attempt.id)
+        repeat(65) { cycle ->
+            clock.now = 1_000L + cycle
+            val concurrentWakes = List(8) {
+                async(Dispatchers.Default) { repository.beginSystemReconciliation(desired) }
+            }.awaitAll()
+            val attempt = requireNotNull(concurrentWakes.first())
+
+            assertEquals(setOf(attempt.id), concurrentWakes.map { it?.id }.toSet())
+            assertEquals(
+                cycle % RoomOperationRepository.MAX_RETAINED_SYSTEM_RECONCILIATIONS_PER_GENERATION + 1,
+                attempt.id.value.substringAfterLast('-').toInt(),
+            )
+            assertEquals(OperationState.ACCEPTED, attempt.state)
+
+            val intent = requireNotNull(repository.beginStep(attempt.id, "qemu.start_process")).intent
+            assertTrue(repository.completeStep(intent, StepOutcome(true, "recovered")))
+            assertTrue(repository.markSucceeded(attempt.id))
+
+            repository = RoomOperationRepository(database, clock)
+            assertEquals(OperationState.SUCCEEDED, repository.load(attempt.id)?.state)
+            assertEquals(attempt.id, repository.operationForDesired(desired)?.id)
+            assertEquals(StepStatus.SUCCEEDED.name, repository.steps(attempt.id).single().status)
         }
 
-        val exhausted = requireNotNull(repository.beginSystemReconciliation(spec(1)))
-        assertEquals("sys-reconcile-default-1-32", exhausted.id.value)
-        assertEquals(OperationState.SUCCEEDED, exhausted.state)
+        assertEquals(
+            RoomOperationRepository.MAX_RETAINED_SYSTEM_RECONCILIATIONS_PER_GENERATION + 1L,
+            database.dao().operationCount(),
+        )
+        assertEquals(
+            RoomOperationRepository.MAX_RETAINED_SYSTEM_RECONCILIATIONS_PER_GENERATION.toLong(),
+            database.dao().stepCount(),
+        )
+        assertEquals(OperationState.SUCCEEDED, repository.load(userOperation.id)?.state)
+        assertEquals(desired, repository.loadDesiredRuntime(RuntimeId.DEFAULT))
     }
 
     @Test

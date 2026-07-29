@@ -38,6 +38,15 @@ interface NodeHostDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertOperation(entity: OperationEntity)
 
+    @Query("DELETE FROM operation_steps WHERE operationId = :operationId")
+    suspend fun deleteSteps(operationId: String): Int
+
+    @Query("DELETE FROM operations WHERE id = :id AND state = :terminalState")
+    suspend fun deleteTerminalOperation(id: String, terminalState: String): Int
+
+    @Query("SELECT COUNT(*) FROM operation_steps")
+    suspend fun stepCount(): Long
+
     @Query("""
         UPDATE operations SET state = :newState, currentStepId = :newStepId, errorCode = :newErrorCode,
             updatedAtEpochMillis = :updatedAtEpochMillis
