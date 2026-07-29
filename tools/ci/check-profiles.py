@@ -11,7 +11,8 @@ REQUIRED_PROFILE_IDS = {
     "k3s-worker-lab",
 }
 FORBIDDEN_FIELDS = {
-    "args", "command", "kernelargs", "kernelextra", "qemuargs", "rawqmp", "shell", "shellcommand"
+    "args", "command", "kernelargs", "kernelarguments", "kernelextra", "qemuargs",
+    "qemuarguments", "rawqmp", "shell", "shellcommand",
 }
 COMMON_SPEC_FIELDS = {
     "architecture", "machine", "boot", "systemDisk", "dataDisk",

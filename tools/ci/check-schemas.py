@@ -23,7 +23,8 @@ CONTRACTS = (
     ),
 )
 FORBIDDEN_PROPERTY_NAMES = {
-    "args", "command", "kernelargs", "kernelextra", "qemuargs", "rawqmp", "shell", "shellcommand"
+    "args", "command", "kernelargs", "kernelarguments", "kernelextra", "qemuargs",
+    "qemuarguments", "rawqmp", "shell", "shellcommand",
 }
 
 
@@ -76,6 +77,33 @@ def main() -> None:
     no_guest_authority = deepcopy(enrollment)
     no_guest_authority["guestAccess"].pop("sshUserCaPublicKey")
     expect_invalid(enrollment_validator, no_guest_authority, "guest SSH authority is required")
+
+    guest_schema = load(CONTRACTS[1][0])
+    guest_validator = jsonschema.Draft202012Validator(guest_schema, format_checker=jsonschema.FormatChecker())
+    guest = load(CONTRACTS[1][1][0])
+    assert guest["binding"] == {
+        "enrollmentId": enrollment["metadata"]["enrollmentId"],
+        "issuerSpkiSha256": enrollment["controller"]["spkiSha256"],
+    }, "guest bootstrap example binding must match the enrollment example"
+
+    missing_binding = deepcopy(guest)
+    missing_binding.pop("binding")
+    expect_invalid(guest_validator, missing_binding, "guest enrollment binding is required")
+
+    mixed_ssh = deepcopy(guest)
+    mixed_ssh["ssh"]["emergencyAuthorizedKeys"] = [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleEmergencyKey nodehost-example"
+    ]
+    expect_invalid(guest_validator, mixed_ssh, "guest SSH authorization forms are mutually exclusive")
+
+    old_callback = deepcopy(guest)
+    old_callback["callback"]["readyUrl"] = "http://10.0.2.2:18080/bootstrap/example/ready"
+    expect_invalid(guest_validator, old_callback, "guest callback URL is fixed")
+
+    for fingerprint in ("A" * 64, "a" * 63):
+        invalid_fingerprint = deepcopy(guest)
+        invalid_fingerprint["binding"]["issuerSpkiSha256"] = fingerprint
+        expect_invalid(guest_validator, invalid_fingerprint, "issuer fingerprint must be 64 lowercase hex characters")
 
     profile_schema = load(CONTRACTS[2][0])
     profile_validator = jsonschema.Draft202012Validator(profile_schema)

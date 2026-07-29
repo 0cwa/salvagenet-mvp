@@ -64,7 +64,10 @@
         }
       },
       "oneOf": [
-        {"required": ["sshUserCaPublicKey"]},
+        {
+          "required": ["sshUserCaPublicKey"],
+          "not": {"required": ["emergencyAuthorizedKeys"]}
+        },
         {
           "required": ["emergencyAuthorizedKeys"],
           "properties": {"emergencyAuthorizedKeys": {"minItems": 1}},
