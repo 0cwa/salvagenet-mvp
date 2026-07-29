@@ -86,6 +86,7 @@ def render(
         "HEADSCALE_VERSION",
         "HEADSCALE_PUBLIC_URL",
         "HEADSCALE_LISTEN_IP",
+        "HEADSCALE_HOST_PORT",
         "HEADSCALE_BASE_DOMAIN",
     }
     missing = sorted(key for key in required if not values.get(key))
@@ -97,7 +98,31 @@ def render(
         allow_non_phone_reachable=allow_non_phone_reachable,
     )
     validate_base_domain(values["HEADSCALE_BASE_DOMAIN"])
-    ipaddress.ip_address(values["HEADSCALE_LISTEN_IP"])
+    listen_address = ipaddress.ip_address(values["HEADSCALE_LISTEN_IP"])
+    if listen_address.is_loopback:
+        raise ValueError("HEADSCALE_LISTEN_IP must not be loopback")
+    public_host = urlparse(values["HEADSCALE_PUBLIC_URL"]).hostname
+    assert public_host is not None
+    try:
+        public_address = ipaddress.ip_address(public_host)
+    except ValueError:
+        public_address = None
+    if (
+        public_address is not None
+        and not listen_address.is_unspecified
+        and listen_address != public_address
+    ):
+        raise ValueError("HEADSCALE_LISTEN_IP must match the public URL address")
+    try:
+        host_port = int(values["HEADSCALE_HOST_PORT"])
+    except ValueError:
+        raise ValueError("HEADSCALE_HOST_PORT must be an integer") from None
+    if not 1 <= host_port <= 65535:
+        raise ValueError("HEADSCALE_HOST_PORT must be between 1 and 65535")
+    public_url = urlparse(values["HEADSCALE_PUBLIC_URL"])
+    public_port = public_url.port or (443 if public_url.scheme == "https" else 80)
+    if public_port != host_port:
+        raise ValueError("HEADSCALE_PUBLIC_URL port must match HEADSCALE_HOST_PORT")
 
     template = (root / "config/config.yaml.template").read_text(encoding="utf-8")
     for key, value in values.items():
