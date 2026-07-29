@@ -1,0 +1,292 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "61bc60bb88c2d753e3efb848adf4aa58",
+    "entities": [
+      {
+        "tableName": "runtime_desired",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`runtimeId` TEXT NOT NULL, `generation` INTEGER NOT NULL, `state` TEXT NOT NULL, `profileId` TEXT NOT NULL, `memoryMiB` INTEGER NOT NULL, `vcpus` INTEGER NOT NULL, `dataDiskGiB` INTEGER NOT NULL, `preserveDataOnDelete` INTEGER NOT NULL, PRIMARY KEY(`runtimeId`))",
+        "fields": [
+          {
+            "fieldPath": "runtimeId",
+            "columnName": "runtimeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generation",
+            "columnName": "generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memoryMiB",
+            "columnName": "memoryMiB",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vcpus",
+            "columnName": "vcpus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataDiskGiB",
+            "columnName": "dataDiskGiB",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preserveDataOnDelete",
+            "columnName": "preserveDataOnDelete",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "runtimeId"
+          ]
+        }
+      },
+      {
+        "tableName": "runtime_current",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`runtimeId` TEXT NOT NULL, `kind` TEXT NOT NULL, `profileId` TEXT, `processId` INTEGER, `guestReady` INTEGER, `gracefulDeadlineExceeded` INTEGER, `detail` TEXT, `observedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`runtimeId`))",
+        "fields": [
+          {
+            "fieldPath": "runtimeId",
+            "columnName": "runtimeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profileId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "processId",
+            "columnName": "processId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "guestReady",
+            "columnName": "guestReady",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "gracefulDeadlineExceeded",
+            "columnName": "gracefulDeadlineExceeded",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "detail",
+            "columnName": "detail",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observedAtEpochMillis",
+            "columnName": "observedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "runtimeId"
+          ]
+        }
+      },
+      {
+        "tableName": "operations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `idempotencyKey` TEXT NOT NULL, `requestDigest` TEXT NOT NULL, `runtimeId` TEXT, `desiredGeneration` INTEGER, `state` TEXT NOT NULL, `currentStepId` TEXT, `errorCode` TEXT, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idempotencyKey",
+            "columnName": "idempotencyKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requestDigest",
+            "columnName": "requestDigest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runtimeId",
+            "columnName": "runtimeId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "desiredGeneration",
+            "columnName": "desiredGeneration",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentStepId",
+            "columnName": "currentStepId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "errorCode",
+            "columnName": "errorCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_operations_idempotencyKey",
+            "unique": true,
+            "columnNames": [
+              "idempotencyKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_operations_idempotencyKey` ON `${TABLE_NAME}` (`idempotencyKey`)"
+          },
+          {
+            "name": "index_operations_runtimeId_desiredGeneration",
+            "unique": false,
+            "columnNames": [
+              "runtimeId",
+              "desiredGeneration"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_operations_runtimeId_desiredGeneration` ON `${TABLE_NAME}` (`runtimeId`, `desiredGeneration`)"
+          }
+        ]
+      },
+      {
+        "tableName": "operation_steps",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `stepId` TEXT NOT NULL, `attempt` INTEGER NOT NULL, `status` TEXT NOT NULL, `startedAtEpochMillis` INTEGER NOT NULL, `finishedAtEpochMillis` INTEGER, `changed` INTEGER, `resultDetail` TEXT, `errorCode` TEXT, PRIMARY KEY(`operationId`, `stepId`, `attempt`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepId",
+            "columnName": "stepId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempt",
+            "columnName": "attempt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtEpochMillis",
+            "columnName": "startedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finishedAtEpochMillis",
+            "columnName": "finishedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "changed",
+            "columnName": "changed",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "resultDetail",
+            "columnName": "resultDetail",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "errorCode",
+            "columnName": "errorCode",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId",
+            "stepId",
+            "attempt"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_operation_steps_operationId",
+            "unique": false,
+            "columnNames": [
+              "operationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_operation_steps_operationId` ON `${TABLE_NAME}` (`operationId`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '61bc60bb88c2d753e3efb848adf4aa58')"
+    ]
+  }
+}
