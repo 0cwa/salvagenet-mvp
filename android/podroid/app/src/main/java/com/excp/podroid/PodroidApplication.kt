@@ -10,6 +10,9 @@ package com.excp.podroid
 import android.app.Application
 import android.os.Build
 import android.util.Log
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import org.nodehost.shell.NodeSupervisorService
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +40,9 @@ class PodroidApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         exemptHiddenApi()
+        // Node purpose is service-owned. Starting the UI must retain, but never redefine,
+        // the durable desired VM generation.
+        ContextCompat.startForegroundService(this, Intent(this, NodeSupervisorService::class.java))
         // Extract off the main thread: the squashfs alone is ~225 MB and
         // blocking onCreate on first install/upgrade would ANR the cold start.
         appScope.launch { extractAssets() }

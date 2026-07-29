@@ -1,5 +1,6 @@
 package com.excp.podroid.engine.avf.ninep
 
+import android.os.Build
 import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
@@ -107,12 +108,12 @@ object OsStatSource : StatSource {
             rdev = st.st_rdev,
             blksize = st.st_blksize,
             blocks = st.st_blocks,
-            atimeSec = st.st_atim.tv_sec,
-            atimeNsec = st.st_atim.tv_nsec,
-            mtimeSec = st.st_mtim.tv_sec,
-            mtimeNsec = st.st_mtim.tv_nsec,
-            ctimeSec = st.st_ctim.tv_sec,
-            ctimeNsec = st.st_ctim.tv_nsec,
+            atimeSec = if (Build.VERSION.SDK_INT >= 27) st.st_atim.tv_sec else st.st_atime,
+            atimeNsec = if (Build.VERSION.SDK_INT >= 27) st.st_atim.tv_nsec else 0,
+            mtimeSec = if (Build.VERSION.SDK_INT >= 27) st.st_mtim.tv_sec else st.st_mtime,
+            mtimeNsec = if (Build.VERSION.SDK_INT >= 27) st.st_mtim.tv_nsec else 0,
+            ctimeSec = if (Build.VERSION.SDK_INT >= 27) st.st_ctim.tv_sec else st.st_ctime,
+            ctimeNsec = if (Build.VERSION.SDK_INT >= 27) st.st_ctim.tv_nsec else 0,
         )
     }
 }

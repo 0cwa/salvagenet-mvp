@@ -17,6 +17,7 @@ import kotlinx.coroutines.cancel
 class NodeSupervisorService : Service() {
     private lateinit var supervisorScope: CoroutineScope
     private lateinit var reconciler: ReconciliationActor
+    private lateinit var bootstrapServer: BootstrapMetadataServer
 
     override fun onCreate() {
         super.onCreate()
@@ -24,6 +25,8 @@ class NodeSupervisorService : Service() {
         createChannel()
         supervisorScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         reconciler = NodeHostGraph.createSupervisor(supervisorScope)
+        bootstrapServer = NodeHostGraph.createBootstrapServer().also(BootstrapMetadataServer::start)
+        NodeHostGraph.restoreAuthorityAndApi()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -46,6 +49,8 @@ class NodeSupervisorService : Service() {
     override fun onDestroy() {
         // The pending intent is durable. Cancellation leaves it recoverable by the sticky restart.
         reconciler.close()
+        bootstrapServer.close()
+        NodeHostGraph.stopServiceOwnedComponents()
         supervisorScope.cancel()
         super.onDestroy()
     }
