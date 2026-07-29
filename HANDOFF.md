@@ -1,10 +1,12 @@
-# Human-to-agent handoff
+# Human-to-device-validation handoff
 
-This is the shortest safe route from the clean scaffold to an overnight goal
-run. Complete the **Human** section yourself; then give the runner `GOAL.md` and
-`agents/overnight-goal.md`, not the full documentation tree.
+The T00–T08 overnight software implementation cycle is complete. The repository is now a **device-lab candidate**. The acceptance ledger still requires an authorized ARM64 Android device, live Headscale connectivity, a real QEMU/Ubuntu boot, guest SSH, recovery SSH, and lifecycle/reboot evidence.
 
-## Human: one-time host authorization
+Use [`agents/device-validation-goal.md`](agents/device-validation-goal.md), not the historical overnight implementation goal, for the next run.
+
+## 1. One-time host authorization
+
+Run these as the human operator; do not give an agent root credentials:
 
 ```sh
 sudo tools/bootstrap/ubuntu-root-setup.sh
@@ -15,100 +17,82 @@ source "$HOME/.config/nodehost/env.sh"
 yes | sdkmanager --licenses
 ```
 
-Authorize one ARM64 Android phone with ADB, then:
+Authorize one ARM64 Android phone with ADB, accept the device RSA prompt, then verify:
 
 ```sh
 make doctor
 make device-facts
+adb devices -l
 ```
 
-## Human: initialize laboratory state
+The device must appear as `device`, not `unauthorized`.
+
+## 2. Start the disposable Headscale laboratory
 
 ```sh
 cp lab/headscale/.env.example lab/headscale/.env
-# Edit HEADSCALE_PUBLIC_URL to the development host's LAN URL.
+# Set HEADSCALE_PUBLIC_URL to a URL reachable by the phone.
 make lab-up
 make lab-keys
 make lab-status
 ```
 
-Confirm the phone can open the Headscale health URL. Live keys remain in ignored
-files under `lab/headscale/secrets/`.
+Confirm the phone can reach the Headscale health URL. Live keys remain only in ignored files under `lab/headscale/secrets/`.
 
-## Human or preparatory agent: import the pinned upstream
+## 3. Establish the exact software candidate
+
+Use a green GitHub Actions artifact when available. Record its source commit and SHA-256 before installation. A locally built candidate must run the same checks:
 
 ```sh
-make import-podroid
-make wire-podroid
-make install-hooks
 make validate
-```
+make test-jvm
+make test-android
+make test-guest
 
-Run the unmodified Podroid build/boot baseline before broad adaptation whenever
-possible:
-
-```sh
 cd android/podroid
-./gradlew :app:testDebugUnitTest :app:assembleDebug
+./gradlew :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging
 ```
 
-## Start the overnight orchestration
+Do not carry a `PASS` from a different APK or source commit into physical evidence.
 
-```sh
-make integration-worktree
-make wave WAVE=1
-make goal-preflight
-```
+## 4. Run the device-validation cycle
 
-Give the orchestrator:
+Follow [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) in order:
 
 ```text
-GOAL.md
-AGENTS.md
-agents/overnight-goal.md
-agents/task-dag.json
+D01  APK-native Alpine/QEMU boot and real QMP readiness
+D02  host Tailscale/Headscale and authenticated Host API
+D03  Ubuntu UEFI deployment, guest mesh, and ordinary SSH
+D04  host-mediated recovery SSH
+D05  Activity/service/process/reboot/controller-offline continuity
+D06  only bounded corrections demonstrated by those tests
+D07  one-commit/one-APK MVP evidence seal
 ```
 
-It should generate each task's scoped context with `make context TASK=Txx`, use
-one worktree per packet, commit with exact provenance trailers, and integrate
-with `make integrate TASK=Txx` in DAG order.
+For each stage, read the nearest `AGENTS.md` under `tests/device`, `tests/e2e`, and the component being debugged.
 
-## Expected authorization boundaries
+## 5. Evidence rules
 
-The overnight runner may use:
+A physical gate record must include:
 
-- the repository and `.worktrees/`;
-- the already authorized Docker/Podman socket;
-- the already authorized ADB device;
-- the installed Android SDK/NDK;
-- ignored laboratory auth-key files required by its assigned task.
+- exact source commit and APK SHA-256;
+- device manufacturer/model, API level, ABI, page size, and relevant power policy;
+- exact command or scripted procedure;
+- redacted logs/artifacts;
+- automated versus manually observed fields;
+- `PASS`, `FAIL`, or `BLOCKED-HARDWARE` without inference from unit/emulator tests.
 
-Do not give it root credentials, production Headscale API keys, APK signing
-keys, or unrelated SSH/private keys.
-
-## Completion evidence
-
-A valid report includes:
-
-- integrated commit SHAs and agent trailers;
-- exact commands/tests run;
-- acceptance-ledger changes with evidence paths;
-- physical/VPN checks marked `PASS` or `BLOCKED-HARDWARE`;
-- remaining scoped `TODO(MVP-HARDENING, Txx)` items;
-- the smallest next action for each blocker.
-
-USB networking remains unscheduled until every B-item in
-`docs/roadmap/acceptance-ledger.md` is `PASS`.
-
-## Reconstructing from the downloadable bundle
-
-The release helper produces a source tarball, a Git bundle, and checksums. For
-the agent workflow, prefer the bundle because it preserves the initial commit
-and provenance trailers:
+Regenerate the public status after any ledger update:
 
 ```sh
-sha256sum -c nodehost-mvp-scaffold.SHA256SUMS
-git clone nodehost-mvp-scaffold.git.bundle nodehost-mvp-scaffold
-cd nodehost-mvp-scaffold
+make mvp-status
 make validate
 ```
+
+USB/AOA networking remains unscheduled until every B01–B20 gate is `PASS`.
+
+## Authorization boundaries
+
+The validation agent may use the repository, its worktrees, the already authorized Docker/Podman socket, the authorized ADB device, the installed Android SDK/NDK, and ignored laboratory keys needed for the active stage.
+
+Do not provide production Headscale API keys, APK release-signing keys, unrelated SSH/private keys, or root credentials. Do not commit unfiltered logcat, auth keys, controller capabilities, guest disks, or enrollment bundles.

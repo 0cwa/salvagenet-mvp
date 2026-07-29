@@ -47,6 +47,8 @@ Every hack has a named boundary and removal condition.
 |---|---|---|
 | One active VM | `RuntimeInstanceId.DEFAULT` only | Base MVP stable; resource measurements support another instance. |
 | Three checked-in profiles | profile registry | Remote signed profile repository is required. |
+| Pinned Podroid runtime extraction | Android packaging adapter may extract exact QEMU/launcher/kernel/rootfs assets from the pinned upstream release APK | Before claiming a reproducible project-native build; rebuild all shipped native/runtime artifacts from pinned source and patch queues. |
+| Copy-once Ubuntu system disk | QEMU disk adapter may copy the verified cloud image to mutable `system.qcow2` | Before advertising immutable-base/overlay semantics; either create a real qcow2 backing overlay or rename the profile contract. |
 | Digest + size verification | artifact adapter | First public remote executable/profile update release; add TUF. |
 | Tailnet-restricted HTTPS plus imported controller capability | authentication adapter | Before production or multi-admin release; replace with reviewed mTLS/principal model. |
 | Python `phonectl` MVP | controller test client | Host API stabilizes; replace with durable Rust controller. |

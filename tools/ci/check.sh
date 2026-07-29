@@ -8,6 +8,7 @@ python3 tools/ci/check-tasks.py
 python3 tools/ci/check-references.py
 python3 tools/ci/check-schemas.py
 python3 tools/ci/check-evidence.py
+python3 tools/ci/check-status.py
 python3 tools/ci/check-profiles.py
 python3 tools/ci/check-openapi.py
 python3 tools/ci/check-dependencies.py

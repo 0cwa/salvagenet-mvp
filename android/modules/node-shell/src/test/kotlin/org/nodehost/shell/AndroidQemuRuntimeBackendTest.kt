@@ -13,10 +13,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.assertArrayEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -141,6 +141,7 @@ class AndroidQemuRuntimeBackendTest {
         File(context.filesDir, "vms/default").mkdirs()
         File(context.filesDir, "vms/default/qmp.sock").createNewFile()
         backend.execute(operationContext("qmp"), RuntimeStep.WaitForQmp)
+        assertEquals(1, qemu.qmpReadinessChecks)
 
         val running = backend.observe(RuntimeId.DEFAULT) as RuntimeObservation.Running
         assertEquals(1L, running.appliedGeneration)
@@ -149,6 +150,23 @@ class AndroidQemuRuntimeBackendTest {
         qemu.exit.complete(QemuExit(0, emptyList()))
         withTimeout(2_000) { while (backend.observe(RuntimeId.DEFAULT) is RuntimeObservation.Running) kotlinx.coroutines.yield() }
         assertTrue(backend.observe(RuntimeId.DEFAULT) !is RuntimeObservation.Running)
+    }
+
+    @Test fun qmpSocketWithoutRunningMonitorDoesNotCountAsReadiness() = runBlocking {
+        val qemu = FakeQemuControl().apply { qmpStatus = "paused" }
+        val backend = backend(qemu)
+        backend.attachLifecycle(scope) {}
+        backend.execute(operationContext("prepare"), RuntimeStep.PrepareBoot)
+        backend.execute(operationContext("start"), RuntimeStep.StartProcess)
+        File(context.filesDir, "vms/default").mkdirs()
+        File(context.filesDir, "vms/default/qmp.sock").createNewFile()
+
+        val result = runCatching { backend.execute(operationContext("qmp"), RuntimeStep.WaitForQmp) }
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()!!.message!!.contains("not running"))
+        assertEquals(1, qemu.qmpReadinessChecks)
+        assertTrue(backend.observe(RuntimeId.DEFAULT) is RuntimeObservation.Starting)
     }
 
     @Test fun spontaneousProcessExitClearsRuntimeAndWakesReconciliation() = runBlocking {
@@ -205,11 +223,13 @@ class AndroidQemuRuntimeBackendTest {
     private class FakeQemuControl : QemuProcessControl {
         val exit = CompletableDeferred<QemuExit>()
         val startedRuntimes = mutableListOf<RuntimeSpec>()
+        var qmpStatus = "running"
+        var qmpReadinessChecks = 0
         var shutdownRequests = 0
         var forceStops = 0
         override suspend fun start(plan: QemuLaunchPlan, runtime: RuntimeSpec): ManagedQemuProcess {
             startedRuntimes += runtime
-            return ManagedQemuProcess(42, { exit.await() }, { shutdownRequests++ })
+            return ManagedQemuProcess(42, { exit.await() }, { qmpReadinessChecks++; qmpStatus }, { shutdownRequests++ })
         }
         override fun forceStop() {
             forceStops++

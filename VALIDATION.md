@@ -1,4 +1,6 @@
-# Initial scaffold validation
+# Initial scaffold validation (historical)
+
+> This is evidence for the generated scaffold, not the current implemented candidate. Current status is generated in `docs/STATUS.md`; integrated QA evidence lives under `evidence/`.
 
 Validated on **2026-07-29** in the artifact-generation environment.
 
