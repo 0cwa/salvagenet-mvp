@@ -5,11 +5,8 @@ import android.util.Log
 import androidx.room.Room
 import kotlinx.coroutines.CoroutineScope
 import org.nodehost.core.Clock
-import org.nodehost.core.OperationContext
 import org.nodehost.core.RuntimeBackend
-import org.nodehost.core.StepOutcome
-import org.nodehost.model.RuntimeId
-import org.nodehost.model.RuntimeObservation
+import org.nodehost.mesh.LibtailscaleHostMesh
 import org.nodehost.store.NodeHostDatabase
 import org.nodehost.store.RoomOperationRepository
 
@@ -24,17 +21,32 @@ object NodeHostGraph {
         val database = Room.databaseBuilder(application, NodeHostDatabase::class.java, "nodehost.db")
             .addMigrations(NodeHostDatabase.MIGRATION_1_2)
             .build()
-        components = Components(database, UnavailableRuntimeBackend)
+        val clock = object : Clock {
+            override fun epochMillis(): Long = System.currentTimeMillis()
+        }
+        val operations = RoomOperationRepository(database, clock)
+        val bootstrap = AndroidGuestBootstrapStore(application)
+        val runtime = AndroidQemuRuntimeBackend(
+            application,
+            desiredRuntime = { operations.loadDesiredRuntime(org.nodehost.model.RuntimeId.DEFAULT) },
+            bootstrapToken = bootstrap::bootstrapToken,
+        )
+        components = Components(
+            database, operations, runtime, EncryptedEnrollmentRepository(application),
+            LibtailscaleHostMesh(application), bootstrap, clock,
+        )
+    }
+
+    fun createBootstrapServer(): BootstrapMetadataServer {
+        val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
+        return BootstrapMetadataServer(graph.bootstrap)
     }
 
     fun createSupervisor(scope: CoroutineScope): ReconciliationActor {
         val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
-        val clock = object : Clock {
-            override fun epochMillis(): Long = System.currentTimeMillis()
-        }
         return ReconciliationActor(
             scope = scope,
-            store = RoomOperationRepository(graph.database, clock),
+            store = graph.operations,
             runtime = graph.runtime,
             events = { event ->
                 when (event) {
@@ -43,18 +55,32 @@ object NodeHostGraph {
                     else -> Unit
                 }
             },
-        )
+        ).also { graph.reconciler = it }
     }
 
-    internal data class Components(val database: NodeHostDatabase, val runtime: RuntimeBackend)
-
-    private object UnavailableRuntimeBackend : RuntimeBackend {
-        override suspend fun observe(id: RuntimeId): RuntimeObservation =
-            RuntimeObservation.Unknown(id, "QEMU runtime adapter is not composed yet")
-
-        override suspend fun execute(context: OperationContext, step: org.nodehost.core.RuntimeStep): StepOutcome =
-            error("QEMU runtime adapter is not composed yet")
+    suspend fun installEnrollment(
+        rawEnrollment: ByteArray,
+        guestMesh: GuestMeshBootstrap,
+        idempotencyKey: String,
+    ): InstalledNode {
+        val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
+        return EnrollmentInstaller(
+            graph.enrollments, graph.operations, graph.mesh, graph.bootstrap,
+            wakeReconciler = { graph.reconciler?.wake(WakeReason.DESIRED_STATE_CHANGED) },
+            clock = graph.clock,
+        ).install(rawEnrollment, guestMesh, idempotencyKey)
     }
+
+    internal data class Components(
+        val database: NodeHostDatabase,
+        val operations: RoomOperationRepository,
+        val runtime: RuntimeBackend,
+        val enrollments: EncryptedEnrollmentRepository,
+        val mesh: LibtailscaleHostMesh,
+        val bootstrap: AndroidGuestBootstrapStore,
+        val clock: Clock,
+        @Volatile var reconciler: ReconciliationActor? = null,
+    )
 
     private const val TAG = "NodeHostSupervisor"
 }

@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -128,6 +129,7 @@ fun SettingsScreen(
     var avfRunning by remember { mutableStateOf(false) }
     val avfScope = rememberCoroutineScope()
     val ctx = LocalContext.current
+    val resources = LocalResources.current
     val vmNotRunning = vmState !is VmState.Running && vmState !is VmState.Starting
 
     // Memoize: both values are constant for the process lifetime / until a backend
@@ -391,7 +393,7 @@ fun SettingsScreen(
                     onClick = {
                         if (avfRunning) return@PodroidGhostButton
                         avfRunning = true
-                        avfReportText = ctx.getString(R.string.probing_avf)
+                        avfReportText = resources.getString(R.string.probing_avf)
                         avfScope.launch {
                             val probe = AvfDiagnostics.probe(ctx)
                             val smoke = if (probe.featureSupported && probe.managePermissionGranted) {
@@ -713,6 +715,7 @@ private fun AddPortForwardDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val invalidPortsMsg = stringResource(R.string.enter_valid_ports)
     val context = LocalContext.current
+    val resources = LocalResources.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -771,11 +774,11 @@ private fun AddPortForwardDialog(
                     return@TextButton
                 }
                 if (hp in PortForwardRepository.RESERVED_HOST_PORTS) {
-                    error = context.getString(R.string.port_reserved, hp)
+                    error = resources.getString(R.string.port_reserved, hp)
                     return@TextButton
                 }
                 val added = onAdd(hp, gp, protocol)
-                if (!added) error = context.getString(R.string.port_already_forwarded, hp, protocol.uppercase())
+                if (!added) error = resources.getString(R.string.port_already_forwarded, hp, protocol.uppercase())
             }) {
                 Text(stringResource(R.string.add))
             }

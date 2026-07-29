@@ -19,6 +19,7 @@ dependencies {
     implementation(project(":node-store"))
     implementation(project(":runtime-qemu"))
     implementation(project(":mesh-tailscale"))
+    implementation(project(":control-api"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
