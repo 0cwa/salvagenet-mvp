@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "Full logs are ignored local artifacts and are not committed; hashes bind this QA run.",
+  "note": "Full logs are ignored local artifacts and are not committed; hashes bind the initial QA run and packaging-fix rerun.",
   "logs": {
     "apk-verification.log": {
       "sha256": "531cd6a4a974cf9ffa379c6e2997d85dd588eb7d592ea44da21a42b4ad2e46c8",
@@ -89,6 +89,82 @@
     "security-release.log": {
       "sha256": "5d59a83c6613bbf6c4b9bdbc53224a2785954ab328e97f9877a3f83972014560",
       "bytes": 168
+    }
+  },
+  "rerunAt": "2026-07-29T16:53:27+02:00",
+  "rerunGitCommit": "bc23997c1a8cf7191b4dc72b2d3e0c272b4cb790",
+  "rerunLogs": {
+    "clean.log": {
+      "sha256": "97d35c2e5d9cb8533621309dc9250e32066aca225329cb59a2762b06d33f183c",
+      "bytes": 92
+    },
+    "gradle-test-final.log": {
+      "sha256": "b7bb829d5ac3d0e5fce7fbf198f246c4fcc920bd2fe4971bc58970ab7caa0648",
+      "bytes": 28920
+    },
+    "make-test-jvm.log": {
+      "sha256": "5c2cb5afee7d33c59fd54b6495f276993980c176939e5650272566f82cd11db5",
+      "bytes": 6130
+    },
+    "make-test-android.log": {
+      "sha256": "78865f58386abe04de9bcac109fb61dd067577650a1055933a22ed68e71cc737",
+      "bytes": 33162
+    },
+    "app-debug.log": {
+      "sha256": "0e89273c77e60859f903d619388ad6824bb4a0abc2139a8cfaa650a63b96d287",
+      "bytes": 28814
+    },
+    "mesh-release.log": {
+      "sha256": "7fdfafca890ab63c4247d4d2284bc0a5209399c592ed3afb122fd44f36a8da42",
+      "bytes": 3632
+    },
+    "app-release.log": {
+      "sha256": "9181fd1b4ad994ec3c0afd23260dfafea769ab5a288f0e792ffa6773379adaba",
+      "bytes": 24103
+    },
+    "apk-verification.log": {
+      "sha256": "f2ae73bdb8ffdd936f2b325f3447c211e8b484d1cd18931d7dd52d26bd9e75b3",
+      "bytes": 47646
+    },
+    "make-validate-final.log": {
+      "sha256": "7c3ddf397b84c87af7e0cd10cc653b2087604bb2220c1aee36fa5a43b61592d2",
+      "bytes": 1402
+    },
+    "python-explicit.log": {
+      "sha256": "181de1ef9bcd55bbb2c041de9f6dc9d0ceffb66506f23566de87594bcd02997b",
+      "bytes": 517
+    },
+    "python-controller.log": {
+      "sha256": "533d60fd8023e3a6bb096eb2cb86114b461843588f0d72b87f01b0a1e7b529bb",
+      "bytes": 117
+    },
+    "python-headscale.log": {
+      "sha256": "d03ce458f2a6cd2b4f27522f3aacad03ce1872c028853507c3ad02ca621bdcad",
+      "bytes": 103
+    },
+    "make-test-guest.log": {
+      "sha256": "0e83c7b2587b5f86e35c78ea11a29e33ee506a74e88147f3cfd8a5387b05bfb7",
+      "bytes": 42
+    },
+    "e2e.log": {
+      "sha256": "2a04ea284d03afb821b0377e2444d6a142541d6c6a693ebb185409a1e256d38f",
+      "bytes": 10377
+    },
+    "mvp-plus.log": {
+      "sha256": "bd70b2c047804c4785d325a22acf70ee5d338a22c890b5f249dbdc85f4040fd9",
+      "bytes": 302
+    },
+    "schema-evidence-final.log": {
+      "sha256": "7a4991a9ad34bd5ece21cc1272535c567e92d22b0af73a34c838c7425e311bb2",
+      "bytes": 43
+    },
+    "mvp-plus-final.log": {
+      "sha256": "d6a0ea9f8769d3726daf8c9e53f71e9f71f62acde7f30e905b66c81c22fc9b6b",
+      "bytes": 292
+    },
+    "verify-scope.log": {
+      "sha256": "a7400193c15515152a64a0a6fe34c15950bec7be4eacc969c686ef4df1ccea56",
+      "bytes": 45
     }
   }
 }

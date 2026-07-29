@@ -1,17 +1,21 @@
 {
   "schemaVersion": 1,
   "gateId": "B19",
-  "status": "FAIL",
-  "recordedAt": "2026-07-29T14:23:43.704223+00:00",
-  "gitCommit": "2fecba108b6ed248a8201a812a288148b1886f80",
-  "command": "cd android/podroid && ./gradlew :app:assembleDebug && apksigner verify --verbose app/build/outputs/apk/debug/app-debug.apk && zipalign -c -P 16 -v 4 app/build/outputs/apk/debug/app-debug.apk",
-  "summary": "Signature and alignment checks pass, but the APK is missing required QEMU and launcher native entries; no device install was possible.",
-  "environment": {},
+  "status": "PASS",
+  "recordedAt": "2026-07-29T16:53:27+02:00",
+  "gitCommit": "bc23997c1a8cf7191b4dc72b2d3e0c272b4cb790",
+  "command": "rm -rf android/podroid/app/build android/vendor/tailscale/build && cd android/podroid && ./gradlew test :app:lintDebug :app:assembleDebug :mesh-tailscale:assembleRelease :app:verifyPodroidPackaging && APK=app/build/outputs/apk/debug/app-debug.apk && apksigner verify --verbose --print-certs $APK && zipalign -c -P 16 -v 4 $APK && unzip/readelf $APK && python3 prepare-runtime.py --verify-apk $APK",
+  "summary": "Clean generation, full tests, debug/release assembly, signature, 16 KiB ZIP/ELF alignment, and exact pinned runtime verification pass. QEMU, launcher, SLIRP, bridge, libgojni, kernel, initrd, rootfs, EFI, and 34 keymaps are present. Physical installation remains covered by hardware gates, not B19.",
+  "environment": {
+    "androidBuildTools": "36.0.0",
+    "java": "17",
+    "go": "1.26.3"
+  },
   "artifacts": [
     {
       "path": "evidence/T08/apk-metadata.json",
-      "sha256": "fd80b0e15eac970a77ac85b1157ce45a0d226581baa50b160cc6a86aca2ee19d",
-      "note": null
+      "sha256": "59cc560e781a230dbb5e3b23c875965463242a2cb16cb75b168b7de45b411f9a",
+      "note": "Compact metadata only; APK, generated caches, temporary keystore, and full logs are uncommitted."
     }
   ]
 }

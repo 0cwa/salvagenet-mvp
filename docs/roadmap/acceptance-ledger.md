@@ -23,7 +23,7 @@ Status values: `TODO`, `IN-PROGRESS`, `PASS`, `FAIL`, `BLOCKED-HARDWARE`, `DEFER
 | B16 | Reboot reconciles after first unlock | BLOCKED-HARDWARE | [record](../../evidence/gates/B16.json) |
 | B17 | Controller offline does not stop VM | BLOCKED-HARDWARE | [record](../../evidence/gates/B17.json) |
 | B18 | No default password, raw shell, raw QMP, or raw argv API | PASS | [record](../../evidence/gates/B18.json) |
-| B19 | Native artifacts pass required alignment/install checks | FAIL | [record](../../evidence/gates/B19.json) |
+| B19 | Native artifacts pass required alignment/install checks | PASS | [record](../../evidence/gates/B19.json) |
 | B20 | Diagnostics redact secrets | PASS | [record](../../evidence/gates/B20.json) |
 <!-- BASE-MVP-END -->
 
