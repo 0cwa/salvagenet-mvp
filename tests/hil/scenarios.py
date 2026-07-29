@@ -66,10 +66,14 @@ def wait_for_controller_status(controller: ControllerPort, timeout_seconds: floa
 def doctor(config: HilConfig, device: DevicePort, recorder: EvidenceRecorder) -> None:
     required = [config.apk_path, config.controller_path, config.controller_config]
     missing = [str(path) for path in required if not path.is_file()]
-    recorder.assert_that("hil.required-files", not missing, f"missing={missing}")
-    recorder.assert_that("hil.ssh-installed", shutil.which("ssh") is not None, "OpenSSH client available")
+    if missing:
+        raise ConfigError(f"required HIL files are missing: {missing}")
+    if shutil.which("ssh") is None:
+        raise ConfigError("OpenSSH client is not installed")
     facts = device.doctor()
     recorder.write_json("device-facts.json", facts)
+    recorder.assert_that("hil.required-files", True, "APK, controller, and controller config are present")
+    recorder.assert_that("hil.ssh-installed", True, "OpenSSH client available")
     recorder.assert_that("hil.device-authorized", True, "configured ADB device is connected and authorized")
 
 

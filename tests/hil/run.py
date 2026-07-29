@@ -103,13 +103,13 @@ def main(argv: list[str] | None = None) -> int:
         path = recorder.finish("PASS")
         print(f"PASS-{args.scenario.upper()}: {path}")
         return 0
-    except SetupBlocked as exc:
+    except (SetupBlocked, ConfigError) as exc:
         if recorder:
             recorder.finish("BLOCKED-HARDWARE", detail=str(exc))
             print(f"evidence: {recorder.directory}", file=sys.stderr)
         print(f"BLOCKED-HARDWARE/SETUP: {exc}", file=sys.stderr)
         return 77
-    except (AssertionError, ConfigError, OSError, RuntimeError, TimeoutError) as exc:
+    except (AssertionError, OSError, RuntimeError, TimeoutError) as exc:
         if recorder:
             if device:
                 try:
