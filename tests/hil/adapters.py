@@ -104,16 +104,28 @@ class AdbDevice:
             check=False,
         )
 
-    def kill_qemu(self) -> None:
-        script = f"pids=$(pidof {shlex.quote(self.config.qemu_pattern)}); test -n \"$pids\"; kill -9 $pids"
-        command = f"run-as {shlex.quote(self.config.package_name)} sh -c {shlex.quote(script)}"
-        self._shell(command)
-
-    def count_qemu_processes(self) -> int:
+    def _qemu_pids(self) -> list[str]:
         result = self._shell("ps -A -o PID,NAME,ARGS", check=False)
         if result.returncode != 0:
             result = self._shell("ps -A")
-        return sum(1 for line in result.stdout.splitlines() if self.config.qemu_pattern in line)
+        pids: list[str] = []
+        for line in result.stdout.splitlines():
+            if self.config.qemu_pattern not in line:
+                continue
+            fields = line.split()
+            if fields and fields[0].isdigit():
+                pids.append(fields[0])
+        return pids
+
+    def kill_qemu(self) -> None:
+        pids = self._qemu_pids()
+        if not pids:
+            raise RuntimeError("no QEMU process found to kill")
+        command = f"run-as {shlex.quote(self.config.package_name)} kill -9 {' '.join(pids)}"
+        self._shell(command)
+
+    def count_qemu_processes(self) -> int:
+        return len(self._qemu_pids())
 
     def collect_facts(self) -> dict[str, Any]:
         properties = [

@@ -51,6 +51,18 @@ def _scenario_timeout(config: HilConfig, name: str, default: float) -> float:
     return float(value)
 
 
+def wait_for_controller_status(controller: ControllerPort, timeout_seconds: float) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            return controller.status()
+        except Exception as exc:
+            last_error = exc
+            time.sleep(2)
+    raise TimeoutError(f"Host API did not become ready: {last_error}")
+
+
 def doctor(config: HilConfig, device: DevicePort, recorder: EvidenceRecorder) -> None:
     required = [config.apk_path, config.controller_path, config.controller_config]
     missing = [str(path) for path in required if not path.is_file()]
@@ -74,7 +86,7 @@ def smoke(
 
     device.install_apk(config.apk_path)
     device.start_supervisor()
-    status = controller.status()
+    status = wait_for_controller_status(controller, min(timeout, 120))
     recorder.write_json("host-status-before.json", status)
 
     profiles = controller.profiles()
@@ -138,7 +150,7 @@ def mvp(
         raise ConfigError("mvp.hostNodeName and mvp.guestNodeName are required")
 
     recorder.write_json("headscale-host-nodes.json", mesh.wait_for_node(host_node, timeout))
-    recorder.write_json("host-status.json", controller.status())
+    recorder.write_json("host-status.json", wait_for_controller_status(controller, min(timeout, 120)))
 
     image_imports = settings.get("imageImports", [])
     if not isinstance(image_imports, list) or not all(isinstance(item, str) for item in image_imports):
@@ -185,34 +197,26 @@ def mvp(
     recovery_user = str(settings.get("recoveryUser", "nodeadmin"))
     disable = settings.get("guestMeshDisableCommand")
     restore = settings.get("guestMeshRestoreCommand")
-    if isinstance(disable, str) and disable:
-        controller.guest_ssh(guest_target, disable, timeout)
-        time.sleep(float(settings.get("guestMeshDownSettleSeconds", 5)))
-        ordinary_failed = False
-        try:
-            controller.guest_ssh(guest_target, check_command, min(timeout, 30))
-        except Exception:
-            ordinary_failed = True
-        recorder.assert_that(
-            "mvp.guest-mesh-disabled",
-            ordinary_failed,
-            "ordinary guest-mesh SSH failed after disabling guest Tailscale",
-        )
-    else:
-        recorder.assertions.append(
-            {
-                "id": "mvp.guest-mesh-disabled",
-                "passed": False,
-                "skipped": True,
-                "detail": "guestMeshDisableCommand not configured",
-            }
-        )
+    if not isinstance(disable, str) or not disable:
+        raise ConfigError("mvp.guestMeshDisableCommand is required for recovery-path evidence")
+    if not isinstance(restore, str) or not restore:
+        raise ConfigError("mvp.guestMeshRestoreCommand is required for recovery-path cleanup")
+    controller.guest_ssh(guest_target, disable, timeout)
+    time.sleep(float(settings.get("guestMeshDownSettleSeconds", 5)))
+    ordinary_failed = False
+    try:
+        controller.guest_ssh(guest_target, check_command, min(timeout, 30))
+    except Exception:
+        ordinary_failed = True
+    recorder.assert_that(
+        "mvp.guest-mesh-disabled",
+        ordinary_failed,
+        "ordinary guest-mesh SSH failed after disabling guest Tailscale",
+    )
 
     controller.recovery_ssh("default", recovery_user, check_command, timeout)
     recorder.assert_that("mvp.recovery-ssh", True, "host-mediated recovery SSH succeeded")
-
-    if isinstance(restore, str) and restore:
-        controller.recovery_ssh("default", recovery_user, restore, timeout)
+    controller.recovery_ssh("default", recovery_user, restore, timeout)
 
 
 def resilience(
@@ -238,7 +242,7 @@ def resilience(
         timeout_seconds=timeout,
         description="QEMU after service restart",
     )
-    controller.status()
+    wait_for_controller_status(controller, min(timeout, 120))
     recorder.assert_that(
         "resilience.service-restart",
         True,
@@ -269,7 +273,7 @@ def resilience(
             timeout_seconds=timeout,
             description="QEMU after reboot",
         )
-        controller.status()
+        wait_for_controller_status(controller, min(timeout, 120))
         recorder.assert_that(
             "resilience.reboot",
             True,

@@ -119,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
             recorder.finish("FAIL", detail=str(exc))
             print(f"evidence: {recorder.directory}", file=sys.stderr)
         print(f"FAIL-{args.scenario.upper()}: {exc}", file=sys.stderr)
-        if bool(int(__import__("os").environ.get("SALVAGENET_HIL_TRACEBACK", "0"))):
+        if __import__("os").environ.get("SALVAGENET_HIL_TRACEBACK", "").lower() in {"1", "true", "yes"}:
             traceback.print_exc()
         return 1
 
