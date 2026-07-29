@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root=$(git rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/../.." && pwd)
+root=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/../.." && pwd))
 if ! command -v kotlinc >/dev/null 2>&1; then
   echo 'pure Kotlin compile skipped (kotlinc not installed; Gradle covers it after Podroid import)'
   exit 0

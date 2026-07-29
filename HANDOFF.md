@@ -99,3 +99,16 @@ A valid report includes:
 
 USB networking remains unscheduled until every B-item in
 `docs/roadmap/acceptance-ledger.md` is `PASS`.
+
+## Reconstructing from the downloadable bundle
+
+The release helper produces a source tarball, a Git bundle, and checksums. For
+the agent workflow, prefer the bundle because it preserves the initial commit
+and provenance trailers:
+
+```sh
+sha256sum -c nodehost-mvp-scaffold.SHA256SUMS
+git clone nodehost-mvp-scaffold.git.bundle nodehost-mvp-scaffold
+cd nodehost-mvp-scaffold
+make validate
+```

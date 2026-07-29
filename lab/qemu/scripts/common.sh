@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root=$(git rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/../.." && pwd)
+root=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/../.." && pwd))
 state=${NODEHOST_QEMU_LAB_DIR:-$root/.local/qemu-lab}
 ssh_port=${NODEHOST_QEMU_LAB_SSH_PORT:-2222}
 mkdir -p "$state"

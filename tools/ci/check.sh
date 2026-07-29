@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root=$(git rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/../.." && pwd)
+root=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/../.." && pwd))
 cd "$root"
 python3 tools/ci/check-agents.py
 python3 tools/ci/check-context-hygiene.py

@@ -62,3 +62,14 @@ make device-facts         # with an authorized Android device
 ## Repository state
 
 The initial scaffold is documentation, contracts, task packets, build fragments, module roots, test harnesses, and small compilable/reference stubs. The first overnight task imports Podroid at `android/podroid/` and wires these sibling modules into its Gradle build.
+
+## Handoff packaging
+
+After the repository is clean, `make package` creates both a source archive and
+a Git bundle. Clone the bundle to preserve the scaffold commit and provenance:
+
+```sh
+git clone nodehost-mvp-scaffold.git.bundle nodehost-mvp-scaffold
+cd nodehost-mvp-scaffold
+make validate
+```
