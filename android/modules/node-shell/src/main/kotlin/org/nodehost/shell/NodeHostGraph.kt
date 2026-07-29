@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.nodehost.api.AcceptedOperationDispatcher
 import org.nodehost.api.HostApiController
 import org.nodehost.api.HostControlServer
 import org.nodehost.core.ApplyRuntimeUseCase
@@ -163,6 +164,14 @@ object NodeHostGraph {
                         mutations,
                         applyRuntime,
                         LoopbackRecoverySshGateway(),
+                        AcceptedOperationDispatcher {
+                            val reconciler = checkNotNull(graph.reconciler) {
+                                "reconciliation actor is unavailable"
+                            }
+                            check(reconciler.wake(WakeReason.DESIRED_STATE_CHANGED)) {
+                                "reconciliation actor is unavailable"
+                            }
+                        },
                     )
                     val server = HostControlServer(controller, AndroidTlsCredentials.loadOrCreate(address.value))
                     runCatching { server.start(address.value, API_PORT) }

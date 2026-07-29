@@ -28,6 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.nodehost.api.AcceptedOperationDispatcher
 import org.nodehost.api.ApplyVmRequest
 import org.nodehost.api.HostApiController
 import org.nodehost.api.HostCapability
@@ -109,13 +110,16 @@ class VerticalIntegrationTest {
             UnsupportedMutations,
             ApplyRuntimeUseCase(operations, OperationIdFactory { OperationId("op-controller-apply") }),
             LoopbackRecoverySshGateway(),
+            AcceptedOperationDispatcher {
+                check(actor.wake(WakeReason.DESIRED_STATE_CHANGED)) { "reconciliation actor is unavailable" }
+            },
         )
         assertNotNull(controller.authorize("Bearer controller-capability-000001", "PUT", "/v1/vms/default"))
         controller.applyVm(
             ApplyVmRequest("default", 2, "running", "ubuntu-2404-arm64-uefi", 1024, 2, 8, true),
             "controller-apply-0001", "controller-generation-2".toByteArray(),
         )
-        actor.wake(WakeReason.DESIRED_STATE_CHANGED)
+        // Production dispatch wakes the actor after durable acceptance; callers never wake it manually.
         withTimeout(5_000) { completed.await() }
 
         assertEquals("host-auth-key-00000001", mesh.configuration?.oneUseAuthKey?.value)
