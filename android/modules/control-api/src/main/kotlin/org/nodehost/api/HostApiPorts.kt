@@ -46,8 +46,9 @@ data class HostVm(
     val dataDiskGiB: Int,
 ) {
     init {
+        require(RuntimeId(id) == RuntimeId.DEFAULT) { "MVP supports only the default runtime" }
         RuntimeSpec(
-            id = RuntimeId(id), generation = generation,
+            id = RuntimeId.DEFAULT, generation = generation,
             desiredState = org.nodehost.model.DesiredRuntimeState.valueOf(desiredState.uppercase()),
             profileId = org.nodehost.model.VmProfileId(profileId), memoryMiB = memoryMiB,
             vcpus = vcpus, dataDiskGiB = dataDiskGiB,
@@ -85,6 +86,21 @@ interface HostMutationUseCases {
     suspend fun removeVm(id: RuntimeId, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord
     suspend fun cancelOperation(id: String, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord
     suspend fun revokeController(id: String, idempotencyKey: String, canonicalRequest: ByteArray)
+}
+
+/**
+ * Post-persistence dispatch seam for durable runtime operations. Implementations may coalesce
+ * duplicate notifications, but must not return until the accepted operation is guaranteed a wake.
+ */
+fun interface AcceptedOperationDispatcher {
+    suspend fun dispatch(operation: OperationRecord)
+
+    companion object {
+        /** Source-compatible but fail-closed until T07 composition supplies its actor wake. */
+        val UNCONFIGURED = AcceptedOperationDispatcher {
+            error("accepted operation dispatcher is not configured")
+        }
+    }
 }
 
 /** A single authenticated, VM-scoped recovery stream; never an arbitrary forwarding target. */

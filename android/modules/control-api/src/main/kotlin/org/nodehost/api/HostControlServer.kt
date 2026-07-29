@@ -29,9 +29,13 @@ import io.ktor.utils.io.readAvailable
 import io.ktor.utils.io.writeFully
 import java.net.InetAddress
 import java.security.KeyStore
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.nodehost.core.ControllerPrincipal
 
 class TlsServerCredentials(
@@ -73,6 +77,9 @@ class HostControlServer(
                 }
                 exception<IllegalArgumentException> { call, cause ->
                     call.problem(HttpStatusCode.BadRequest, "INVALID_REQUEST", cause.message ?: "invalid request")
+                }
+                exception<HostApiRateLimitException> { call, cause ->
+                    call.problem(HttpStatusCode.TooManyRequests, "RATE_LIMITED", cause.message ?: "rate limited")
                 }
                 exception<Throwable> { call, _ ->
                     // Deliberately omit exception detail: it can contain adapter or credential data.
@@ -156,28 +163,54 @@ class HostControlServer(
                             authenticatedPrincipal { principal ->
                                 val session = controller.openRecovery(call.pathParameter("id"), principal)
                                 call.respondBytesWriter(ContentType.Application.OctetStream, HttpStatusCode.OK) {
-                                    coroutineScope {
-                                        val requestBytes = call.receiveChannel()
-                                        val inbound = launch {
-                                            val buffer = ByteArray(64 * 1024)
-                                            while (true) {
-                                                val count = requestBytes.readAvailable(buffer)
-                                                if (count == -1) break
-                                                if (count > 0) session.write(buffer.copyOf(count))
-                                            }
-                                        }
-                                        try {
-                                            while (true) {
-                                                val bytes = session.read(64 * 1024) ?: break
-                                                require(bytes.isNotEmpty() && bytes.size <= 64 * 1024) {
-                                                    "invalid recovery stream chunk"
+                                    withTimeout(RECOVERY_OVERALL_TIMEOUT_MILLIS) {
+                                        coroutineScope {
+                                            val requestBytes = call.receiveChannel()
+                                            val inboundBudget = RecoveryByteBudget(RECOVERY_DIRECTION_BYTE_BUDGET)
+                                            val outboundBudget = RecoveryByteBudget(RECOVERY_DIRECTION_BYTE_BUDGET)
+                                            val inbound = launch {
+                                                val buffer = ByteArray(RECOVERY_CHUNK_BYTES)
+                                                while (true) {
+                                                    val count = withTimeout(RECOVERY_IDLE_TIMEOUT_MILLIS) {
+                                                        requestBytes.readAvailable(buffer)
+                                                    }
+                                                    if (count == -1) break
+                                                    if (count > 0) {
+                                                        inboundBudget.consume(count)
+                                                        withTimeout(RECOVERY_IDLE_TIMEOUT_MILLIS) {
+                                                            session.write(buffer.copyOf(count))
+                                                        }
+                                                    }
                                                 }
-                                                writeFully(bytes)
-                                                flush()
                                             }
-                                        } finally {
-                                            inbound.cancelAndJoin()
-                                            session.close()
+                                            val outbound = launch {
+                                                while (true) {
+                                                    val bytes = withTimeout(RECOVERY_IDLE_TIMEOUT_MILLIS) {
+                                                        session.read(RECOVERY_CHUNK_BYTES)
+                                                    } ?: break
+                                                    require(bytes.isNotEmpty() && bytes.size <= RECOVERY_CHUNK_BYTES) {
+                                                        "invalid recovery stream chunk"
+                                                    }
+                                                    outboundBudget.consume(bytes.size)
+                                                    withTimeout(RECOVERY_IDLE_TIMEOUT_MILLIS) {
+                                                        writeFully(bytes)
+                                                        flush()
+                                                    }
+                                                }
+                                            }
+                                            try {
+                                                // EOF, failure, or cancellation in either direction tears down the whole tunnel.
+                                                select<Unit> {
+                                                    inbound.onJoin { }
+                                                    outbound.onJoin { }
+                                                }
+                                            } finally {
+                                                withContext(NonCancellable) {
+                                                    inbound.cancelAndJoin()
+                                                    outbound.cancelAndJoin()
+                                                    withTimeout(RECOVERY_CLOSE_TIMEOUT_MILLIS) { session.close() }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -211,6 +244,12 @@ class HostControlServer(
         authenticatedPrincipal { block() }
 
     companion object {
+        const val RECOVERY_CHUNK_BYTES = 64 * 1024
+        const val RECOVERY_DIRECTION_BYTE_BUDGET = 64L * 1024 * 1024
+        const val RECOVERY_IDLE_TIMEOUT_MILLIS = 30_000L
+        const val RECOVERY_OVERALL_TIMEOUT_MILLIS = 15L * 60 * 1_000
+        const val RECOVERY_CLOSE_TIMEOUT_MILLIS = 5_000L
+
         fun requireSafeBindAddress(value: String) {
             val address = runCatching { InetAddress.getByName(value) }.getOrElse {
                 throw IllegalArgumentException("bind address must be a literal loopback or tailnet address")
@@ -228,6 +267,18 @@ class HostControlServer(
                 "Host API may bind only loopback or Tailscale address space"
             }
         }
+    }
+}
+
+internal class RecoveryByteBudget(private val maximumBytes: Long) {
+    private var consumedBytes = 0L
+
+    init { require(maximumBytes > 0) }
+
+    fun consume(count: Int) {
+        require(count > 0) { "recovery stream chunks must not be empty" }
+        require(consumedBytes <= maximumBytes - count) { "recovery stream byte budget exceeded" }
+        consumedBytes += count
     }
 }
 
