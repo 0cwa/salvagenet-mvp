@@ -23,12 +23,16 @@ data class GuestMeshBootstrap(
 }
 
 data class GuestBootstrapProfile(
+    val enrollmentId: String,
+    val profileId: String,
     val token: String,
     val metadataPath: String,
     val metaData: String,
     val userData: String,
 ) {
     init {
+        require(Regex("[A-Za-z0-9][A-Za-z0-9._-]{2,127}").matches(enrollmentId))
+        require(profileId in setOf("alpine-direct-qualification", "ubuntu-2404-arm64-uefi", "k3s-worker-lab"))
         require(Regex("[A-Za-z0-9_-]{32,128}").matches(token))
         require(metadataPath == "/v1/bootstrap/$token/")
         require(userData.length <= MAX_BOOTSTRAP_DOCUMENT_CHARS)
@@ -42,24 +46,30 @@ data class GuestBootstrapProfile(
 class GuestBootstrapMaterializer(
     private val tokenFactory: () -> String,
 ) {
-    fun materialize(enrollment: NodeEnrollment, artifact: GuestBootstrapSecretArtifact): MaterializedGuestBootstrap {
-        val guestMesh = artifact.mesh
-        require(guestMesh.controlUrl == enrollment.hostMesh.controlUrl) {
+    fun validate(enrollment: NodeEnrollment, artifact: GuestBootstrapSecretArtifact) {
+        require(artifact.enrollmentId == enrollment.id.value) { "guest bootstrap enrollment binding mismatch" }
+        require(artifact.issuerSpkiSha256 == enrollment.controller.spkiSha256) { "guest bootstrap issuer fingerprint mismatch" }
+        require(artifact.mesh.controlUrl == enrollment.hostMesh.controlUrl) {
             "host and guest must enroll with the same authoritative control server"
         }
-        require(guestMesh.oneUseAuthKey.value != enrollment.hostMesh.oneUseAuthKey.value) {
+        require(artifact.mesh.oneUseAuthKey.value != enrollment.hostMesh.oneUseAuthKey.value) {
             "host and guest mesh identities require distinct one-use keys"
         }
         require(artifact.sshAccess == enrollment.guestAccess) {
             "guest bootstrap SSH authority must match enrollment"
         }
+    }
+
+    fun materialize(enrollment: NodeEnrollment, artifact: GuestBootstrapSecretArtifact): MaterializedGuestBootstrap {
+        validate(enrollment, artifact)
+        val guestMesh = artifact.mesh
         val token = tokenFactory()
         require(Regex("[A-Za-z0-9_-]{32,128}").matches(token)) { "invalid generated bootstrap token" }
         val path = "/v1/bootstrap/$token/"
         val metaData = "instance-id: default\nlocal-hostname: ${guestMesh.hostname}\n"
         val userData = cloudConfig(enrollment.guestAccess, token)
         return MaterializedGuestBootstrap(
-            GuestBootstrapProfile(token, path, metaData, userData),
+            GuestBootstrapProfile(enrollment.id.value, enrollment.initialRuntime.profileId.value, token, path, metaData, userData),
             OneUseBootstrapSecret(token, artifact.raw),
             artifact.callbackCapability,
         )
@@ -101,6 +111,8 @@ trap 'rm -f "${'$'}secret"' EXIT
 curl --fail --silent --show-error --max-time 30 --max-filesize 65536 --proto '=http' \
   -H "Authorization: Bearer ${'$'}NODEHOST_BOOTSTRAP_TOKEN" \
   "${'$'}{NODEHOST_METADATA_BASE}bootstrap-secret" -o "${'$'}secret"
+# Once redemption succeeds this token can no longer retrieve secret material; retain it root-only for per-boot readiness.
+ready_capability=${'$'}NODEHOST_BOOTSTRAP_TOKEN
 unset NODEHOST_BOOTSTRAP_TOKEN
 rm -f /var/lib/nodehost/bootstrap.env
 control_url=${'$'}(jq -er '.mesh.controlUrl|select(test("^https?://"))' "${'$'}secret")
@@ -128,11 +140,30 @@ systemctl enable --now tailscaled
 tailscale up --login-server "${'$'}control_url" --auth-key "${'$'}auth_key" --hostname "${'$'}hostname" --accept-dns=true
 unset auth_key
 callback=${'$'}(jq -er '.callback.readyUrl' "${'$'}secret")
-capability=${'$'}(jq -er '.callback.capability' "${'$'}secret")
 rm -f "${'$'}secret"
 trap - EXIT
+install -d -m 0700 /var/lib/nodehost
+printf '%s\n' "${'$'}ready_capability" > /var/lib/nodehost/ready-capability
+cat > /usr/local/sbin/nodehost-ready <<'READY'
+#!/bin/sh
+set -eu
+capability=${'$'}(cat /var/lib/nodehost/ready-capability)
 curl --fail --silent --show-error --max-time 30 --proto '=http' -X POST \
-  -H "Authorization: Bearer ${'$'}capability" "${'$'}callback"
+  -H "Authorization: Bearer ${'$'}capability" http://10.0.2.2:8080/v1/bootstrap/ready
+READY
+chmod 0700 /usr/local/sbin/nodehost-ready
+cat > /etc/systemd/system/nodehost-ready.service <<'UNIT'
+[Unit]
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nodehost-ready
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl enable nodehost-ready.service
+/usr/local/sbin/nodehost-ready
 """.trimIndent()
 
 }
@@ -154,8 +185,10 @@ class OneUseBootstrapSecret internal constructor(token: String, secret: ByteArra
     suspend fun redeem(presentedToken: String): ByteArray? = lock.withLock {
         if (presentedToken.length !in 32..128 || !MessageDigest.isEqual(digest(presentedToken), expectedTokenDigest)) return@withLock null
         val result = payload ?: return@withLock null
+        val response = result.copyOf()
+        result.fill(0)
         payload = null
-        result.copyOf()
+        response
     }
 
     companion object {

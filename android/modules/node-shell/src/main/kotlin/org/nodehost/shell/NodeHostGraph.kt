@@ -36,7 +36,7 @@ object NodeHostGraph {
         val runtime = AndroidQemuRuntimeBackend(
             application,
             desiredRuntime = { operations.loadDesiredRuntime(org.nodehost.model.RuntimeId.DEFAULT) },
-            bootstrapToken = bootstrap::bootstrapToken,
+            beginBootToken = bootstrap::beginBoot,
         )
         components = Components(
             application, database, operations, runtime, EncryptedEnrollmentRepository(application),
@@ -44,7 +44,7 @@ object NodeHostGraph {
         )
     }
 
-    fun createBootstrapServer(): BootstrapMetadataServer {
+    internal fun createBootstrapServer(): BootstrapMetadataServer {
         val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
         return BootstrapMetadataServer(graph.bootstrap)
     }
@@ -63,13 +63,21 @@ object NodeHostGraph {
                     else -> Unit
                 }
             },
-        ).also { graph.reconciler = it }
+        ).also { actor ->
+            graph.reconciler = actor
+            graph.runtime.attachLifecycle(scope) { actor.wake(WakeReason.RUNTIME_EVENT) }
+            scope.launch {
+                val enrollmentId = graph.enrollments.load()?.id?.value ?: return@launch
+                if (graph.bootstrap.commit(enrollmentId)) actor.wake(WakeReason.SERVICE_STARTED)
+            }
+        }
     }
 
     suspend fun installEnrollment(
         rawEnrollment: ByteArray,
         rawGuestBootstrapSecret: ByteArray,
         idempotencyKey: String,
+        approvedIssuerSpkiSha256: String,
     ): InstalledNode {
         val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
         val installed = EnrollmentInstaller(
@@ -77,7 +85,7 @@ object NodeHostGraph {
             wakeReconciler = { graph.reconciler?.wake(WakeReason.DESIRED_STATE_CHANGED) },
             clock = graph.clock,
             isControllerRevoked = { ControllerRevocations.isRevoked(graph.database.openHelper.readableDatabase, it) },
-        ).install(rawEnrollment, rawGuestBootstrapSecret, idempotencyKey)
+        ).install(rawEnrollment, rawGuestBootstrapSecret, idempotencyKey, approvedIssuerSpkiSha256)
         startApi(graph, installed.controllerAuthenticator)
         return installed
     }
@@ -101,6 +109,27 @@ object NodeHostGraph {
         }
     }
 
+    suspend fun prepareDeviceTlsTrust(): String {
+        val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
+        val address = graph.mesh.status().addresses.firstNotNullOfOrNull { runCatching { TailnetBindAddress(it) }.getOrNull() }
+        requireNotNull(address) { "tailnet address is not ready" }
+        AndroidTlsCredentials.loadOrCreate(address.value)
+        return AndroidTlsCredentials.spkiSha256()
+    }
+
+    /** Fail-closed local unenrollment: stop reachability before deleting every enrollment authority. */
+    suspend fun unenroll() {
+        val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
+        graph.apiStartJob?.cancel()
+        graph.apiServer?.stop()
+        graph.apiServer = null
+        graph.mesh.stop()
+        graph.mesh.clearIdentity()
+        graph.bootstrap.clear()
+        graph.enrollments.clearAuthority()
+        AndroidTlsCredentials.clear()
+    }
+
     fun stopServiceOwnedComponents() {
         components?.run {
             apiStartJob?.cancel()
@@ -119,20 +148,23 @@ object NodeHostGraph {
                 val meshStatus = graph.mesh.status()
                 val address = meshStatus.addresses.firstNotNullOfOrNull { raw -> runCatching { TailnetBindAddress(raw) }.getOrNull() }
                 if (meshStatus.state == org.nodehost.core.HostMeshStatus.State.RUNNING && address != null) {
+                    graph.enrollments.clearConsumedOneTimeCredentials()
                     val applyRuntime = ApplyRuntimeUseCase(graph.operations, SecureOperationIdFactory())
+                    val mutations = AndroidHostMutations(
+                        graph.application, graph.database, graph.operations, applyRuntime,
+                        enrolledRepositoryOrigin = {
+                            URI(requireNotNull(graph.enrollments.load()) { "enrollment authority unavailable" }.artifacts.repositoryUrl)
+                        },
+                        serviceScope = scope,
+                    ).also(AndroidHostMutations::recoverInterruptedImports)
                     val controller = HostApiController(
                         authenticator,
                         AndroidHostResourceQueries(graph.application, graph.database, graph.operations, graph.mesh, graph.clock::epochMillis),
-                        AndroidHostMutations(
-                            graph.application, graph.database, graph.operations, applyRuntime,
-                            enrolledRepositoryOrigin = {
-                                URI(requireNotNull(graph.enrollments.load()) { "enrollment authority unavailable" }.artifacts.repositoryUrl)
-                            },
-                        ),
+                        mutations,
                         applyRuntime,
                         LoopbackRecoverySshGateway(),
                     )
-                    val server = HostControlServer(controller, AndroidTlsCredentials.loadOrCreate())
+                    val server = HostControlServer(controller, AndroidTlsCredentials.loadOrCreate(address.value))
                     runCatching { server.start(address.value, API_PORT) }
                         .onSuccess {
                             graph.apiServer?.stop()
@@ -152,7 +184,7 @@ object NodeHostGraph {
         val application: Context,
         val database: NodeHostDatabase,
         val operations: RoomOperationRepository,
-        val runtime: RuntimeBackend,
+        val runtime: AndroidQemuRuntimeBackend,
         val enrollments: EncryptedEnrollmentRepository,
         val mesh: LibtailscaleHostMesh,
         val bootstrap: AndroidGuestBootstrapStore,
@@ -164,7 +196,7 @@ object NodeHostGraph {
     )
 
     private const val TAG = "NodeHostSupervisor"
-    private const val API_PORT = 8443
+    private const val API_PORT = 7443
     private const val API_START_ATTEMPTS = 30
     private const val API_RETRY_MILLIS = 2_000L
 }
