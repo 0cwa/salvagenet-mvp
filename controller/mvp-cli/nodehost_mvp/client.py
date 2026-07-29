@@ -16,6 +16,16 @@ class ApiError(RuntimeError):
     """A bounded, redacted Host API failure."""
 
 
+class RetryableOperationError(ApiError):
+    """The host stopped an operation at an explicit retry boundary."""
+
+    def __init__(self, operation: Mapping[str, Any]):
+        operation_id = operation.get("id", "unknown")
+        error_code = operation.get("errorCode") or "UNSPECIFIED"
+        super().__init__(f"operation {operation_id} failed retryably: {error_code}")
+        self.operation = operation
+
+
 class NodeHostClient:
     MAX_RESPONSE_BYTES = 2 * 1024 * 1024
     TERMINAL_OPERATION_STATES = {
@@ -156,6 +166,8 @@ class NodeHostClient:
             state = operation.get("state")
             if not isinstance(state, str):
                 raise ApiError("Host API operation response has no string state")
+            if state == "FAILED_RETRYABLE":
+                raise RetryableOperationError(operation)
             if state in self.TERMINAL_OPERATION_STATES:
                 return operation
             remaining = deadline - time.monotonic()

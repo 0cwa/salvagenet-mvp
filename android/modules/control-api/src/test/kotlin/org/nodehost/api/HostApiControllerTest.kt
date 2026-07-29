@@ -1,10 +1,14 @@
 package org.nodehost.api
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.nodehost.core.ApplyRuntimeUseCase
 import org.nodehost.core.ControllerPrincipal
@@ -32,9 +36,14 @@ class HostApiControllerTest {
         assertEquals(false, wrapper.toString().contains(secret))
     }
 
-    @Test fun applyParsesStrictTypedRequestAndDelegatesAtomicAcceptance() = runBlocking {
+    @Test fun applyPersistsBeforeDispatchingAcceptedOperation() = runBlocking {
         val repository = RecordingOperations()
-        val controller = controller(repository)
+        val events = mutableListOf<String>()
+        repository.onAccepted = { events += "persist" }
+        val controller = controller(repository, AcceptedOperationDispatcher { operation ->
+            assertNotNull(repository.load(operation.id))
+            events += "dispatch"
+        })
         val raw = """{"generation":1,"desiredState":"running","profileId":"alpine","resources":{"memoryMiB":256,"vcpus":1},"dataDisk":{"sizeGiB":1,"preserveOnDelete":true}}""".toByteArray()
         val (request, canonical) = HostApiJson.parseApplyVm("default", raw)
 
@@ -43,6 +52,93 @@ class HostApiControllerTest {
         assertEquals("op-001", operation.id.value)
         assertEquals(1L, repository.accepted?.generation)
         assertEquals(256, repository.accepted?.memoryMiB)
+        assertEquals(listOf("persist", "dispatch"), events)
+    }
+
+    @Test fun removeAndCancelDispatchOnlyAfterMutationReturns() = runBlocking {
+        val events = mutableListOf<String>()
+        val mutations = RecordingMutations(events)
+        val controller = controller(
+            RecordingOperations(),
+            AcceptedOperationDispatcher { events += "dispatch:${it.id.value}" },
+            mutations,
+        )
+
+        controller.removeVm("default", "0123456789abcdef", "remove:default".toByteArray())
+        controller.cancelOperation("op-target", "fedcba9876543210", "cancel:op-target".toByteArray())
+
+        assertEquals(
+            listOf("persist:op-remove", "dispatch:op-remove", "persist:op-cancel", "dispatch:op-cancel"),
+            events,
+        )
+    }
+
+    @Test fun singletonRuntimeIsRejectedSequentiallyAtEveryControllerBoundary() = runBlocking {
+        val repository = RecordingOperations()
+        val controller = controller(repository)
+        val raw = """{"generation":1,"desiredState":"running","profileId":"alpine","resources":{"memoryMiB":256,"vcpus":1},"dataDisk":{"sizeGiB":1,"preserveOnDelete":true}}""".toByteArray()
+        val (otherRequest, canonical) = HostApiJson.parseApplyVm("other", raw)
+
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { controller.vm("other") } }
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { controller.applyVm(otherRequest, "0123456789abcdef", canonical) } }
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { controller.removeVm("other", "0123456789abcdef", byteArrayOf(1)) } }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { controller.openRecovery("other", ControllerPrincipal("controller", setOf("admin"))) }
+        }
+        assertNull(repository.accepted)
+    }
+
+    @Test fun durableFacingVmProjectionRejectsNonDefaultRuntime() {
+        assertThrows(IllegalArgumentException::class.java) {
+            HostVm("other", 1, "running", "alpine", 256, 1, 1)
+        }
+    }
+
+    @Test fun concurrentNonDefaultAppliesNeverReachDurableAcceptance() = runBlocking {
+        val repository = RecordingOperations()
+        val controller = controller(repository)
+        val raw = """{"generation":1,"desiredState":"running","profileId":"alpine","resources":{"memoryMiB":256,"vcpus":1},"dataDisk":{"sizeGiB":1,"preserveOnDelete":true}}""".toByteArray()
+
+        val results = (1..32).map { index ->
+            async(Dispatchers.Default) {
+                val (request, canonical) = HostApiJson.parseApplyVm("other-$index", raw)
+                runCatching { controller.applyVm(request, "idempotency-key-$index".padEnd(16, '0'), canonical) }
+            }
+        }.awaitAll()
+
+        assertTrue(results.all { it.isFailure })
+        assertNull(repository.accepted)
+    }
+
+    @Test fun recoveryAdmissionIsSingleSessionAndRateLimited() = runBlocking {
+        var now = 0L
+        val recovery = RecordingRecovery()
+        val controller = controller(
+            RecordingOperations(),
+            recovery = recovery,
+            monotonicNanos = { now },
+            recoveryMaxStartsPerMinute = 2,
+        )
+        val principal = ControllerPrincipal("controller", setOf("admin"))
+        val first = controller.openRecovery("default", principal)
+        assertThrows(HostApiConflictException::class.java) {
+            runBlocking { controller.openRecovery("default", principal) }
+        }
+        first.close()
+        controller.openRecovery("default", principal).close()
+        assertThrows(HostApiRateLimitException::class.java) {
+            runBlocking { controller.openRecovery("default", principal) }
+        }
+        now = 60_000_000_001L
+        controller.openRecovery("default", principal).close()
+        assertEquals(3, recovery.openCount)
+    }
+
+    @Test fun recoveryByteBudgetRejectsExcess() {
+        val budget = RecoveryByteBudget(5)
+        budget.consume(3)
+        budget.consume(2)
+        assertThrows(IllegalArgumentException::class.java) { budget.consume(1) }
     }
 
     @Test fun applyRejectsUnknownFieldsBeforeDelegation() {
@@ -68,22 +164,36 @@ class HostApiControllerTest {
         HostControlServer.requireSafeBindAddress("100.64.0.2")
     }
 
-    private fun controller(repository: RecordingOperations): HostApiController = HostApiController(
+    private fun controller(
+        repository: RecordingOperations,
+        dispatcher: AcceptedOperationDispatcher = AcceptedOperationDispatcher.UNCONFIGURED,
+        mutations: HostMutationUseCases = EmptyMutations,
+        recovery: RecoverySshGateway = EmptyRecovery,
+        monotonicNanos: () -> Long = System::nanoTime,
+        recoveryMaxStartsPerMinute: Int = HostApiController.RECOVERY_MAX_STARTS_PER_MINUTE,
+    ): HostApiController = HostApiController(
         authenticator = MvpControllerAuthenticator(ControllerCapability("0123456789abcdef0123456789abcdef")),
         queries = EmptyQueries,
-        mutations = EmptyMutations,
+        mutations = mutations,
         applyRuntime = ApplyRuntimeUseCase(repository, OperationIdFactory { OperationId("op-001") }),
-        recoverySsh = EmptyRecovery,
+        recoverySsh = recovery,
+        acceptedOperationDispatcher = dispatcher,
+        monotonicNanos = monotonicNanos,
+        recoveryMaxStartsPerMinute = recoveryMaxStartsPerMinute,
     )
 }
 
 private class RecordingOperations : OperationRepository {
-    var accepted: RuntimeSpec? = null
-    override suspend fun load(id: OperationId): OperationRecord? = null
-    override suspend fun save(record: OperationRecord) = Unit
-    override suspend fun loadDesiredRuntime(id: RuntimeId): RuntimeSpec? = null
+    @Volatile var accepted: RuntimeSpec? = null
+    @Volatile private var stored: OperationRecord? = null
+    var onAccepted: () -> Unit = {}
+    override suspend fun load(id: OperationId): OperationRecord? = stored?.takeIf { it.id == id }
+    override suspend fun save(record: OperationRecord) { stored = record }
+    override suspend fun loadDesiredRuntime(id: RuntimeId): RuntimeSpec? = accepted?.takeIf { it.id == id }
     override suspend fun acceptDesiredRuntime(spec: RuntimeSpec, operation: OperationRecord): DesiredRuntimeAcceptance {
         accepted = spec
+        stored = operation
+        onAccepted()
         return DesiredRuntimeAcceptance.Accepted
     }
 }
@@ -110,3 +220,34 @@ private object EmptyMutations : HostMutationUseCases {
 private object EmptyRecovery : RecoverySshGateway {
     override suspend fun open(vmId: RuntimeId, principal: ControllerPrincipal): RecoverySshSession = error("unused")
 }
+
+private class RecordingMutations(private val events: MutableList<String>) : HostMutationUseCases {
+    override suspend fun importImage(request: ImageImportRequest, idempotencyKey: String, canonicalRequest: ByteArray) = error("unused")
+    override suspend fun removeVm(id: RuntimeId, idempotencyKey: String, canonicalRequest: ByteArray) =
+        operation("op-remove").also { events += "persist:${it.id.value}" }
+    override suspend fun cancelOperation(id: String, idempotencyKey: String, canonicalRequest: ByteArray) =
+        operation("op-cancel").also { events += "persist:${it.id.value}" }
+    override suspend fun revokeController(id: String, idempotencyKey: String, canonicalRequest: ByteArray) = Unit
+}
+
+private class RecordingRecovery : RecoverySshGateway {
+    var openCount = 0
+    override suspend fun open(vmId: RuntimeId, principal: ControllerPrincipal): RecoverySshSession {
+        openCount++
+        return object : RecoverySshSession {
+            override suspend fun read(maxBytes: Int): ByteArray? = null
+            override suspend fun write(bytes: ByteArray) = Unit
+            override suspend fun close() = Unit
+        }
+    }
+}
+
+private fun operation(id: String) = OperationRecord(
+    OperationId(id),
+    "idempotency-key-001",
+    "a".repeat(64),
+    RuntimeId.DEFAULT,
+    1,
+    org.nodehost.model.OperationState.ACCEPTED,
+    null,
+)

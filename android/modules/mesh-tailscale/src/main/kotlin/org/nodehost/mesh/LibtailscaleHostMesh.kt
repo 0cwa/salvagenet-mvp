@@ -123,7 +123,19 @@ class LibtailscaleHostMesh internal constructor(
     override suspend fun clearIdentity() = operationLock.withLock {
         try {
             backend.logout()
-            store.clear()
+            var keyDeletionFailure: Exception? = null
+            try {
+                // Remove one-use material first so a later configuration-clear failure cannot retain it.
+                store.deleteOneUseAuthKey()
+            } catch (failure: Exception) {
+                keyDeletionFailure = failure
+            }
+            try {
+                store.clear()
+            } catch (failure: Exception) {
+                keyDeletionFailure?.let(failure::addSuppressed)
+                throw failure
+            }
             current = HostMeshStatus(HostMeshStatus.State.STOPPED)
         } catch (failure: Exception) {
             current = failureStatus(failure)

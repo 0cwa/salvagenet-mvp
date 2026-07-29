@@ -45,6 +45,9 @@ import org.nodehost.store.NodeHostDatabase
 import org.nodehost.store.OperationEntity
 import org.nodehost.store.RoomOperationRepository
 
+private val OperationRecord.blocksArtifactEffects: Boolean
+    get() = state.terminal || state == OperationState.CANCELLING
+
 @JvmInline
 value class TailnetBindAddress(val value: String) {
     init {
@@ -204,11 +207,11 @@ class AndroidHostMutations(
             lock.withLock {
                 var latest = requireNotNull(operations.load(operationId))
                 if (latest.state in setOf(OperationState.VERIFYING, OperationState.PREPARING_DISKS, OperationState.PREPARING_BOOT)) {
-                    latest = update(latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.recover", "IMPORT_INTERRUPTED"))
+                    latest = update(latest, latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.recover", "IMPORT_INTERRUPTED"))
                 }
-                if (latest.state == OperationState.FAILED_RETRYABLE) latest = update(latest.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
-                if (latest.state == OperationState.ACCEPTED) latest = update(latest.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
-                if (latest.state == OperationState.PREFLIGHT) update(latest.transitionTo(OperationState.FETCHING, "image.fetch"))
+                if (latest.state == OperationState.FAILED_RETRYABLE) latest = update(latest, latest.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
+                if (latest.state == OperationState.ACCEPTED) latest = update(latest, latest.transitionTo(OperationState.PREFLIGHT, "image.preflight"))
+                if (latest.state == OperationState.PREFLIGHT) update(latest, latest.transitionTo(OperationState.FETCHING, "image.fetch"))
             }
             val imageId = imageId(URI(request.sourceUrl))
             if (!isInstalled(imageId, request)) preflightSpace(request.expectedSizeBytes)
@@ -216,11 +219,11 @@ class AndroidHostMutations(
             cleanupInterruptedPublications()
             val completed = lock.withLock {
                 val latest = requireNotNull(operations.load(operationId))
-                if (latest.state == OperationState.CANCELLED) latest else {
-                    val verified = update(latest.transitionTo(OperationState.VERIFYING, "image.verify"))
-                    val preparing = update(verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
-                    val prepared = update(preparing.transitionTo(OperationState.PREPARING_BOOT, "image.publish"))
-                    update(prepared.transitionTo(OperationState.SUCCEEDED, null))
+                if (latest.blocksArtifactEffects) latest else {
+                    val verified = update(latest, latest.transitionTo(OperationState.VERIFYING, "image.verify"))
+                    val preparing = update(verified, verified.transitionTo(OperationState.PREPARING_DISKS, "image.publish"))
+                    val prepared = update(preparing, preparing.transitionTo(OperationState.PREPARING_BOOT, "image.publish"))
+                    update(prepared, prepared.transitionTo(OperationState.SUCCEEDED, null))
                 }
             }
             if (!pendingFile(operationId).delete() && pendingFile(operationId).exists()) {
@@ -232,8 +235,8 @@ class AndroidHostMutations(
             val failed = withContext(NonCancellable) {
                 lock.withLock {
                     val latest = requireNotNull(operations.load(operationId))
-                    if (latest.state == OperationState.CANCELLED) latest
-                    else update(latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.fetch", "IMAGE_IMPORT_FAILED"))
+                    if (latest.blocksArtifactEffects) latest
+                    else update(latest, latest.transitionTo(OperationState.FAILED_RETRYABLE, "image.fetch", "IMAGE_IMPORT_FAILED"))
                 }
             }
             if (failure is CancellationException || rethrow) throw failure
@@ -272,12 +275,10 @@ class AndroidHostMutations(
     }
 
     override suspend fun cancelOperation(id: String, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord = lock.withLock {
-        val target = requireNotNull(operations.load(OperationId(id))) { "operation not found" }
-        if (target.state.terminal) return@withLock target
-        require(target.state in setOf(OperationState.ACCEPTED, OperationState.FETCHING, OperationState.FAILED_RETRYABLE)) {
-            "operation cannot be cancelled at its current step"
-        }
-        update(target.transitionTo(OperationState.CANCELLING).transitionTo(OperationState.CANCELLED))
+        operations.cancelOperation(
+            OperationId(id),
+            setOf(OperationState.ACCEPTED, OperationState.FETCHING, OperationState.FAILED_RETRYABLE),
+        )
     }
 
     override suspend fun revokeController(id: String, idempotencyKey: String, canonicalRequest: ByteArray) {
@@ -452,10 +453,9 @@ class AndroidHostMutations(
         require(database.dao().operationCount() < RoomOperationRepository.MAX_RETAINED_OPERATIONS) { "operation journal capacity exceeded" }
         database.dao().insertOperation(record.toEntity(clockMillis()))
     }
-    private suspend fun update(record: OperationRecord): OperationRecord {
-        val existing = requireNotNull(database.dao().operation(record.id.value))
-        database.dao().updateOperation(record.toEntity(existing.createdAtEpochMillis))
-        return record
+    private suspend fun update(expected: OperationRecord, updated: OperationRecord): OperationRecord {
+        check(operations.compareAndSetOperation(expected, updated)) { "operation changed concurrently" }
+        return updated
     }
     private fun OperationRecord.toEntity(created: Long) = OperationEntity(id.value, idempotencyKey, requestDigest, runtimeId?.value, desiredGeneration, state.name, currentStepId, errorCode, created, clockMillis())
     private fun OperationEntity.toRecord() = OperationRecord(OperationId(id), idempotencyKey, requestDigest, runtimeId?.let(::RuntimeId), desiredGeneration, OperationState.valueOf(state), currentStepId, errorCode)

@@ -10,6 +10,23 @@ class OpenApiContractTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.document = json.loads((Path(__file__).parents[2] / "control/openapi.yaml").read_text())
 
+    def test_canonical_server_and_singleton_runtime_are_explicit(self) -> None:
+        self.assertEqual(self.document["servers"][0]["url"], "https://{node}:7443")
+        runtime_id = self.document["components"]["parameters"]["RuntimeId"]["schema"]
+        self.assertEqual(runtime_id, {"type": "string", "const": "default"})
+        self.assertEqual(
+            self.document["components"]["schemas"]["Vm"]["properties"]["id"]["const"],
+            "default",
+        )
+
+    def test_recovery_contract_documents_all_bounds(self) -> None:
+        recovery = self.document["paths"]["/v1/vms/{id}/ssh"]["connect"]
+        description = recovery["description"]
+        for expected in ("one recovery session", "6 per minute", "64 MiB", "30 second", "15 minute"):
+            self.assertIn(expected, description)
+        self.assertIn("409", recovery["responses"])
+        self.assertIn("429", recovery["responses"])
+
     def test_every_operation_inherits_authentication(self) -> None:
         self.assertEqual(self.document["security"], [{"controllerCapability": []}])
         for path, item in self.document["paths"].items():

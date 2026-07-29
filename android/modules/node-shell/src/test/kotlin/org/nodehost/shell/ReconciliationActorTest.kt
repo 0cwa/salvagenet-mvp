@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -103,6 +104,97 @@ class ReconciliationActorTest {
     }
 
     @Test
+    fun cancelBeforeEffectPreventsExecutionAndPreservesDesiredState() = runBlocking {
+        val operation = acceptDesired()
+        val executions = AtomicInteger()
+        val runtime = object : RuntimeBackend {
+            override suspend fun observe(id: RuntimeId): RuntimeObservation {
+                store.cancelOperation(operation.id, setOf(OperationState.ACCEPTED))
+                return RuntimeObservation.Absent(id)
+            }
+            override suspend fun execute(context: OperationContext, step: RuntimeStep): StepOutcome {
+                executions.incrementAndGet()
+                return StepOutcome(true)
+            }
+        }
+
+        runActor(runtime)
+
+        assertEquals(0, executions.get())
+        assertEquals(OperationState.CANCELLED, store.load(operation.id)?.state)
+        assertEquals(DesiredRuntimeState.RUNNING, store.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState)
+    }
+
+    @Test
+    fun cancelDuringEffectStopsFollowingEffectsAndCannotBeOverwritten() = runBlocking {
+        val operation = acceptDesired()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val executions = AtomicInteger()
+        val runtime = object : RuntimeBackend {
+            override suspend fun observe(id: RuntimeId) = RuntimeObservation.Absent(id)
+            override suspend fun execute(context: OperationContext, step: RuntimeStep): StepOutcome {
+                executions.incrementAndGet()
+                entered.complete(Unit)
+                release.await()
+                return StepOutcome(true)
+            }
+        }
+        val completion = startActor(runtime)
+        withTimeout(5_000) { entered.await() }
+        store.cancelOperation(operation.id, setOf(OperationState.ACCEPTED))
+        release.complete(Unit)
+        withTimeout(5_000) { completion.await() }
+
+        assertEquals(1, executions.get())
+        assertEquals(OperationState.CANCELLED, store.load(operation.id)?.state)
+        assertEquals(StepStatus.STARTED.name, store.steps(operation.id).single().status)
+    }
+
+    @Test
+    fun cancelImmediatelyBeforeSuccessUpdateWinsCompareAndSet() = runBlocking {
+        val operation = acceptDesired()
+        val runtime = object : RuntimeBackend {
+            override suspend fun observe(id: RuntimeId) = RuntimeObservation.Absent(id)
+            override suspend fun execute(context: OperationContext, step: RuntimeStep): StepOutcome {
+                store.cancelOperation(operation.id, setOf(OperationState.ACCEPTED))
+                return StepOutcome(true)
+            }
+        }
+
+        runActor(runtime)
+
+        assertEquals(OperationState.CANCELLED, store.load(operation.id)?.state)
+        assertEquals(StepStatus.STARTED.name, store.steps(operation.id).single().status)
+    }
+
+    @Test
+    fun restartAfterCancelDoesNotReplayEffects() = runBlocking {
+        val operation = acceptDesired()
+        store.cancelOperation(operation.id, setOf(OperationState.ACCEPTED))
+        val runtime = FakeRuntimeBackend()
+
+        runActor(runtime)
+
+        assertTrue(runtime.executed.isEmpty())
+        assertEquals(OperationState.CANCELLED, store.load(operation.id)?.state)
+    }
+
+    @Test
+    fun unknownStartedIntentFailsPermanentWithoutReplayingEffect() = runBlocking {
+        val operation = acceptDesired()
+        store.beginStep(operation.id, "qemu.verify_profile")
+        val runtime = FakeRuntimeBackend()
+
+        runActor(runtime, expectFailure = true)
+
+        assertTrue(runtime.executed.isEmpty())
+        assertEquals(OperationState.FAILED_PERMANENT, store.load(operation.id)?.state)
+        assertEquals("UNKNOWN_EFFECT_OUTCOME", store.load(operation.id)?.errorCode)
+        assertEquals(StepStatus.FAILED.name, store.steps(operation.id).single().status)
+    }
+
+    @Test
     fun effectDeadlinePersistsExplicitRetryableFailure() = runBlocking {
         val operation = acceptDesired()
         val delegate = FakeRuntimeBackend()
@@ -165,17 +257,19 @@ class ReconciliationActorTest {
         return operation
     }
 
-    private suspend fun runActor(runtime: FakeRuntimeBackend, expectFailure: Boolean = false) {
+    private suspend fun runActor(runtime: RuntimeBackend, expectFailure: Boolean = false) {
+        val finished = startActor(runtime)
+        val result = withTimeout(5_000) { finished.await() }
+        assertEquals(expectFailure, result is ReconciliationEvent.Failed)
+    }
+
+    private fun startActor(runtime: RuntimeBackend): CompletableDeferred<ReconciliationEvent> {
         val finished = CompletableDeferred<ReconciliationEvent>()
-        val scope = newScope()
-        val actor = ReconciliationActor(scope, store, runtime, events = {
+        val actor = ReconciliationActor(newScope(), store, runtime, events = {
             if (it is ReconciliationEvent.Completed || it is ReconciliationEvent.Failed) finished.complete(it)
         })
         actor.wake(WakeReason.SERVICE_STARTED)
-        val result = withTimeout(5_000) { finished.await() }
-        assertEquals(expectFailure, result is ReconciliationEvent.Failed)
-        actor.close()
-        scope.cancel()
+        return finished
     }
 
     private fun newScope() = CoroutineScope(SupervisorJob() + Dispatchers.Default).also(scopes::add)

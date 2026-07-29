@@ -4,12 +4,30 @@ import select
 import socket
 import ssl
 import sys
+import time
 from urllib.parse import quote, urlparse
 
 from .config import ControllerConfig
 
 _MAX_CHUNK = 64 * 1024
 _MAX_HEADERS = 64 * 1024
+_DIRECTION_BYTE_BUDGET = 64 * 1024 * 1024
+_IDLE_TIMEOUT_SECONDS = 30.0
+_OVERALL_TIMEOUT_SECONDS = 15.0 * 60.0
+
+
+class _ByteBudget:
+    def __init__(self, maximum_bytes: int = _DIRECTION_BYTE_BUDGET):
+        if maximum_bytes <= 0:
+            raise ValueError("byte budget must be positive")
+        self.remaining = maximum_bytes
+
+    def consume(self, count: int) -> None:
+        if count <= 0:
+            raise ValueError("recovery chunks must not be empty")
+        if count > self.remaining:
+            raise RuntimeError("recovery tunnel byte budget exceeded")
+        self.remaining -= count
 
 
 class _ChunkedReader:
@@ -110,25 +128,40 @@ def proxy_ssh(config: ControllerConfig, vm_id: str) -> int:
         stdin = sys.stdin.buffer
         stdout = sys.stdout.buffer
         stdin_open = True
-        sock.settimeout(None)
+        inbound_budget = _ByteBudget()
+        outbound_budget = _ByteBudget()
+        overall_deadline = time.monotonic() + _OVERALL_TIMEOUT_SECONDS
+        idle_deadline = time.monotonic() + _IDLE_TIMEOUT_SECONDS
+        sock.settimeout(_IDLE_TIMEOUT_SECONDS)
         while True:
+            now = time.monotonic()
+            wait_seconds = min(overall_deadline - now, idle_deadline - now)
+            if wait_seconds <= 0:
+                reason = "overall" if now >= overall_deadline else "idle"
+                raise RuntimeError(f"recovery tunnel {reason} deadline exceeded")
             watch: list[object] = [sock]
             if stdin_open:
                 watch.append(stdin)
-            ready, _, _ = select.select(watch, [], [])
+            ready, _, _ = select.select(watch, [], [], wait_seconds)
+            if not ready:
+                continue
             if sock in ready:
                 data = reader.read_chunk() if reader else sock.recv(_MAX_CHUNK)
                 if data is None or data == b"":
                     return 0
+                outbound_budget.consume(len(data))
                 stdout.write(data)
                 stdout.flush()
+                idle_deadline = time.monotonic() + _IDLE_TIMEOUT_SECONDS
             if stdin_open and stdin in ready:
                 data = stdin.read1(_MAX_CHUNK)
                 if not data:
                     stdin_open = False
                     sock.sendall(b"0\r\n\r\n")
                 else:
+                    inbound_budget.consume(len(data))
                     sock.sendall(f"{len(data):x}\r\n".encode("ascii") + data + b"\r\n")
+                    idle_deadline = time.monotonic() + _IDLE_TIMEOUT_SECONDS
     finally:
         if sock is not None:
             sock.close()

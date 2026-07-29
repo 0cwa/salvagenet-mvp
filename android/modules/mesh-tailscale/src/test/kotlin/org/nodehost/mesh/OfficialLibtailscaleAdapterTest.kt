@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.nodehost.core.HostMeshConfiguration
 import org.nodehost.model.SensitiveValue
@@ -56,6 +57,32 @@ class OfficialLibtailscaleAdapterTest {
         assertEquals(true, body.getBoolean("WantRunningSet"))
     }
 
+    @Test fun `confirmed VPN revoke deletes persisted one-use key`() = runBlocking {
+        val effects = mutableListOf<String>()
+
+        revokeVpn(
+            stopBackend = { effects += "backend_stopped" },
+            deleteOneUseAuthKey = { effects += "key_deleted" },
+        )
+
+        assertEquals(listOf("backend_stopped", "key_deleted"), effects)
+    }
+
+    @Test fun `failed VPN revoke retains key for explicit retry`() {
+        var deletionCalled = false
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                revokeVpn(
+                    stopBackend = { throw IllegalStateException("offline") },
+                    deleteOneUseAuthKey = { deletionCalled = true },
+                )
+            }
+        }
+
+        assertFalse(deletionCalled)
+    }
+
     @Test fun `sticky service restart budget is bounded and reset by explicit start`() {
         val budget = VpnRestartBudget(3)
 
@@ -63,6 +90,43 @@ class OfficialLibtailscaleAdapterTest {
         assertEquals(false, budget.allowSystemRestart())
         budget.onExplicitStart()
         assertEquals(true, budget.allowSystemRestart())
+    }
+
+    @Test fun `release native callback emits no upstream lines`() {
+        val emitted = mutableListOf<String>()
+        val callback = NativeLogCallback(diagnosticsEnabled = false, sink = emitted::add)
+
+        callback.emit("backend raw line with tskey-" + "auth-super-secret")
+
+        assertTrue(emitted.isEmpty())
+    }
+
+    @Test fun `debug native callback bounds and redacts sensitive diagnostics`() {
+        val emitted = mutableListOf<String>()
+        val callback = NativeLogCallback(diagnosticsEnabled = true, sink = emitted::add)
+        val authKey = "tskey-" + "auth-abc_123-secret"
+        val secrets = listOf(
+            authKey,
+            "bearer-token-value",
+            "password-value",
+            "api-key-value",
+            "json-key-value",
+            "query-secret-value",
+        )
+        callback.emit(
+            "auth=$authKey " +
+                "Authorization=Bearer bearer-token-value password='password-value' " +
+                "api_key=api-key-value {\"AuthKey\":\"json-key-value\"} " +
+                "url=https://user:pass@example.test/path?token=query-secret-value " +
+                "tail=${"x".repeat(8 * 1024)}",
+        )
+
+        val diagnostic = emitted.single()
+        assertTrue(diagnostic.length <= 1024)
+        secrets.forEach { assertFalse("diagnostic leaked $it", diagnostic.contains(it, ignoreCase = true)) }
+        assertFalse(diagnostic.contains("https://"))
+        assertTrue(diagnostic.contains("[REDACTED]") || diagnostic.contains("[AUTH_KEY_REDACTED]"))
+        assertTrue(diagnostic.contains("[URL_REDACTED]"))
     }
 
     @Test fun `local api adapter applies bounded timeout path method and body`() = runBlocking {
