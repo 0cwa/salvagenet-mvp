@@ -94,6 +94,7 @@ import com.excp.podroid.ui.components.PodroidSwitch
 import com.excp.podroid.ui.components.PodroidTopBar
 import com.excp.podroid.ui.theme.PodroidTokens
 import com.excp.podroid.data.repository.LanguageManager
+import org.nodehost.shell.EnrollmentImportActivity
 
 @Composable
 private fun languageDisplayName(language: String, systemDefaultLanguage: String): String {
@@ -262,6 +263,14 @@ fun SettingsScreen(
                 PodroidListRow(
                     label = stringResource(R.string.storage),
                     value = "${ui.storageSizeGb} GB",
+                )
+
+                // ── NODE ENROLLMENT ───────────────────────────────────
+                PodroidSectionLabel("Node enrollment")
+                PodroidListRow(
+                    label = "Import controller enrollment",
+                    value = "Select enrollment and guest bootstrap JSON",
+                    onClick = { ctx.startActivity(Intent(ctx, EnrollmentImportActivity::class.java)) },
                 )
 
                 // ── NETWORK ───────────────────────────────────────────

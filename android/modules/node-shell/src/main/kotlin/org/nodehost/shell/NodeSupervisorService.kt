@@ -26,6 +26,7 @@ class NodeSupervisorService : Service() {
         supervisorScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         reconciler = NodeHostGraph.createSupervisor(supervisorScope)
         bootstrapServer = NodeHostGraph.createBootstrapServer().also(BootstrapMetadataServer::start)
+        NodeHostGraph.restoreAuthorityAndApi()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -49,6 +50,7 @@ class NodeSupervisorService : Service() {
         // The pending intent is durable. Cancellation leaves it recoverable by the sticky restart.
         reconciler.close()
         bootstrapServer.close()
+        NodeHostGraph.stopServiceOwnedComponents()
         supervisorScope.cancel()
         super.onDestroy()
     }

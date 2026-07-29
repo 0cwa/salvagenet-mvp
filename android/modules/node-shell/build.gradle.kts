@@ -21,6 +21,7 @@ dependencies {
     implementation(project(":mesh-tailscale"))
     implementation(project(":control-api"))
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
     val roomVersion = providers.gradleProperty("nodehost.roomVersion").get()

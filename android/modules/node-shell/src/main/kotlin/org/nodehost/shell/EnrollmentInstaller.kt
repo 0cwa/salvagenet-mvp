@@ -16,11 +16,12 @@ import org.nodehost.model.RuntimeSpec
 
 interface GuestBootstrapStore {
     suspend fun save(materialized: MaterializedGuestBootstrap)
+    suspend fun hasDurableState(): Boolean
 }
 
 data class InstalledNode(
     val controllerAuthenticator: ControllerAuthenticator,
-    val bootstrapProfile: GuestBootstrapProfile,
+    val bootstrapProfile: GuestBootstrapProfile?,
 )
 
 /** Ordered integration boundary: persist authority before mesh/runtime effects, then wake reconciliation. */
@@ -32,9 +33,9 @@ class EnrollmentInstaller(
     private val wakeReconciler: () -> Unit,
     private val clock: Clock,
     private val operationIds: OperationIdFactory = SecureOperationIdFactory(),
+    private val isControllerRevoked: suspend (String) -> Boolean = { false },
     private val materializer: GuestBootstrapMaterializer = GuestBootstrapMaterializer(
         tokenFactory = { secureToken(32) },
-        callbackCapabilityFactory = { org.nodehost.model.SensitiveValue(secureToken(32)) },
     ),
 ) {
     private val importEnrollment = ImportEnrollmentUseCase(enrollments, operationIds, clock)
@@ -42,13 +43,16 @@ class EnrollmentInstaller(
 
     suspend fun install(
         rawEnrollment: ByteArray,
-        guestMesh: GuestMeshBootstrap,
+        rawGuestBootstrapSecret: ByteArray,
         enrollmentIdempotencyKey: String,
     ): InstalledNode {
         val enrollment = EnrollmentJson.parse(rawEnrollment)
-        importEnrollment.import(enrollment, enrollmentIdempotencyKey, rawEnrollment)
-        val materialized = materializer.materialize(enrollment, guestMesh)
-        bootstrapStore.save(materialized)
+        val guestBootstrapSecret = GuestBootstrapSecretJson.parse(rawGuestBootstrapSecret)
+        val canonicalImport = rawEnrollment + byteArrayOf(0) + rawGuestBootstrapSecret
+        importEnrollment.import(enrollment, enrollmentIdempotencyKey, canonicalImport)
+        val materialized = if (bootstrapStore.hasDurableState()) null else {
+            materializer.materialize(enrollment, guestBootstrapSecret).also { bootstrapStore.save(it) }
+        }
 
         val status = mesh.status()
         if (status.state != org.nodehost.core.HostMeshStatus.State.RUNNING &&
@@ -78,8 +82,9 @@ class EnrollmentInstaller(
             EnrolledControllerAuthenticator(
                 enrollment.hostAccess.controllerCapability,
                 enrollment.hostAccess.allowedControllerId,
+                isControllerRevoked,
             ),
-            materialized.profile,
+            materialized?.profile,
         )
     }
 
@@ -92,13 +97,14 @@ class EnrollmentInstaller(
 class EnrolledControllerAuthenticator(
     capability: org.nodehost.model.SensitiveValue,
     private val controllerId: String,
+    private val isRevoked: suspend (String) -> Boolean = { false },
 ) : ControllerAuthenticator {
     private val expectedDigest = digest(capability.value)
 
     override suspend fun authorize(authorization: String?, method: String, path: String): ControllerPrincipal? {
         if (authorization == null || !authorization.startsWith(BEARER) || authorization.length > MAX_HEADER_CHARS) return null
         val accepted = MessageDigest.isEqual(expectedDigest, digest(authorization.removePrefix(BEARER)))
-        return if (accepted) ControllerPrincipal(controllerId, setOf("admin")) else null
+        return if (accepted && !isRevoked(controllerId)) ControllerPrincipal(controllerId, setOf("admin")) else null
     }
 
     private companion object {

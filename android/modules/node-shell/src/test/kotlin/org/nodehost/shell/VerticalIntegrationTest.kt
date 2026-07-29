@@ -23,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -90,13 +91,12 @@ class VerticalIntegrationTest {
             operationIds = OperationIdFactory { OperationId("op-${ids.incrementAndGet().toString().padStart(3, '0')}") },
             materializer = GuestBootstrapMaterializer(
                 tokenFactory = { "b".repeat(43) },
-                callbackCapabilityFactory = { SensitiveValue("c".repeat(43)) },
             ),
         )
         val raw = enrollmentJson()
         val installed = installer.install(
             raw,
-            GuestMeshBootstrap("https://mesh.example.test", SensitiveValue("guest-auth-key-distinct-0001"), "node-01-guest"),
+            guestBootstrapSecretJson(),
             "enrollment-key-0001",
         )
         withTimeout(5_000) { completed.await() }
@@ -135,6 +135,10 @@ class VerticalIntegrationTest {
         assertEquals("guest-auth-key-distinct-0001", secretJson.getJSONObject("mesh").getString("oneUseAuthKey"))
         assertEquals("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey nodehost-test", secretJson.getJSONObject("ssh").getJSONArray("emergencyAuthorizedKeys").getString(0))
         assertNull(materialized.secret.redeem(materialized.profile.token))
+        val replayedEnrollment = installer.install(raw, guestBootstrapSecretJson(), "enrollment-key-0001")
+        assertNull(replayedEnrollment.bootstrapProfile)
+        assertSame(materialized, bootstrap.materialized)
+        assertNull(materialized.secret.redeem(materialized.profile.token))
 
         // Controller transport disappearing is only absence of another wake; durable purpose remains RUNNING.
         assertEquals("RUNNING", operations.loadDesiredRuntime(RuntimeId.DEFAULT)?.desiredState?.name)
@@ -162,6 +166,13 @@ class VerticalIntegrationTest {
         serverThread.join(2_000)
         server.close()
     }
+
+    private fun guestBootstrapSecretJson(): ByteArray = JSONObject()
+        .put("apiVersion", "nodehost.example/v1alpha1").put("kind", "GuestBootstrapSecret")
+        .put("mesh", JSONObject().put("controlUrl", "https://mesh.example.test").put("oneUseAuthKey", "guest-auth-key-distinct-0001").put("hostname", "node-01-guest"))
+        .put("ssh", JSONObject().put("user", "nodeadmin").put("emergencyAuthorizedKeys", JSONArray(listOf("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey nodehost-test"))))
+        .put("callback", JSONObject().put("readyUrl", "http://10.0.2.2:8080/v1/bootstrap/ready").put("capability", "guest-ready-capability-0001"))
+        .toString().toByteArray()
 
     private fun enrollmentJson(): ByteArray = JSONObject()
         .put("apiVersion", "nodehost.example/v1alpha1").put("kind", "NodeEnrollment")
@@ -196,6 +207,7 @@ class VerticalIntegrationTest {
     private class RecordingBootstrapStore : GuestBootstrapStore {
         var materialized: MaterializedGuestBootstrap? = null
         override suspend fun save(materialized: MaterializedGuestBootstrap) { this.materialized = materialized }
+        override suspend fun hasDurableState(): Boolean = materialized != null
     }
 
     private class RecordingMesh : HostMesh {

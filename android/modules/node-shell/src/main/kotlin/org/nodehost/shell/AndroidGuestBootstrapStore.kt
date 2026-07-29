@@ -19,6 +19,8 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore {
     )
     private val mutex = Mutex()
 
+    override suspend fun hasDurableState(): Boolean = mutex.withLock { state.read() != null }
+
     override suspend fun save(materialized: MaterializedGuestBootstrap) = mutex.withLock {
         val existing = state.read()?.let(::JSONObject)
         if (existing != null && existing.getString("token") == materialized.profile.token) return@withLock

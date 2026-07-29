@@ -3,8 +3,6 @@ package org.nodehost.shell
 import java.security.MessageDigest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONArray
-import org.json.JSONObject
 import org.nodehost.model.GuestAccessEnrollment
 import org.nodehost.model.GuestSshAuthorization
 import org.nodehost.model.NodeEnrollment
@@ -43,26 +41,27 @@ data class GuestBootstrapProfile(
 /** Materializes NoCloud documents and a single-use secret without passwords or reusable defaults. */
 class GuestBootstrapMaterializer(
     private val tokenFactory: () -> String,
-    private val callbackCapabilityFactory: () -> SensitiveValue,
 ) {
-    fun materialize(enrollment: NodeEnrollment, guestMesh: GuestMeshBootstrap): MaterializedGuestBootstrap {
+    fun materialize(enrollment: NodeEnrollment, artifact: GuestBootstrapSecretArtifact): MaterializedGuestBootstrap {
+        val guestMesh = artifact.mesh
         require(guestMesh.controlUrl == enrollment.hostMesh.controlUrl) {
             "host and guest must enroll with the same authoritative control server"
         }
         require(guestMesh.oneUseAuthKey.value != enrollment.hostMesh.oneUseAuthKey.value) {
             "host and guest mesh identities require distinct one-use keys"
         }
+        require(artifact.sshAccess == enrollment.guestAccess) {
+            "guest bootstrap SSH authority must match enrollment"
+        }
         val token = tokenFactory()
         require(Regex("[A-Za-z0-9_-]{32,128}").matches(token)) { "invalid generated bootstrap token" }
-        val callback = callbackCapabilityFactory()
         val path = "/v1/bootstrap/$token/"
         val metaData = "instance-id: default\nlocal-hostname: ${guestMesh.hostname}\n"
         val userData = cloudConfig(enrollment.guestAccess, token)
-        val secret = bootstrapSecret(enrollment, guestMesh, callback)
         return MaterializedGuestBootstrap(
             GuestBootstrapProfile(token, path, metaData, userData),
-            OneUseBootstrapSecret(token, secret),
-            callback,
+            OneUseBootstrapSecret(token, artifact.raw),
+            artifact.callbackCapability,
         )
     }
 
@@ -136,24 +135,6 @@ curl --fail --silent --show-error --max-time 30 --proto '=http' -X POST \
   -H "Authorization: Bearer ${'$'}capability" "${'$'}callback"
 """.trimIndent()
 
-    private fun bootstrapSecret(
-        enrollment: NodeEnrollment,
-        mesh: GuestMeshBootstrap,
-        callback: SensitiveValue,
-    ): ByteArray {
-        val ssh = JSONObject().put("user", enrollment.guestAccess.sshUser)
-        when (val authorization = enrollment.guestAccess.authorization) {
-            is GuestSshAuthorization.AuthorizedKeys -> ssh.put("emergencyAuthorizedKeys", JSONArray(authorization.publicKeys.sorted()))
-            is GuestSshAuthorization.UserCertificateAuthority -> ssh.put("userCaPublicKey", authorization.publicKey)
-        }
-        return JSONObject()
-            .put("mesh", JSONObject().put("controlUrl", mesh.controlUrl).put("oneUseAuthKey", mesh.oneUseAuthKey.value).put("hostname", mesh.hostname))
-            .put("ssh", ssh)
-            .put("callback", JSONObject().put("readyUrl", "http://10.0.2.2:8080/v1/bootstrap/ready").put("capability", callback.value))
-            .toString()
-            .toByteArray(Charsets.UTF_8)
-            .also { require(it.size <= OneUseBootstrapSecret.MAX_SECRET_BYTES) }
-    }
 }
 
 class MaterializedGuestBootstrap internal constructor(
