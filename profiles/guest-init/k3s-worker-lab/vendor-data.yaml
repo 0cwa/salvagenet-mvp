@@ -37,7 +37,7 @@ write_files:
       Type=oneshot
       EnvironmentFile=/var/lib/nodehost/bootstrap.env
       ExecStart=/usr/local/sbin/nodehost-bootstrap
-      ExecStartPost=/bin/sh -c '/usr/local/sbin/nodehost-qualify-k3s > /var/lib/nodehost/k3s-qualification.json'
+      ExecStartPost=/usr/local/sbin/nodehost-qualify-k3s /var/lib/nodehost/k3s-qualification.json
       Restart=on-failure
       RestartSec=5s
 

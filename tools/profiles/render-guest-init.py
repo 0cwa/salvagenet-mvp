@@ -8,19 +8,27 @@ import json
 from pathlib import Path
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parents[2]
+GUEST_INIT_ROOT = ROOT / "profiles/guest-init"
+MAX_ASSET_BYTES = 128 * 1024
 INCLUDE_LINE = re.compile(r"^(?P<indent>\s*)\{\{INCLUDE:(?P<path>[^}]+)\}\}\s*$")
 VALUE = re.compile(r"\{\{(?P<name>[A-Z][A-Z0-9_]*)\}\}")
+SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_-]{16,512}$")
+SAFE_HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$")
+SAFE_INSTANCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
 def repository_file(relative: str) -> Path:
     path = (ROOT / relative).resolve()
-    if path != ROOT and ROOT not in path.parents:
-        raise ValueError(f"include escapes repository: {relative}")
+    if path != GUEST_INIT_ROOT and GUEST_INIT_ROOT not in path.parents:
+        raise ValueError(f"include is outside profiles/guest-init: {relative}")
     if not path.is_file():
         raise ValueError(f"include does not exist: {relative}")
+    if path.stat().st_size > MAX_ASSET_BYTES:
+        raise ValueError(f"include exceeds {MAX_ASSET_BYTES} bytes: {relative}")
     return path
 
 
@@ -38,8 +46,35 @@ def expand_includes(text: str) -> str:
     return "\n".join(output) + ("\n" if text.endswith("\n") else "")
 
 
+def validate_deployment_value(name: str, value: str) -> None:
+    if name == "METADATA_BASE":
+        parsed = urlparse(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or not parsed.path.endswith("/")
+            or any(character.isspace() for character in value)
+            or len(value) > 2048
+        ):
+            raise ValueError("METADATA_BASE must be a bounded http(s) URL ending in /")
+    elif name == "BOOTSTRAP_TOKEN" and not SAFE_TOKEN.fullmatch(value):
+        raise ValueError("BOOTSTRAP_TOKEN must be a 16-512 character URL-safe token")
+    elif name == "HOSTNAME" and not SAFE_HOSTNAME.fullmatch(value):
+        raise ValueError("HOSTNAME is invalid")
+    elif name == "INSTANCE_ID" and not SAFE_INSTANCE_ID.fullmatch(value):
+        raise ValueError("INSTANCE_ID is invalid")
+    elif "\n" in value or "\r" in value or "\x00" in value:
+        raise ValueError(f"{name} contains a forbidden control character")
+
+
 def render_values(text: str, values: dict[str, Any], allow_unresolved: bool) -> str:
     normalized = {key: str(value) for key, value in values.items()}
+    for name, value in normalized.items():
+        validate_deployment_value(name, value)
 
     def replace(match: re.Match[str]) -> str:
         name = match.group("name")
@@ -54,8 +89,12 @@ def render_values(text: str, values: dict[str, Any], allow_unresolved: bool) -> 
 
 def render(template: Path, values: dict[str, Any], allow_unresolved: bool) -> str:
     resolved = template.resolve()
-    if resolved != ROOT and ROOT not in resolved.parents:
-        raise ValueError(f"template escapes repository: {template}")
+    if resolved != GUEST_INIT_ROOT and GUEST_INIT_ROOT not in resolved.parents:
+        raise ValueError(f"template is outside profiles/guest-init: {template}")
+    if not resolved.is_file():
+        raise ValueError(f"template does not exist: {template}")
+    if resolved.stat().st_size > MAX_ASSET_BYTES:
+        raise ValueError(f"template exceeds {MAX_ASSET_BYTES} bytes: {template}")
     return render_values(
         expand_includes(resolved.read_text(encoding="utf-8")),
         values,

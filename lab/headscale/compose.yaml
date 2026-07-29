@@ -8,7 +8,7 @@ services:
       - /var/run/headscale
     command: serve
     ports:
-      - "${HEADSCALE_LISTEN_IP:-0.0.0.0}:8080:8080"
+      - "${HEADSCALE_LISTEN_IP:-0.0.0.0}:${HEADSCALE_HOST_PORT:-8080}:8080"
       - "127.0.0.1:9090:9090"
     volumes:
       - ./config/generated:/etc/headscale:ro
