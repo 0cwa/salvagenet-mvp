@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": null,
+  "artifacts": {
+    "podroid-kernel": {
+      "source": {
+        "kind": "bundled",
+        "path": "android/podroid/app/src/main/assets/vmlinuz-virt"
+      },
+      "sha256": null,
+      "sizeBytes": null
+    },
+    "podroid-initramfs": {
+      "source": {
+        "kind": "bundled",
+        "path": "android/podroid/app/src/main/assets/initrd.img"
+      },
+      "sha256": null,
+      "sizeBytes": null
+    },
+    "podroid-alpine-squashfs": {
+      "source": {
+        "kind": "bundled",
+        "path": "android/podroid/app/src/main/assets/alpine-rootfs.squashfs"
+      },
+      "sha256": null,
+      "sizeBytes": null
+    },
+    "ubuntu-2404-arm64-cloud": {
+      "source": {
+        "kind": "remote-pin-input",
+        "url": "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-arm64.img"
+      },
+      "sha256": null,
+      "sizeBytes": null
+    },
+    "aavmf-code": {
+      "source": {
+        "kind": "host-package",
+        "hint": "qemu-efi-aarch64/AAVMF_CODE.fd"
+      },
+      "sha256": null,
+      "sizeBytes": null
+    },
+    "aavmf-vars": {
+      "source": {
+        "kind": "host-package",
+        "hint": "qemu-efi-aarch64/AAVMF_VARS.fd"
+      },
+      "sha256": null,
+      "sizeBytes": null
+    }
+  }
+}

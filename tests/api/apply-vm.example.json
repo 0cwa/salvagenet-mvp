@@ -1,0 +1,14 @@
+{
+  "generation": 1,
+  "desiredState": "running",
+  "profileId": "ubuntu-2404-arm64-uefi",
+  "resources": {
+    "memoryMiB": 1024,
+    "vcpus": 2
+  },
+  "dataDisk": {
+    "sizeGiB": 8,
+    "preserveOnDelete": true
+  },
+  "guestEnrollmentSecretId": "example-secret-id"
+}

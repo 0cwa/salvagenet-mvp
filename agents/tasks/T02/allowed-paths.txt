@@ -1,0 +1,5 @@
+android/modules/runtime-qemu/**
+tests/qemu/**
+docs/research/experiments/T02.md
+android/podroid/app/src/main/java/com/excp/podroid/engine/**
+android/podroid/app/build.gradle.kts

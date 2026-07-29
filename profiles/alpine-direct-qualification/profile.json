@@ -1,0 +1,60 @@
+{
+  "apiVersion": "nodehost.example/v1alpha1",
+  "kind": "VirtualMachineProfile",
+  "metadata": {
+    "id": "alpine-direct-qualification",
+    "version": 1
+  },
+  "spec": {
+    "architecture": "aarch64",
+    "machine": {
+      "family": "virt",
+      "acceleration": "tcg",
+      "deviceTransport": "pci",
+      "cpuModel": "max"
+    },
+    "boot": {
+      "type": "direct-kernel",
+      "kernelArtifact": "podroid-kernel",
+      "initramfsArtifact": "podroid-initramfs",
+      "kernelArgumentProfile": "podroid-compatible-v1"
+    },
+    "systemDisk": {
+      "artifact": "podroid-alpine-squashfs",
+      "format": "squashfs",
+      "writableLayer": "separate-ext4-overlay"
+    },
+    "dataDisk": {
+      "format": "raw",
+      "defaultSizeGiB": 4,
+      "persistent": true
+    },
+    "initialization": {
+      "type": "legacy-podroid",
+      "vendorData": "guest-init/alpine-direct/vendor-data.yaml"
+    },
+    "network": {
+      "primary": {
+        "type": "slirp"
+      },
+      "recoverySsh": {
+        "guestPort": 22,
+        "bind": "loopback"
+      }
+    },
+    "health": {
+      "type": "console-marker",
+      "marker": "Ready!"
+    },
+    "requirements": {
+      "minimumMemoryMiB": 512,
+      "minimumStorageGiB": 3,
+      "qualificationChecks": [
+        "virtio-block",
+        "virtio-net",
+        "serial-console",
+        "overlayfs"
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scenarios": [
+    "activity-destroyed-during-operation",
+    "task-removed-while-running",
+    "service-killed-before-qemu-start",
+    "process-killed-after-qemu-start",
+    "reboot-before-first-unlock",
+    "reboot-after-first-unlock",
+    "idempotency-replay-same-body",
+    "idempotency-replay-different-body",
+    "older-generation-rejected"
+  ]
+}

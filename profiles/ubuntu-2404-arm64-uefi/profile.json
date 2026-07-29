@@ -1,0 +1,61 @@
+{
+  "apiVersion": "nodehost.example/v1alpha1",
+  "kind": "VirtualMachineProfile",
+  "metadata": {
+    "id": "ubuntu-2404-arm64-uefi",
+    "version": 1
+  },
+  "spec": {
+    "architecture": "aarch64",
+    "machine": {
+      "family": "virt",
+      "acceleration": "tcg",
+      "deviceTransport": "pci",
+      "cpuModel": "max"
+    },
+    "boot": {
+      "type": "uefi",
+      "firmwareCodeArtifact": "aavmf-code",
+      "firmwareVarsArtifact": "aavmf-vars"
+    },
+    "systemDisk": {
+      "artifact": "ubuntu-2404-arm64-cloud",
+      "format": "qcow2",
+      "writableLayer": "qcow2-overlay"
+    },
+    "dataDisk": {
+      "format": "raw",
+      "defaultSizeGiB": 8,
+      "persistent": true
+    },
+    "initialization": {
+      "type": "nocloud-net",
+      "vendorData": "guest-init/ubuntu/vendor-data.yaml",
+      "metadataPath": "/v1/bootstrap/{token}/"
+    },
+    "network": {
+      "primary": {
+        "type": "slirp"
+      },
+      "recoverySsh": {
+        "guestPort": 22,
+        "bind": "loopback"
+      }
+    },
+    "health": {
+      "type": "metadata-callback"
+    },
+    "requirements": {
+      "minimumMemoryMiB": 768,
+      "minimumStorageGiB": 5,
+      "qualificationChecks": [
+        "uefi",
+        "virtio-block",
+        "virtio-net",
+        "serial-console",
+        "cloud-init",
+        "openssh"
+      ]
+    }
+  }
+}

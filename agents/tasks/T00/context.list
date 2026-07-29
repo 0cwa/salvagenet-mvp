@@ -1,0 +1,7 @@
+GOAL.md
+docs/development/upstream-sync.md
+docs/architecture/qemu-command-knowledge.md
+android/upstream/podroid.lock
+android/workspace.settings.gradle.kts
+tools/bootstrap/import-podroid-subtree.sh
+tools/bootstrap/wire-podroid.py

@@ -1,0 +1,5 @@
+GOAL.md
+docs/architecture/qemu-command-knowledge.md
+docs/architecture/vm-profiles.md
+android/modules/runtime-qemu/AGENTS.md
+tests/qemu/podroid-baseline.argv

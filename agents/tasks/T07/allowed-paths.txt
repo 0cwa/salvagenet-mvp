@@ -1,0 +1,5 @@
+android/modules/node-shell/**
+android/podroid/app/src/main/**
+tests/e2e/**
+control/examples/local/**
+docs/research/experiments/T07.md

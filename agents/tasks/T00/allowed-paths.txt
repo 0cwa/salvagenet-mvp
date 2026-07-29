@@ -1,0 +1,8 @@
+android/podroid/**
+android/upstream/**
+android/workspace.settings.gradle.kts
+android/workspace.gradle.properties
+tools/bootstrap/import-podroid-subtree.sh
+tools/bootstrap/wire-podroid.py
+tests/qemu/podroid-baseline.*
+docs/research/experiments/T00.md

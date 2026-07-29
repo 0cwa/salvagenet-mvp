@@ -1,0 +1,9 @@
+{
+  "endpoint": "https://100.64.0.2:7443",
+  "controllerCapability": "example-controller-capability-000000",
+  "tls": {
+    "caFile": null
+  },
+  "pollIntervalSeconds": 1,
+  "requestTimeoutSeconds": 30
+}

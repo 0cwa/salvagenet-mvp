@@ -1,0 +1,6 @@
+GOAL.md
+docs/architecture/layers-and-events.md
+docs/architecture/vm-profiles.md
+docs/architecture/control-plane.md
+control/schemas/node-enrollment.schema.json
+profiles/schema/vm-profile.schema.json

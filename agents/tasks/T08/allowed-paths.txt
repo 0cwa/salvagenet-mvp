@@ -1,0 +1,9 @@
+tests/**
+docs/roadmap/acceptance-ledger.md
+docs/research/experiments/T08.md
+tools/ci/**
+android/modules/**/src/test/**
+android/modules/**/src/androidTest/**
+docs/research/experiment-register.md
+evidence/**
+tools/evidence/**

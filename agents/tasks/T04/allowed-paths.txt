@@ -1,0 +1,7 @@
+lab/headscale/**
+profiles/guest-init/**
+profiles/locks/**
+tools/profiles/**
+tests/network/**
+tests/guest/**
+docs/research/experiments/T04.md

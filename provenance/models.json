@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "policy": "Record the exact runtime-reported model identifier. Never infer, normalize, or substitute a marketing family.",
+  "examples": [
+    "<exact-runtime-reported-model>",
+    "human"
+  ],
+  "requiredTrailers": [
+    "Agent-Model",
+    "Agent-Run-ID",
+    "Agent-Task-ID",
+    "Agent-Mode"
+  ]
+}

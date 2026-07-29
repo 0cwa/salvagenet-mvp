@@ -1,0 +1,8 @@
+#cloud-config
+write_files:
+  - path: /var/lib/nodehost/bootstrap.env
+    owner: root:root
+    permissions: '0600'
+    content: |
+      NODEHOST_METADATA_BASE={{METADATA_BASE}}
+      NODEHOST_BOOTSTRAP_TOKEN={{BOOTSTRAP_TOKEN}}

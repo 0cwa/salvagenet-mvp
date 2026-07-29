@@ -1,0 +1,5 @@
+android/modules/node-store/**
+android/modules/node-shell/**
+android/modules/test-support/**
+tests/lifecycle/**
+docs/research/experiments/T03.md

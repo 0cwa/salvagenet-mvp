@@ -1,0 +1,13 @@
+android/modules/node-model/**
+android/modules/node-core/**
+control/schemas/**
+control/examples/**
+profiles/schema/**
+profiles/alpine-direct-qualification/**
+profiles/ubuntu-2404-arm64-uefi/**
+profiles/k3s-worker-lab/**
+profiles/README.md
+tests/contracts/**
+tools/ci/check-profiles.py
+tools/ci/check-schemas.py
+docs/research/experiments/T01.md

@@ -1,0 +1,15 @@
+{
+  "name": "nodehost-agent",
+  "build": { "dockerfile": "Dockerfile" },
+  "postCreateCommand": "tools/bootstrap/codex-setup.sh",
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.vscode-yaml",
+        "timonwong.shellcheck",
+        "fwcd.kotlin"
+      ]
+    }
+  }
+}

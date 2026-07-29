@@ -1,0 +1,6 @@
+GOAL.md
+docs/architecture/networking.md
+docs/architecture/security-boundaries.md
+android/modules/mesh-tailscale/AGENTS.md
+android/vendor/tailscale/README.md
+lab/headscale/README.md

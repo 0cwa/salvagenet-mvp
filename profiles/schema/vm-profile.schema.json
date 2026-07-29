@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodehost.example/schema/vm-profile-v1alpha1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "nodehost.example/v1alpha1"
+    },
+    "kind": {
+      "const": "VirtualMachineProfile"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "extends": {
+          "type": "string"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "architecture",
+        "machine",
+        "boot",
+        "systemDisk",
+        "initialization",
+        "network",
+        "health",
+        "requirements"
+      ],
+      "properties": {
+        "architecture": {
+          "const": "aarch64"
+        },
+        "machine": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "family",
+            "acceleration",
+            "deviceTransport"
+          ],
+          "properties": {
+            "family": {
+              "const": "virt"
+            },
+            "acceleration": {
+              "enum": [
+                "tcg"
+              ]
+            },
+            "deviceTransport": {
+              "enum": [
+                "pci"
+              ]
+            },
+            "cpuModel": {
+              "type": "string"
+            }
+          }
+        },
+        "boot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "direct-kernel",
+                "uefi"
+              ]
+            },
+            "kernelArtifact": {
+              "type": "string"
+            },
+            "initramfsArtifact": {
+              "type": "string"
+            },
+            "firmwareCodeArtifact": {
+              "type": "string"
+            },
+            "firmwareVarsArtifact": {
+              "type": "string"
+            },
+            "kernelArgumentProfile": {
+              "type": "string"
+            }
+          }
+        },
+        "systemDisk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "format",
+            "writableLayer"
+          ],
+          "properties": {
+            "artifact": {
+              "type": "string"
+            },
+            "format": {
+              "enum": [
+                "raw",
+                "qcow2",
+                "squashfs"
+              ]
+            },
+            "writableLayer": {
+              "enum": [
+                "qcow2-overlay",
+                "separate-ext4-overlay",
+                "none"
+              ]
+            }
+          }
+        },
+        "dataDisk": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "enum": [
+                "raw"
+              ]
+            },
+            "defaultSizeGiB": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024
+            },
+            "persistent": {
+              "type": "boolean"
+            }
+          }
+        },
+        "initialization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "legacy-podroid",
+                "nocloud-net"
+              ]
+            },
+            "vendorData": {
+              "type": "string"
+            },
+            "metadataPath": {
+              "type": "string"
+            }
+          }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "primary",
+            "recoverySsh"
+          ],
+          "properties": {
+            "primary": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "const": "slirp"
+                }
+              }
+            },
+            "recoverySsh": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "guestPort",
+                "bind"
+              ],
+              "properties": {
+                "guestPort": {
+                  "const": 22
+                },
+                "bind": {
+                  "const": "loopback"
+                }
+              }
+            }
+          }
+        },
+        "health": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "console-marker",
+                "metadata-callback",
+                "ssh"
+              ]
+            },
+            "marker": {
+              "type": "string"
+            }
+          }
+        },
+        "requirements": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minimumMemoryMiB",
+            "minimumStorageGiB"
+          ],
+          "properties": {
+            "minimumMemoryMiB": {
+              "type": "integer",
+              "minimum": 256
+            },
+            "minimumStorageGiB": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "qualificationChecks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+[tools]
+java = "temurin-17"
+python = "3.12"
+go = "1.26.3"
+
+[env]
+NODEHOST_WORKSPACE = "{{config_root}}"
+
+[tasks.validate]
+run = "tools/ci/check.sh"
+
+[tasks.doctor]
+run = "tools/bootstrap/doctor.sh"

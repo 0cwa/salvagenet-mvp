@@ -1,0 +1,5 @@
+# Transitional direct-kernel profile data.
+sshUser: nodeadmin
+passwordAuthentication: false
+rootLogin: false
+hostReadyMarker: Ready!

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/tailscale/tailscale-android.git",
+  "ref": "v1.98.2",
+  "commit": "VERIFY-IN-T05",
+  "capturedAt": "2026-07-29",
+  "purpose": "Android-aware libtailscale/VpnService adapter only",
+  "coreRef": "v1.98.2",
+  "requiredGo": "1.26.3",
+  "coreCommitShort": "34c5306",
+  "notes": "Android release is verified; T05 must resolve and record the full immutable tailscale-android repository commit before import."
+}

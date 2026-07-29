@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.jar binary
+*.apk binary
+*.img binary
+*.qcow2 binary
+*.squashfs binary

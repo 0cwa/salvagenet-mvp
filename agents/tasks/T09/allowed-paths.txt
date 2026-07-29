@@ -1,0 +1,5 @@
+usb-link/**
+android/modules/usb-link/**
+tests/usb/**
+docs/research/experiments/T09.md
+docs/roadmap/acceptance-ledger.md

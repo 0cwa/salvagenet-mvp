@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "integrationBranch": "integration/mvp-night",
+  "tasks": [
+    {
+      "id": "T00",
+      "slug": "podroid-import-baseline",
+      "dependsOn": [],
+      "parallelGroup": 1,
+      "mvpPlus": false
+    },
+    {
+      "id": "T01",
+      "slug": "contracts-profiles",
+      "dependsOn": [],
+      "parallelGroup": 1,
+      "mvpPlus": false
+    },
+    {
+      "id": "T04",
+      "slug": "headscale-guest-init-lab",
+      "dependsOn": [],
+      "parallelGroup": 1,
+      "mvpPlus": false
+    },
+    {
+      "id": "T02",
+      "slug": "qemu-adapter",
+      "dependsOn": [
+        "T00",
+        "T01"
+      ],
+      "parallelGroup": 2,
+      "mvpPlus": false
+    },
+    {
+      "id": "T03",
+      "slug": "store-supervisor",
+      "dependsOn": [
+        "T01"
+      ],
+      "parallelGroup": 2,
+      "mvpPlus": false
+    },
+    {
+      "id": "T05",
+      "slug": "host-mesh",
+      "dependsOn": [
+        "T00",
+        "T01",
+        "T04"
+      ],
+      "parallelGroup": 2,
+      "mvpPlus": false
+    },
+    {
+      "id": "T06",
+      "slug": "host-api-cli",
+      "dependsOn": [
+        "T01"
+      ],
+      "parallelGroup": 2,
+      "mvpPlus": false
+    },
+    {
+      "id": "T07",
+      "slug": "vertical-integration",
+      "dependsOn": [
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "parallelGroup": 3,
+      "mvpPlus": false
+    },
+    {
+      "id": "T08",
+      "slug": "qa-hardening",
+      "dependsOn": [
+        "T07"
+      ],
+      "parallelGroup": 4,
+      "mvpPlus": false
+    },
+    {
+      "id": "T09",
+      "slug": "usb-mvp-plus",
+      "dependsOn": [
+        "T08",
+        "BASE_MVP_PASS"
+      ],
+      "parallelGroup": 5,
+      "mvpPlus": true
+    }
+  ]
+}

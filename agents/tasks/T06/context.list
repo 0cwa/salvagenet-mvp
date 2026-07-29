@@ -1,0 +1,6 @@
+GOAL.md
+docs/architecture/control-plane.md
+docs/architecture/security-boundaries.md
+control/openapi.yaml
+android/modules/control-api/AGENTS.md
+controller/mvp-cli/AGENTS.md

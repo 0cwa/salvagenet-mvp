@@ -1,0 +1,46 @@
+{
+  "apiVersion": "nodehost.example/v1alpha1",
+  "kind": "NodeEnrollment",
+  "metadata": {
+    "enrollmentId": "example-enrollment-0001",
+    "nodeName": "closet-phone-01",
+    "expiresAt": "2099-01-01T00:00:00Z"
+  },
+  "controller": {
+    "endpoint": "https://controller.example.invalid:7443",
+    "spkiSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "oneTimeEnrollmentToken": "EXAMPLE-ONE-TIME-TOKEN-DO-NOT-USE-000000000000"
+  },
+  "hostMesh": {
+    "controlUrl": "http://192.0.2.10:8080",
+    "oneUseAuthKey": "EXAMPLE-HEADSCALE-HOST-KEY-DO-NOT-USE",
+    "hostname": "closet-phone-01-host",
+    "expectedTags": [
+      "tag:node-host"
+    ]
+  },
+  "hostAccess": {
+    "controllerCapability": "EXAMPLE-CONTROLLER-CAPABILITY-DO-NOT-USE-000000",
+    "allowedControllerId": "primary-controller"
+  },
+  "guestAccess": {
+    "sshUser": "nodeadmin",
+    "sshUserCaPublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEONLYNOTAKEY nodehost-example",
+    "emergencyAuthorizedKeys": []
+  },
+  "artifacts": {
+    "repositoryUrl": "https://artifacts.example.invalid",
+    "profileIds": [
+      "alpine-direct-qualification",
+      "ubuntu-2404-arm64-uefi",
+      "k3s-worker-lab"
+    ]
+  },
+  "initialRuntime": {
+    "profileId": "ubuntu-2404-arm64-uefi",
+    "desiredState": "stopped",
+    "memoryMiB": 1024,
+    "vcpus": 2,
+    "dataDiskGiB": 8
+  }
+}

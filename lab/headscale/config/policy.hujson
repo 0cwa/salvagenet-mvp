@@ -1,0 +1,11 @@
+{
+  "tagOwners": {
+    "tag:node-controller": ["lab@"],
+    "tag:node-host": ["lab@"],
+    "tag:node-worker": ["lab@"]
+  },
+  "acls": [
+    {"action": "accept", "src": ["tag:node-controller"], "dst": ["tag:node-host:*", "tag:node-worker:22"]},
+    {"action": "accept", "src": ["tag:node-worker"], "dst": ["tag:node-worker:*"]}
+  ]
+}

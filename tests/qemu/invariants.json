@@ -1,0 +1,16 @@
+{
+  "requiredTokens": [
+    "-M",
+    "virt,gic-version=3",
+    "-display",
+    "none",
+    "-qmp"
+  ],
+  "forbiddenReleaseFields": [
+    "qemuExtraArgs",
+    "kernelExtraCmdline",
+    "rawQmp",
+    "shellCommand"
+  ],
+  "managementForwardPrefix": "hostfwd=tcp:127.0.0.1:"
+}

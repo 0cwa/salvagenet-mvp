@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+msg_file=$1
+source_kind=${2:-}
+
+# Do not duplicate trailers on merge/squash/template machinery.
+if [[ "$source_kind" == "merge" ]]; then
+  exit 0
+fi
+
+if [[ -n "${AGENT_MODEL:-}" || -n "${AGENT_RUN_ID:-}" || -n "${AGENT_TASK_ID:-}" ]]; then
+  : "${AGENT_MODEL:?set AGENT_MODEL}"
+  : "${AGENT_RUN_ID:?set AGENT_RUN_ID}"
+  : "${AGENT_TASK_ID:?set AGENT_TASK_ID}"
+  if ! grep -q '^Agent-Model:' "$msg_file"; then
+    git interpret-trailers --in-place \
+      --trailer "Agent-Model: ${AGENT_MODEL}" \
+      --trailer "Agent-Run-ID: ${AGENT_RUN_ID}" \
+      --trailer "Agent-Task-ID: ${AGENT_TASK_ID}" \
+      --trailer "Agent-Mode: ${AGENT_MODE:-goal}" \
+      "$msg_file"
+  fi
+fi

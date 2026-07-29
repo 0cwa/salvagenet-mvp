@@ -1,0 +1,20 @@
+services:
+  headscale:
+    image: docker.io/headscale/headscale:${HEADSCALE_VERSION:-0.28.0}
+    container_name: nodehost-headscale
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/run/headscale
+    command: serve
+    ports:
+      - "${HEADSCALE_LISTEN_IP:-0.0.0.0}:8080:8080"
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./config/generated:/etc/headscale:ro
+      - ./data:/var/lib/headscale
+    healthcheck:
+      test: ["CMD", "headscale", "health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30

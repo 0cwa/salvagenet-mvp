@@ -1,0 +1,51 @@
+# Local agent state
+.local/
+.agent-state/
+.agent-context/
+.worktrees/
+
+# Secrets and lab state
+.env
+*.local
+*.secret
+lab/headscale/.state/
+lab/headscale/data/
+lab/headscale/secrets/
+lab/headscale/.env
+lab/headscale/config/generated/
+control/examples/*.real.json
+control/examples/local/*.json
+!control/examples/local/README.md
+controller/mvp-cli/controller.json
+
+# Imported upstream/build output
+android/podroid/.gradle/
+android/podroid/local.properties
+android/podroid/**/build/
+android/modules/**/build/
+build/
+.gradle/
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+*.iml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Android artifacts
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Native/images
+*.qcow2
+*.img
+*.iso
+*.squashfs
+*.fd

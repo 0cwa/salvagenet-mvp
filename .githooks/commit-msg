@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+msg_file=$1
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
+if [[ "$branch" == agent/* ]]; then
+  for key in Agent-Model Agent-Run-ID Agent-Task-ID Agent-Mode; do
+    if ! grep -q "^${key}:" "$msg_file"; then
+      echo "missing ${key} trailer on agent branch" >&2
+      exit 1
+    fi
+  done
+fi

@@ -1,0 +1,40 @@
+#cloud-config
+package_update: true
+packages:
+  - openssh-server
+  - ca-certificates
+  - curl
+  - jq
+users:
+  - name: nodeadmin
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+ssh_pwauth: false
+disable_root: true
+write_files:
+  - path: /usr/local/sbin/nodehost-bootstrap
+    permissions: '0700'
+    content: |
+      {{INCLUDE:profiles/guest-init/common/nodehost-bootstrap-ubuntu.sh}}
+  - path: /etc/systemd/system/nodehost-bootstrap.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Redeem one-use NodeHost guest bootstrap material
+      Wants=network-online.target
+      After=network-online.target cloud-final.service
+      ConditionPathExists=/var/lib/nodehost/bootstrap.env
+
+      [Service]
+      Type=oneshot
+      EnvironmentFile=/var/lib/nodehost/bootstrap.env
+      ExecStart=/usr/local/sbin/nodehost-bootstrap
+      Restart=on-failure
+      RestartSec=5s
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, nodehost-bootstrap.service]

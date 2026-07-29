@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "artifact": "nodehost-mvp-scaffold",
+  "generatedAt": "2026-07-29",
+  "model": "GPT-5.6 Pro",
+  "runId": "scaffold-2026-07-29",
+  "taskId": "SCAFFOLD",
+  "mode": "interactive",
+  "notes": "Repository scaffold, architecture, task packets, validation tooling, and reference implementation stubs. Git commit trailers remain authoritative after handoff."
+}

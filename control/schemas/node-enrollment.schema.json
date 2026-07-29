@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodehost.example/schema/node-enrollment-v1alpha1.json",
+  "title": "NodeEnrollment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "controller",
+    "hostMesh",
+    "hostAccess",
+    "guestAccess",
+    "artifacts",
+    "initialRuntime"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "nodehost.example/v1alpha1"
+    },
+    "kind": {
+      "const": "NodeEnrollment"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enrollmentId",
+        "nodeName",
+        "expiresAt"
+      ],
+      "properties": {
+        "enrollmentId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "nodeName": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "endpoint",
+        "spkiSha256",
+        "oneTimeEnrollmentToken"
+      ],
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "spkiSha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "oneTimeEnrollmentToken": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 512
+        }
+      }
+    },
+    "hostMesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "controlUrl",
+        "oneUseAuthKey",
+        "hostname",
+        "expectedTags"
+      ],
+      "properties": {
+        "controlUrl": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "oneUseAuthKey": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 512
+        },
+        "hostname": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "expectedTags": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "pattern": "^tag:[a-z0-9-]+$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "hostAccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "controllerCapability",
+        "allowedControllerId"
+      ],
+      "properties": {
+        "controllerCapability": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 512
+        },
+        "allowedControllerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "guestAccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sshUser",
+        "sshUserCaPublicKey"
+      ],
+      "properties": {
+        "sshUser": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_-]{0,31}$"
+        },
+        "sshUserCaPublicKey": {
+          "type": "string",
+          "pattern": "^ssh-(ed25519|rsa) "
+        },
+        "emergencyAuthorizedKeys": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "pattern": "^ssh-(ed25519|rsa) "
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositoryUrl",
+        "profileIds"
+      ],
+      "properties": {
+        "repositoryUrl": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "profileIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "initialRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileId",
+        "desiredState",
+        "memoryMiB",
+        "vcpus",
+        "dataDiskGiB"
+      ],
+      "properties": {
+        "profileId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "desiredState": {
+          "enum": [
+            "stopped",
+            "running"
+          ]
+        },
+        "memoryMiB": {
+          "type": "integer",
+          "minimum": 256,
+          "maximum": 16384
+        },
+        "vcpus": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "dataDiskGiB": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+android/modules/mesh-tailscale/**
+android/vendor/tailscale/**
+tools/vendor/**
+tests/network/host-mesh/**
+docs/research/experiments/T05.md
