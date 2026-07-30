@@ -1,19 +1,21 @@
-# Foundation and device-validation handoff
+# Guest-boot and device-validation handoff
 
-The repository is a **software-qualified device-lab candidate**, not a completed software implementation and not a validated MVP. H01 and H04 are merged, F01 is the sole active foundation task, H02/H03 are queued for re-review, and 10 of 20 base gates still require physical/live-network evidence.
+The repository is a **software-qualified device-lab candidate**, not a validated MVP. H01, H04, and F01 are merged. H02 is the sole active hardware-independent task, and 10 of 20 base gates still require physical/live-network evidence.
 
 ## Current execution order
 
-1. Complete F01 so checked-in profile JSON and one artifact-manifest contract are the exact production inputs.
-2. At the next phase boundary, re-evaluate and narrow/split H02 and H03 rather than starting their stale packets automatically.
+1. Complete H02: deterministic canonical Ubuntu UEFI boot, real QMP status, NoCloud completion, key-only loopback SSH, restart, and secret-hygiene evidence in the existing host-QEMU lab.
+2. Re-evaluate guest-mesh qualification from the H02 result; do not automatically activate the old broad H02 scope or emulator work.
 3. Use the existing one-phone HIL runner for the physical vertical slice.
 4. Bind final gate evidence to one exact candidate commit and APK.
 
-A physical D01/HIL smoke may run during F01 when a device is available and is useful diagnostic evidence. Because F01 changes production profile resolution, do not treat an earlier APK as the final D07 candidate without re-running the relevant scenarios.
+Host-QEMU evidence is preflight only. It must be explicitly marked non-Android and cannot close a physical gate.
 
 ## Phase handoff rule
 
-At the start of a phase, verify the active packet's prerequisites, allowed paths, and acceptance criteria against current `main`. At the end, check every acceptance and phase-exit criterion against tests/package evidence before activating the next phase. Record unavailable physical checks honestly.
+At phase start, verify the active packet's prerequisites, allowed paths, compatibility policy, and acceptance criteria against current `main`. At phase end, check every acceptance and phase-exit criterion against tests/package evidence before activating the next phase. Record unavailable physical or host-lab checks honestly.
+
+This project is unreleased alpha. Reset disposable development state instead of adding migration or dual-format runtime paths unless a separately authorized task identifies real deployed state that cannot be reset.
 
 ## One-time host and phone preparation
 
@@ -31,6 +33,8 @@ yes | sdkmanager --licenses
 Connect one dedicated ARM64 Android phone, enable USB debugging, and accept its RSA prompt.
 
 ## Prepare disposable Headscale/controller state
+
+Headscale is not part of active H02. Prepare it when moving to guest-mesh or physical validation:
 
 ```sh
 cp lab/headscale/.env.example lab/headscale/.env
