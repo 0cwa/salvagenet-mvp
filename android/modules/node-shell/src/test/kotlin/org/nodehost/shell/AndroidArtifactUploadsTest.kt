@@ -80,7 +80,7 @@ class AndroidArtifactUploadsTest {
         assertEquals(4L, payload.length())
     }
 
-    @Test fun recoveryFinishesPayloadMovedBeforeManifestPublication() = runBlocking {
+    @Test fun recoveryFinishesStalePayloadMovedBeforeManifestPublication() = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val request = ArtifactUploadCreateRequest("ubuntu-test", sha256(bytes), bytes.size.toLong())
         val store = store()
@@ -90,7 +90,9 @@ class AndroidArtifactUploadsTest {
         val published = File(context.filesDir, "nodehost-artifacts/versions/ubuntu-test/${request.sha256}/payload")
         published.parentFile!!.mkdirs()
         Files.move(staged.toPath(), published.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        now += 2L * 24 * 60 * 60 * 1_000
 
+        store().recoverAndCollect()
         val recovered = store().upload(upload.id)
 
         assertEquals(ArtifactUploadState.COMPLETED, recovered?.state)
