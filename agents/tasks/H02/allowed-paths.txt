@@ -1,6 +1,6 @@
+agents/tasks/H02/**
 lab/qemu/**
-lab/headscale/**
-profiles/guest-init/**
-tests/network/**
+profiles/ubuntu-2404-arm64-uefi/**
+profiles/guest-init/ubuntu/**
 tests/guest/**
 docs/research/experiments/H02.md
