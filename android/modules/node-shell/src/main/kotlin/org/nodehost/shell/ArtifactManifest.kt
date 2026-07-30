@@ -70,12 +70,16 @@ internal class ArtifactManifestStore(private val root: File) {
         require(limit in 1..512)
         if (!root.exists()) return emptyList()
         check(root.isDirectory) { "artifact root is not a directory" }
-        val manifests = root.listFiles()
+        val artifactIds = root.listFiles()
             ?.filter { it.isFile && it.name.endsWith(MANIFEST_SUFFIX) }
-            ?.sortedBy(File::getName)
+            ?.map { it.name.removeSuffix(MANIFEST_SUFFIX) }
+            ?.filter(ArtifactManifest.ARTIFACT_ID::matches)
+            ?.sorted()
             .orEmpty()
-        check(manifests.size <= limit) { "active artifact manifest count exceeded bound" }
-        return manifests.map { active(it.name.removeSuffix(MANIFEST_SUFFIX))!! }
+        // This is an invariant bound, not pagination: silently omitting valid active artifacts would be dishonest.
+        check(artifactIds.size <= limit) { "active artifact manifest count exceeded bound" }
+        // A manifest may disappear after listFiles(); malformed valid manifests still fail closed as corruption.
+        return artifactIds.mapNotNull(::active)
     }
 
     fun isPublished(artifactId: String, digest: String, sizeBytes: Long, verifyDigest: Boolean): Boolean {
@@ -85,8 +89,8 @@ internal class ArtifactManifestStore(private val root: File) {
     }
 
     fun writeActive(manifest: ArtifactManifest, temporaryTag: String) {
-        check(root.mkdirs() || root.isDirectory) { "artifact root is unavailable" }
         require(TEMPORARY_TAG.matches(temporaryTag)) { "invalid manifest temporary tag" }
+        check(root.mkdirs() || root.isDirectory) { "artifact root is unavailable" }
         requirePayload(manifest)
         val target = manifestFile(manifest.artifactId)
         val temporary = File(root, ".${manifest.artifactId}.$temporaryTag.manifest.part")
