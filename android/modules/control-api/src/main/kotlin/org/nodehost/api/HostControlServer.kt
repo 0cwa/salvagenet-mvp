@@ -369,11 +369,12 @@ internal suspend fun readBoundedBody(
 
     var channel: ByteReadChannel? = null
     try {
-        val body: ByteArray = withTimeoutOrNull(overallTimeoutMillis) outer@ {
+        val body = withTimeoutOrNull(overallTimeoutMillis) {
             channel = receive()
             val output = java.io.ByteArrayOutputStream(minOf(maximumBytes, BODY_CHUNK_BYTES))
             val buffer = ByteArray(BODY_CHUNK_BYTES)
-            while (true) {
+            var complete = false
+            while (!complete) {
                 val count = withTimeoutOrNull(idleTimeoutMillis) {
                     var read: Int
                     do {
@@ -382,10 +383,14 @@ internal suspend fun readBoundedBody(
                     } while (read == 0)
                     read
                 } ?: throw HostApiRequestTimeoutException()
-                if (count == -1) return@outer output.toByteArray()
-                require(output.size() <= maximumBytes - count) { "request body is too large" }
-                output.write(buffer, 0, count)
+                if (count == -1) {
+                    complete = true
+                } else {
+                    require(output.size() <= maximumBytes - count) { "request body is too large" }
+                    output.write(buffer, 0, count)
+                }
             }
+            output.toByteArray()
         } ?: throw HostApiRequestTimeoutException()
         return body
     } catch (failure: Throwable) {
