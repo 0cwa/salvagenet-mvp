@@ -13,4 +13,9 @@ class NewTaskTest(unittest.TestCase):
     def test_rejects_missing_acceptance(self):
         a=Args(); a.acceptance=[]
         with self.assertRaises(ValueError): m.build(a)
+    def test_allows_base_mvp_dependency_sentinel(self):
+        a=Args(); a.depends_on=['BASE_MVP_PASS']; a.mvp_plus=True
+        task, dag, _registry, _packet = m.build(a)
+        self.assertEqual('H99', task)
+        self.assertEqual(['BASE_MVP_PASS'], dag['tasks'][-1]['dependsOn'])
 if __name__=='__main__': unittest.main()
