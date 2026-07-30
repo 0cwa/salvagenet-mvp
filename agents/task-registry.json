@@ -7,7 +7,7 @@
   ],
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
-    "F01": "PLANNED",
+    "F01": "IN_PROGRESS",
     "H01": "MERGED",
     "H02": "QUEUED_REVIEW",
     "H03": "QUEUED_REVIEW",
@@ -19,7 +19,8 @@
       "name": "Canonical artifact and profile resolution",
       "dependsOn": [],
       "packet": "agents/tasks/F01/task.md",
-      "status": "PLANNED"
+      "status": "IN_PROGRESS",
+      "startedFrom": "9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7"
     },
     {
       "id": "H01",
