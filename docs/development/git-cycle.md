@@ -3,57 +3,56 @@
 ## Branch model
 
 - `main` — reviewed baseline with green CI.
-- The active integration branch is read from `agents/task-dag.json`.
+- The active integration branch is read from `agents/task-dag.json` when a phase needs one.
 - `agent/<task-id>-<slug>` — one active task packet in one worktree.
+- `agent/<phase>-realignment` — narrow planning/status correction at a phase boundary.
 
-Completed integration and task branches are historical provenance; new work follows the active graph rather than reusing an old cycle name.
+Completed integration and task branches are historical provenance. Queued or merged packets are not reusable work authorization.
 
-## Initialize the active cycle
+## Start the active phase
 
 ```sh
 make install-hooks
-make integration-worktree
-make wave WAVE=1
+make dev-plan
+make validate
 make status
+make context TASK=F01
 ```
 
-`make integration-worktree` fails if `.worktrees/integration` is still attached to a different cycle. `make wave` refuses to create a later wave until its prerequisites are merged into the active integration branch. USB tasks also require the base-MVP acceptance gate.
+Verify phase entry criteria before creating implementation worktrees. The current `foundation-1` phase has one task, so a multi-worktree wave is unnecessary. Use `make wave` only when a later reviewed phase contains genuinely independent, path-disjoint tasks.
 
 ## Task cycle
 
 ```sh
-make worktree TASK=H01
-cd .worktrees/H01-artifact-upload
-make context TASK=H01
-# Read .local/context/H01.md plus applicable AGENTS.md files.
-# Implement and run the packet's smallest checks.
-python3 tools/agents/verify-scope.py H01
+make worktree TASK=F01
+cd .worktrees/F01-canonical-artifact-profile-resolution
+make context TASK=F01
+# Read .local/context/F01.md plus applicable AGENTS.md files.
+# Perform the packet's phase-start review before implementation.
+python3 tools/agents/verify-scope.py F01
 AGENT_MODEL='<exact runtime-reported model>' \
 AGENT_RUN_ID='<stable runner id>' \
-AGENT_TASK_ID=H01 \
+AGENT_TASK_ID=F01 \
 AGENT_MODE=goal \
-  tools/provenance/commit-agent.sh 'control-api: add resumable artifact upload'
+  tools/provenance/commit-agent.sh 'profiles: make packaged JSON authoritative'
 ```
 
-The task worktree must be clean before integration.
+The task worktree must be clean before handoff. If discovery changes the real scope, update the task packet and phase plan before continuing rather than silently crossing allowed paths.
 
-## Orchestrator integration
+## Integration
 
-```sh
-make integrate TASK=H01
-make status
-```
+For a single-task phase, a focused PR from the tested task branch directly to `main` is preferred. An integration branch is useful only when the reviewed phase has multiple tasks that must be tested together.
 
-The integration helper verifies scope, cleanliness, prerequisite order, merges without rewriting the agent commit, and runs repository validation. It stops on conflicts rather than inventing a resolution. Resolve conflicts in the integration worktree with the relevant task packet and both module-level `AGENTS.md` files in context.
+Before merge:
 
-After all active tasks are integrated:
+1. task acceptance criteria pass;
+2. phase exit criteria pass or the packet records a focused blocker;
+3. scope verifier passes;
+4. repository validation passes;
+5. full applicable CI passes on the exact head;
+6. evidence class is explicit.
 
-```sh
-make -C .worktrees/integration dev-full
-# Open a pull request from the integration branch to main.
-```
-
-Require green CI and review before merging to `main`; do not carry an old integration branch forward into the next cycle.
+Merge without rewriting the tested commits when possible. After merge, update the registry and roadmap with the merge SHA, then perform the next phase-start review before activating queued work.
 
 ## Commit policy
 
@@ -64,12 +63,9 @@ Require green CI and review before merging to `main`; do not carry an old integr
 - Never commit secrets or model conversation transcripts.
 - Use only concrete `TODO(MVP-HARDENING, <task-id>)` comments with expiry triggers.
 
-## Merge and evidence policy
+## Evidence policy
 
-1. Task-local acceptance green.
-2. Scope verifier green.
-3. Prerequisites already integrated.
-4. Repository validation green after merge.
-5. CI green on the integration pull request.
-6. Evidence class stated explicitly; host-QEMU/emulator results never close physical gates.
-7. The task designated by the active cycle owns shared status/evidence promotion.
+- Gate status changes require reviewed evidence records, not ownership by a historical task.
+- Host-QEMU and emulator results never close physical gates.
+- Physical evidence must identify the exact source commit, APK digest, device facts, scenario, commands, and assertions.
+- A final MVP claim requires the relevant HIL scenarios to be run against one exact candidate after foundational/runtime changes have landed.
