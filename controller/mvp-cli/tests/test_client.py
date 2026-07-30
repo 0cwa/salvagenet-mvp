@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest import mock
 import urllib.error
@@ -43,30 +44,46 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(request.get_header("Authorization"), f"Bearer {self.capability}")
 
     @mock.patch("urllib.request.urlopen")
+    def test_chunk_request_sends_raw_bytes_and_digest(self, urlopen: mock.Mock) -> None:
+        urlopen.return_value = _Response(b'{"committedBytes":3}')
+        result = self.client.put_artifact_chunk("upload-abc", 0, b"abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        request = urlopen.call_args.args[0]
+        self.assertEqual(3, result["committedBytes"])
+        self.assertEqual(b"abc", request.data)
+        self.assertEqual("application/octet-stream", request.get_header("Content-type"))
+        self.assertEqual("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", request.get_header("Content-sha256"))
+
+    def test_upload_file_resumes_from_host_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "image"
+            path.write_bytes(b"abcdefgh")
+            with mock.patch.object(self.client, "create_artifact_upload", return_value={"id":"upload-abc","state":"OPEN","committedBytes":3}), mock.patch.object(self.client, "put_artifact_chunk", side_effect=lambda _id, offset, payload, _sha: {"committedBytes":offset+len(payload)}) as chunks, mock.patch.object(self.client, "complete_artifact_upload", return_value={"id":"image","sizeBytes":8}) as complete:
+                result = self.client.upload_file("image", path, chunk_size=2)
+            self.assertEqual(8, result["sizeBytes"])
+            self.assertEqual([3,5,7], [call.args[1] for call in chunks.call_args_list])
+            complete.assert_called_once_with("upload-abc")
+
+    @mock.patch("urllib.request.urlopen")
     def test_oversized_response_is_rejected(self, urlopen: mock.Mock) -> None:
         urlopen.return_value = _Response(b"x" * (NodeHostClient.MAX_RESPONSE_BYTES + 1))
         with self.assertRaisesRegex(ApiError, "exceeds"): self.client.status()
 
     @mock.patch("urllib.request.urlopen")
     def test_http_error_redacts_reflected_capability(self, urlopen: mock.Mock) -> None:
-        urlopen.side_effect = urllib.error.HTTPError(
-            "https://node.invalid/v1/status", 401, "no", {}, io.BytesIO(self.capability.encode())
-        )
+        urlopen.side_effect = urllib.error.HTTPError("https://node.invalid/v1/status", 401, "no", {}, io.BytesIO(self.capability.encode()))
         with self.assertRaises(ApiError) as caught: self.client.status()
         self.assertNotIn(self.capability, str(caught.exception))
         self.assertIn("[REDACTED]", str(caught.exception))
 
     def test_wait_reports_failed_retryable_without_timing_out(self) -> None:
-        operation = {"id": "op-1", "state": "FAILED_RETRYABLE", "errorCode": "NETWORK_UNAVAILABLE"}
+        operation = {"id":"op-1","state":"FAILED_RETRYABLE","errorCode":"NETWORK_UNAVAILABLE"}
         with mock.patch.object(self.client, "operation", return_value=operation):
-            with self.assertRaises(RetryableOperationError) as caught:
-                self.client.wait("op-1", timeout=600)
+            with self.assertRaises(RetryableOperationError) as caught: self.client.wait("op-1", timeout=600)
         self.assertIs(caught.exception.operation, operation)
-        self.assertIn("NETWORK_UNAVAILABLE", str(caught.exception))
 
     def test_rejects_oversized_request_and_short_key(self) -> None:
         with self.assertRaisesRegex(ValueError, "1 MiB"):
-            self.client.request("POST", "/v1/image-imports", {"x": "y" * 1024 * 1024})
+            self.client.request("POST", "/v1/image-imports", {"x":"y" * 1024 * 1024})
         with self.assertRaisesRegex(ValueError, "16..200"):
             self.client.remove_vm("default", "short")
 

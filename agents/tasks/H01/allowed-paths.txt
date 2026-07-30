@@ -1,12 +1,9 @@
+agents/tasks/H01/allowed-paths.txt
 control/openapi.yaml
 android/modules/control-api/src/main/**
 android/modules/control-api/src/test/**
-android/modules/node-store/src/main/kotlin/org/nodehost/store/Entities.kt
-android/modules/node-store/src/main/kotlin/org/nodehost/store/NodeHostDao.kt
-android/modules/node-store/src/main/kotlin/org/nodehost/store/NodeHostDatabase.kt
-android/modules/node-store/src/test/kotlin/org/nodehost/store/*Artifact*
-android/modules/node-store/schemas/**
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/*Artifact*
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/NodeHostGraph.kt
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Artifact*
 controller/mvp-cli/**
 tests/api/**

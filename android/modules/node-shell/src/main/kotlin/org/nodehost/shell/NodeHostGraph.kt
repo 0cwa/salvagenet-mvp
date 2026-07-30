@@ -13,7 +13,6 @@ import org.nodehost.api.HostApiController
 import org.nodehost.api.HostControlServer
 import org.nodehost.core.ApplyRuntimeUseCase
 import org.nodehost.core.Clock
-import org.nodehost.core.RuntimeBackend
 import org.nodehost.mesh.LibtailscaleHostMesh
 import org.nodehost.store.NodeHostDatabase
 import org.nodehost.store.RoomOperationRepository
@@ -44,7 +43,7 @@ object NodeHostGraph {
         components = Components(
             application, database, operations, runtime, EncryptedEnrollmentRepository(application),
             LibtailscaleHostMesh(application), bootstrap, AndroidEnrollmentPhaseStore(application),
-            recoverySshPort, clock,
+            AndroidArtifactUploadStore(application, clock::epochMillis), recoverySshPort, clock,
         )
     }
 
@@ -105,7 +104,6 @@ object NodeHostGraph {
         return AndroidTlsCredentials.spkiSha256()
     }
 
-    /** Fail-closed local unenrollment: stop reachability before deleting every enrollment authority. */
     suspend fun unenroll() {
         val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
         graph.apiStartJob?.cancel()
@@ -143,6 +141,7 @@ object NodeHostGraph {
                 val address = meshStatus.addresses.firstNotNullOfOrNull { raw -> runCatching { TailnetBindAddress(raw) }.getOrNull() }
                 if (meshStatus.state == org.nodehost.core.HostMeshStatus.State.RUNNING && address != null) {
                     graph.enrollments.clearConsumedOneTimeCredentials()
+                    graph.uploads.recoverAndCollect()
                     val applyRuntime = ApplyRuntimeUseCase(graph.operations, SecureOperationIdFactory())
                     val mutations = AndroidHostMutations(
                         graph.application, graph.database, graph.operations, applyRuntime,
@@ -152,19 +151,20 @@ object NodeHostGraph {
                         serviceScope = scope,
                     ).also(AndroidHostMutations::recoverInterruptedImports)
                     val controller = HostApiController(
-                        authenticator,
-                        AndroidHostResourceQueries(graph.application, graph.database, graph.operations, graph.mesh, graph.clock::epochMillis),
-                        mutations,
-                        applyRuntime,
-                        LoopbackRecoverySshGateway(graph.recoverySshPort),
-                        AcceptedOperationDispatcher {
-                            val reconciler = checkNotNull(graph.reconciler) {
-                                "reconciliation actor is unavailable"
-                            }
-                            check(reconciler.wake(WakeReason.DESIRED_STATE_CHANGED)) {
-                                "reconciliation actor is unavailable"
-                            }
+                        authenticator = authenticator,
+                        queries = ArtifactUploadResourceQueries(
+                            AndroidHostResourceQueries(
+                                graph.application, graph.database, graph.operations, graph.mesh, graph.clock::epochMillis,
+                            )
+                        ),
+                        mutations = mutations,
+                        applyRuntime = applyRuntime,
+                        recoverySsh = LoopbackRecoverySshGateway(graph.recoverySshPort),
+                        acceptedOperationDispatcher = AcceptedOperationDispatcher {
+                            val reconciler = checkNotNull(graph.reconciler) { "reconciliation actor is unavailable" }
+                            check(reconciler.wake(WakeReason.DESIRED_STATE_CHANGED)) { "reconciliation actor is unavailable" }
                         },
+                        artifactUploads = graph.uploads,
                     )
                     val server = HostControlServer(controller, AndroidTlsCredentials.loadOrCreate(address.value))
                     runCatching {
@@ -197,6 +197,7 @@ object NodeHostGraph {
         val mesh: LibtailscaleHostMesh,
         val bootstrap: AndroidGuestBootstrapStore,
         val enrollmentPhases: AndroidEnrollmentPhaseStore,
+        val uploads: AndroidArtifactUploadStore,
         val recoverySshPort: org.nodehost.qemu.RecoverySshHostPort,
         val clock: Clock,
         @Volatile var reconciler: ReconciliationActor? = null,

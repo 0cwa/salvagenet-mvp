@@ -1,8 +1,8 @@
 package org.nodehost.api
 
-import java.net.URI
 import java.util.ArrayDeque
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.nodehost.core.ApplyRuntimeUseCase
 import org.nodehost.core.ControllerAuthenticator
 import org.nodehost.core.ControllerPrincipal
@@ -15,133 +15,6 @@ import org.nodehost.model.VmProfileId
 class HostApiConflictException(message: String) : RuntimeException(message)
 class HostApiRateLimitException(message: String) : RuntimeException(message)
 
-class HostApiController(
-    private val authenticator: ControllerAuthenticator,
-    private val queries: HostResourceQueries,
-    private val mutations: HostMutationUseCases,
-    private val applyRuntime: ApplyRuntimeUseCase,
-    private val recoverySsh: RecoverySshGateway,
-    private val acceptedOperationDispatcher: AcceptedOperationDispatcher = AcceptedOperationDispatcher.UNCONFIGURED,
-    monotonicNanos: () -> Long = System::nanoTime,
-    recoveryMaxStartsPerMinute: Int = RECOVERY_MAX_STARTS_PER_MINUTE,
-) {
-    private val recoveryAdmission = RecoveryAdmission(monotonicNanos, recoveryMaxStartsPerMinute)
-
-    suspend fun authorize(header: String?, method: String, path: String): ControllerPrincipal? =
-        authenticator.authorize(header, method, path)
-
-    suspend fun status() = queries.status()
-    suspend fun capabilities() = queries.capabilities().bounded("capabilities", MAX_CAPABILITIES)
-    suspend fun profiles() = queries.profiles().bounded("profiles", MAX_PROFILES)
-    suspend fun images() = queries.images().bounded("images", MAX_IMAGES)
-    suspend fun vms() = queries.vms().bounded("vms", MAX_VMS).also { values ->
-        require(values.all { it.id == RuntimeId.DEFAULT.value }) { "MVP supports only the default runtime" }
-    }
-    suspend fun vm(id: String) = queries.vm(defaultRuntimeId(id))
-    suspend fun operations() = queries.operations().bounded("operations", MAX_OPERATIONS)
-    suspend fun operation(id: String): OperationRecord? {
-        require(OPERATION_ID.matches(id)) { "invalid operation id" }
-        return queries.operation(id)
-    }
-    suspend fun diagnostics(): HostDiagnostics {
-        val result = queries.diagnostics()
-        require(result.entries.size <= MAX_DIAGNOSTIC_ENTRIES) { "diagnostics exceeded resource bound" }
-        require(result.entries.all { (key, value) ->
-            DIAGNOSTIC_KEY.matches(key) && value.length <= 512 &&
-                SENSITIVE_DIAGNOSTIC_WORDS.none { key.contains(it, ignoreCase = true) }
-        }) { "diagnostics entry exceeded resource or redaction bound" }
-        return result
-    }
-
-    suspend fun importImage(request: ImageImportRequest, key: String, canonical: ByteArray): OperationRecord {
-        validateIdempotencyKey(key)
-        val uri = URI(request.sourceUrl)
-        require(uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.fragment == null) {
-            "sourceUrl must be an HTTPS URL without credentials or fragment"
-        }
-        require(request.sourceUrl.length <= 2048) { "sourceUrl is too long" }
-        require(SHA256.matches(request.sha256)) { "invalid sha256" }
-        require(request.expectedSizeBytes in 1..MAX_IMAGE_BYTES) { "expectedSizeBytes is out of range" }
-        return mutations.importImage(request, key, canonical)
-    }
-
-    suspend fun applyVm(request: ApplyVmRequest, key: String, canonical: ByteArray): OperationRecord {
-        validateIdempotencyKey(key)
-        val spec = request.toRuntimeSpec()
-        return try {
-            applyRuntime.apply(spec, key, canonical).also { acceptedOperationDispatcher.dispatch(it) }
-        } catch (failure: IllegalArgumentException) {
-            val message = failure.message.orEmpty()
-            if (message.startsWith("idempotency key reused") || message.startsWith("generation rejected")) {
-                throw HostApiConflictException(message)
-            }
-            throw failure
-        }
-    }
-
-    suspend fun removeVm(id: String, key: String, canonical: ByteArray): OperationRecord {
-        validateIdempotencyKey(key)
-        return mutations.removeVm(defaultRuntimeId(id), key, canonical)
-            .also { acceptedOperationDispatcher.dispatch(it) }
-    }
-
-    suspend fun cancelOperation(id: String, key: String, canonical: ByteArray): OperationRecord {
-        validateIdempotencyKey(key)
-        require(OPERATION_ID.matches(id)) { "invalid operation id" }
-        return mutations.cancelOperation(id, key, canonical)
-            .also { acceptedOperationDispatcher.dispatch(it) }
-    }
-
-    suspend fun revokeController(id: String, key: String, canonical: ByteArray) {
-        validateIdempotencyKey(key)
-        require(CONTROLLER_ID.matches(id)) { "invalid controller id" }
-        mutations.revokeController(id, key, canonical)
-    }
-
-    suspend fun openRecovery(vmId: String, principal: ControllerPrincipal): RecoverySshSession {
-        val runtimeId = defaultRuntimeId(vmId)
-        val lease = recoveryAdmission.acquire()
-        return try {
-            AdmissionRecoverySshSession(recoverySsh.open(runtimeId, principal), lease)
-        } catch (failure: Throwable) {
-            lease.close()
-            throw failure
-        }
-    }
-
-    private fun defaultRuntimeId(raw: String): RuntimeId {
-        val id = RuntimeId(raw)
-        require(id == RuntimeId.DEFAULT) { "MVP supports only the default runtime" }
-        return id
-    }
-
-    private fun <T> List<T>.bounded(name: String, maximum: Int): List<T> {
-        require(size <= maximum) { "$name exceeded resource bound" }
-        return this
-    }
-
-    private fun validateIdempotencyKey(key: String) {
-        require(key.length in 16..200 && key.all { it.code in 0x21..0x7e }) { "invalid idempotency key" }
-    }
-
-    companion object {
-        const val MAX_REQUEST_BYTES = 1_048_576
-        const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
-        const val MAX_CAPABILITIES = 128
-        const val MAX_PROFILES = 32
-        const val MAX_IMAGES = 128
-        const val MAX_VMS = 1
-        const val MAX_OPERATIONS = 256
-        const val MAX_DIAGNOSTIC_ENTRIES = 128
-        const val RECOVERY_MAX_STARTS_PER_MINUTE = 6
-        val OPERATION_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
-        val CONTROLLER_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
-        val SHA256 = Regex("[a-f0-9]{64}")
-        val DIAGNOSTIC_KEY = Regex("[a-z][a-z0-9_.-]{0,63}")
-        val SENSITIVE_DIAGNOSTIC_WORDS = setOf("authorization", "credential", "password", "secret", "token", "capability")
-    }
-}
-
 data class ApplyVmRequest(
     val id: String,
     val generation: Long,
@@ -151,56 +24,170 @@ data class ApplyVmRequest(
     val vcpus: Int,
     val dataDiskGiB: Int,
     val preserveOnDelete: Boolean,
+)
+
+/** Typed Host API application adapter. It never accepts shell, QMP, or argv fields. */
+class HostApiController(
+    private val authenticator: ControllerAuthenticator,
+    private val queries: HostResourceQueries,
+    private val mutations: HostMutationUseCases,
+    private val applyRuntime: ApplyRuntimeUseCase,
+    private val recoverySsh: RecoverySshGateway,
+    private val acceptedOperationDispatcher: AcceptedOperationDispatcher = AcceptedOperationDispatcher.UNCONFIGURED,
+    private val artifactUploads: ArtifactUploadUseCases = ArtifactUploadUseCases.UNCONFIGURED,
+    private val monotonicNanos: () -> Long = System::nanoTime,
+    private val recoveryMaxStartsPerMinute: Int = RECOVERY_MAX_STARTS_PER_MINUTE,
 ) {
-    fun toRuntimeSpec(): RuntimeSpec {
-        require(RuntimeId(id) == RuntimeId.DEFAULT) { "MVP supports only the default runtime" }
-        return RuntimeSpec(
-            id = RuntimeId.DEFAULT,
-            generation = generation,
-            desiredState = DesiredRuntimeState.valueOf(desiredState.uppercase()),
-            profileId = VmProfileId(profileId),
-            memoryMiB = memoryMiB,
-            vcpus = vcpus,
-            dataDiskGiB = dataDiskGiB,
-            preserveDataOnDelete = preserveOnDelete,
+    private val recoveryLock = Mutex()
+    private val recoveryStarts = ArrayDeque<Long>()
+    private var recoveryActive = false
+
+    init { require(recoveryMaxStartsPerMinute > 0) }
+
+    suspend fun authorize(header: String?, method: String, path: String): ControllerPrincipal? =
+        authenticator.authorize(header, method, path)
+
+    suspend fun status() = queries.status()
+    suspend fun capabilities() = queries.capabilities().take(MAX_CAPABILITIES)
+    suspend fun profiles() = queries.profiles().take(MAX_PROFILES)
+    suspend fun images() = queries.images().take(MAX_IMAGES)
+    suspend fun vms() = queries.vms().take(MAX_VMS)
+    suspend fun vm(id: String): HostVm? = queries.vm(requireDefaultRuntime(id))
+    suspend fun operations() = queries.operations().take(MAX_OPERATIONS)
+    suspend fun operation(id: String): OperationRecord? { validateId(id); return queries.operation(id) }
+    suspend fun diagnostics() = queries.diagnostics()
+
+    suspend fun createArtifactUpload(
+        request: ArtifactUploadCreateRequest,
+        idempotencyKey: String,
+        canonicalRequest: ByteArray,
+    ): HostArtifactUpload {
+        validateKey(idempotencyKey)
+        require(canonicalRequest.isNotEmpty() && canonicalRequest.size <= MAX_REQUEST_BYTES) { "canonical request is out of bounds" }
+        return artifactUploads.createUpload(request, idempotencyKey, canonicalRequest)
+    }
+
+    suspend fun artifactUpload(id: String): HostArtifactUpload? {
+        validateUploadId(id)
+        return artifactUploads.upload(id)
+    }
+
+    suspend fun writeArtifactChunk(id: String, offset: Long, chunkSha256: String, bytes: ByteArray): HostArtifactUpload {
+        validateUploadId(id)
+        require(offset >= 0) { "upload offset must be non-negative" }
+        require(SHA256.matches(chunkSha256)) { "invalid chunk digest" }
+        require(bytes.size in 1..MAX_UPLOAD_CHUNK_BYTES) { "upload chunk size is out of range" }
+        return artifactUploads.writeChunk(id, offset, chunkSha256, bytes)
+    }
+
+    suspend fun completeArtifactUpload(id: String): HostImage {
+        validateUploadId(id)
+        return artifactUploads.completeUpload(id)
+    }
+
+    suspend fun cancelArtifactUpload(id: String): HostArtifactUpload {
+        validateUploadId(id)
+        return artifactUploads.cancelUpload(id)
+    }
+
+    suspend fun importImage(request: ImageImportRequest, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord {
+        validateKey(idempotencyKey)
+        require(request.sourceUrl.startsWith("https://")) { "image source must use HTTPS" }
+        require(SHA256.matches(request.sha256)) { "invalid image digest" }
+        require(request.expectedSizeBytes in 1..MAX_IMAGE_BYTES) { "image size is out of range" }
+        return mutations.importImage(request, idempotencyKey, canonicalRequest)
+    }
+
+    suspend fun applyVm(request: ApplyVmRequest, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord {
+        validateKey(idempotencyKey)
+        val runtimeId = requireDefaultRuntime(request.id)
+        val desired = RuntimeSpec(
+            id = runtimeId,
+            generation = request.generation,
+            desiredState = DesiredRuntimeState.valueOf(request.desiredState.uppercase()),
+            profileId = VmProfileId(request.profileId),
+            memoryMiB = request.memoryMiB,
+            vcpus = request.vcpus,
+            dataDiskGiB = request.dataDiskGiB,
+            preserveDataOnDelete = request.preserveOnDelete,
         )
-    }
-}
-
-private class RecoveryAdmission(
-    private val monotonicNanos: () -> Long,
-    private val maxStartsPerMinute: Int,
-) {
-    private val active = AtomicBoolean(false)
-    private val starts = ArrayDeque<Long>()
-
-    init { require(maxStartsPerMinute in 1..60) }
-
-    fun acquire(): AutoCloseable {
-        val now = monotonicNanos()
-        synchronized(starts) {
-            val cutoff = now - ONE_MINUTE_NANOS
-            while (starts.isNotEmpty() && starts.first() <= cutoff) starts.removeFirst()
-            if (starts.size >= maxStartsPerMinute) throw HostApiRateLimitException("recovery SSH start rate exceeded")
-            if (!active.compareAndSet(false, true)) throw HostApiConflictException("a recovery SSH session is already active")
-            starts.addLast(now)
-        }
-        return AutoCloseable { active.set(false) }
+        val operation = applyRuntime.apply(desired, idempotencyKey, canonicalRequest)
+        acceptedOperationDispatcher.dispatch(operation)
+        return operation
     }
 
-    companion object { private const val ONE_MINUTE_NANOS = 60_000_000_000L }
-}
+    suspend fun removeVm(id: String, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord {
+        validateKey(idempotencyKey)
+        val operation = mutations.removeVm(requireDefaultRuntime(id), idempotencyKey, canonicalRequest)
+        acceptedOperationDispatcher.dispatch(operation)
+        return operation
+    }
 
-private class AdmissionRecoverySshSession(
-    private val delegate: RecoverySshSession,
-    private val lease: AutoCloseable,
-) : RecoverySshSession {
-    private val closed = AtomicBoolean(false)
-    override suspend fun read(maxBytes: Int): ByteArray? = delegate.read(maxBytes)
-    override suspend fun write(bytes: ByteArray) = delegate.write(bytes)
-    override suspend fun close() {
-        if (closed.compareAndSet(false, true)) {
-            try { delegate.close() } finally { lease.close() }
+    suspend fun cancelOperation(id: String, idempotencyKey: String, canonicalRequest: ByteArray): OperationRecord {
+        validateId(id); validateKey(idempotencyKey)
+        val operation = mutations.cancelOperation(id, idempotencyKey, canonicalRequest)
+        acceptedOperationDispatcher.dispatch(operation)
+        return operation
+    }
+
+    suspend fun revokeController(id: String, idempotencyKey: String, canonicalRequest: ByteArray) {
+        validateId(id); validateKey(idempotencyKey)
+        mutations.revokeController(id, idempotencyKey, canonicalRequest)
+    }
+
+    suspend fun openRecovery(vmId: String, principal: ControllerPrincipal): RecoverySshSession {
+        val id = requireDefaultRuntime(vmId)
+        val delegate = recoveryLock.withLock {
+            if (recoveryActive) throw HostApiConflictException("recovery SSH session already active")
+            val now = monotonicNanos()
+            val cutoff = now - RECOVERY_RATE_WINDOW_NANOS
+            while (recoveryStarts.isNotEmpty() && recoveryStarts.first() <= cutoff) recoveryStarts.removeFirst()
+            if (recoveryStarts.size >= recoveryMaxStartsPerMinute) {
+                throw HostApiRateLimitException("recovery SSH session start rate exceeded")
+            }
+            val opened = recoverySsh.open(id, principal)
+            recoveryStarts.addLast(now)
+            recoveryActive = true
+            opened
         }
+        return object : RecoverySshSession {
+            private val closeLock = Mutex()
+            private var closed = false
+            override suspend fun read(maxBytes: Int): ByteArray? = delegate.read(maxBytes)
+            override suspend fun write(bytes: ByteArray) = delegate.write(bytes)
+            override suspend fun close() = closeLock.withLock {
+                if (closed) return@withLock
+                try { delegate.close() } finally {
+                    recoveryLock.withLock { recoveryActive = false }
+                    closed = true
+                }
+            }
+        }
+    }
+
+    private fun requireDefaultRuntime(id: String): RuntimeId {
+        require(RuntimeId(id) == RuntimeId.DEFAULT) { "MVP supports only the default runtime" }
+        return RuntimeId.DEFAULT
+    }
+    private fun validateId(value: String) { require(ID.matches(value)) { "invalid resource identifier" } }
+    private fun validateUploadId(value: String) { require(UPLOAD_ID.matches(value)) { "invalid upload identifier" } }
+    private fun validateKey(value: String) {
+        require(value.length in 16..200 && value.all { it.code in 0x21..0x7e }) { "invalid idempotency key" }
+    }
+
+    companion object {
+        const val MAX_REQUEST_BYTES = 1024 * 1024
+        const val MAX_UPLOAD_CHUNK_BYTES = 1024 * 1024
+        const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
+        const val MAX_CAPABILITIES = 128
+        const val MAX_PROFILES = 32
+        const val MAX_IMAGES = 128
+        const val MAX_VMS = 1
+        const val MAX_OPERATIONS = 256
+        const val RECOVERY_MAX_STARTS_PER_MINUTE = 6
+        const val RECOVERY_RATE_WINDOW_NANOS = 60_000_000_000L
+        val SHA256 = Regex("[a-f0-9]{64}")
+        val UPLOAD_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
+        private val ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
     }
 }

@@ -30,6 +30,17 @@ internal object HostApiJson {
         return request to encode(request).toByteArray(Charsets.UTF_8)
     }
 
+    fun parseArtifactUploadCreate(raw: ByteArray): Pair<ArtifactUploadCreateRequest, ByteArray> {
+        val objectValue = parseObject(raw)
+        objectValue.requireKeys(setOf("artifactId", "sha256", "expectedSizeBytes"))
+        val request = ArtifactUploadCreateRequest(
+            artifactId = objectValue.requiredString("artifactId", 128),
+            sha256 = objectValue.requiredString("sha256", 64),
+            expectedSizeBytes = objectValue.requiredLong("expectedSizeBytes"),
+        )
+        return request to encode(request).toByteArray(Charsets.UTF_8)
+    }
+
     fun parseApplyVm(vmId: String, raw: ByteArray): Pair<ApplyVmRequest, ByteArray> {
         val root = parseObject(raw)
         root.requireKeys(setOf("generation", "desiredState", "profileId", "resources", "dataDisk"))
