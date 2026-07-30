@@ -84,7 +84,7 @@ class QemuProfileResolver {
             require(profile.systemDisk.writableLayer == WritableLayer.SEPARATE_EXT4_OVERLAY)
             require(profile.systemDisk.format == DiskFormat.SQUASHFS && profile.dataDisk != null)
         } else {
-            require(uefi != null && profile.systemDisk.writableLayer == WritableLayer.QCOW2_OVERLAY)
+            require(uefi != null && profile.systemDisk.writableLayer == WritableLayer.COPIED_WRITABLE)
             require(profile.systemDisk.format == DiskFormat.QCOW2)
         }
 

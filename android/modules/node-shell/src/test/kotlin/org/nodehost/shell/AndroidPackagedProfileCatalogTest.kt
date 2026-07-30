@@ -20,7 +20,7 @@ class AndroidPackagedProfileCatalogTest {
         org.nodehost.model.ArtifactRef(id, "0".repeat(64), 1)
     }
 
-    @Test fun allCanonicalProfilesLoadFromPackagedJson() {
+    @Test fun allIndexedProfilesLoadFromPackagedJson() {
         val summaries = catalog.summaries()
         assertEquals(3, summaries.size)
         assertEquals(
@@ -47,9 +47,9 @@ class AndroidPackagedProfileCatalogTest {
         )
     }
 
-    @Test fun k3sInheritanceAndRenderedVendorDataArePackaged() {
+    @Test fun k3sDerivationAndRenderedVendorDataArePackaged() {
         val k3s = catalog.profile(VmProfileId("k3s-worker-lab"), false, placeholderArtifact)
-        assertEquals(VmProfileId("ubuntu-2404-arm64-uefi"), k3s.extends)
+        assertEquals(VmProfileId("ubuntu-2404-arm64-uefi"), k3s.derivedFrom)
         val vendor = catalog.vendorData(k3s.id).toString(Charsets.UTF_8)
         assertTrue(vendor.startsWith("#cloud-config\n"))
         assertFalse(vendor.contains("{{"))

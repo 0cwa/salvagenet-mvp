@@ -15,17 +15,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PROFILE_ROOT = ROOT / "profiles"
 SCHEMA = PROFILE_ROOT / "schema" / "vm-profile.schema.json"
-PROFILE_IDS = (
-    "alpine-direct-qualification",
-    "ubuntu-2404-arm64-uefi",
-    "k3s-worker-lab",
-)
 MAX_PROFILE_BYTES = 64 * 1024
 MAX_VENDOR_BYTES = 128 * 1024
+MAX_PROFILES = 32
 
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def profile_ids() -> tuple[str, ...]:
+    values = tuple(path.parent.name for path in sorted(PROFILE_ROOT.glob("*/profile.json")))
+    if not 1 <= len(values) <= MAX_PROFILES:
+        raise RuntimeError(f"profile registry must contain 1..{MAX_PROFILES} profiles")
+    if len(values) != len(set(values)):
+        raise RuntimeError("profile registry contains duplicate directory names")
+    return values
 
 
 def renderer_module():
@@ -51,7 +56,7 @@ def expected_assets() -> dict[str, bytes]:
     assets: dict[str, bytes] = {}
     index_entries: list[dict[str, object]] = []
     seen_vendor: dict[str, bytes] = {}
-    for profile_id in PROFILE_IDS:
+    for profile_id in profile_ids():
         profile_path = PROFILE_ROOT / profile_id / "profile.json"
         profile_bytes = bounded(profile_path, MAX_PROFILE_BYTES)
         profile = json.loads(profile_bytes)
