@@ -1,32 +1,43 @@
 # Roadmap bootstrap
 
-GitHub Issues are enabled for this repository.
+GitHub Issues are enabled. WEB04 implements the reviewed one-time bootstrap and steady-state projections.
 
-PR #19 defined the roadmap contract without materializing the live issue graph or committing a machine-readable seed. After this phase-transition PR merges, WEB04 is the explicitly authorised task for seed creation/validation, labels, milestones, issues, dependencies, snapshots, and agent commands.
+## Files
 
-## WEB04 implementation sequence
+- `seed.v1.json` — reviewed bootstrap input; historical after live apply.
+- `bootstrap-state.v1.json` — generated exact apply/source/issue map; created by the apply workflow and reviewed in a follow-up PR.
+- `../workflows/roadmap-bootstrap.yml` — explicit dry-run/apply workflow.
+- `../../tools/roadmap/roadmap.py` — validation, GitHub mutation, live graph, status, freshness, and bounded context.
+- `../../tools/roadmap/sync.py` — live/seed projection with reviewed acceptance metadata.
 
-1. Create and review `.github/roadmap/seed.v1.json` from `docs/roadmap/public-roadmap-governance.md`, including milestone/label definitions, visibility, issue-body fields, acceptance IDs, validation, task-packet/context paths, dependencies, and seed state.
-2. Validate the seed against current `main`, `GOAL.md`, `docs/roadmap/podroid-mvp-alignment.md`, current evidence, open debt, open pull requests, and the active phase.
-3. Create or verify the reviewed labels and milestones.
-4. Create the initial roadmap issues with stable hidden IDs.
-5. Materialize the required `<!-- roadmap-id: ... -->` marker for normalized proposals before adding the `roadmap` label.
-6. Add GitHub `blocked by` dependency links.
-7. Validate B01–B20, U01–U04, release-compliance, open-PR, task-packet, and accepted post-MVP direction coverage.
-8. Generate the static public roadmap snapshot.
-9. Generate the compact agent index and bounded per-issue context command.
-10. Add freshness, fallback, stale-data, and partial-graph protections.
-11. Stop treating the bootstrap seed as authoritative once the issue graph exists.
+## Local commands
 
-The roadmap/agent-management foundation is completed before website implementation begins. This ensures website status and roadmap components consume the same reviewed live graph agents use for planning.
+```sh
+make roadmap-validate
+make roadmap-bootstrap-dry-run   # requires GH_TOKEN or GITHUB_TOKEN
+make roadmap-sync               # live when token exists; reviewed fallback otherwise
+make roadmap-status
+make roadmap-check              # requires live token
+make roadmap-context ISSUE=WEB-04
+```
 
-## Seed state versus live state
+## Human-visible apply
 
-The future `seed.v1.json` is reviewed initial bootstrap input. Its `seedState` values describe the planning state at the seed's review point.
+After the implementation PR merges, open an issue with this exact title:
 
-The seed validator is intentionally independent of future `agents/task-dag.json` changes. During bootstrap, the tool re-reads the current DAG, task registry, and pull-request state and applies the current `agent:*`/review state to matching issues. After bootstrap, live issues and the generated steady-state index—not edits to the historical seed—track changing active work.
+```text
+[Roadmap Apply] Bootstrap reviewed graph
+```
 
-An issue-form submission is an unclassified proposal. It does not receive the `roadmap` label automatically. Normalization adds the hidden stable ID and required metadata before the generator can ingest it.
+Its body must contain the exact current default-branch commit:
+
+```text
+expected-main: <40-character-main-sha>
+```
+
+The workflow verifies that identity, applies labels/milestones/issues/dependencies with `issues: write`, reruns without mutation, generates snapshots, and pushes a review branch. The generated state and caches enter `main` only through a normal follow-up PR.
+
+A manual workflow dispatch offers the same dry-run/apply boundary.
 
 ## Truth after bootstrap
 
@@ -37,4 +48,6 @@ acceptance ledger and evidence     validated product claims
 website/agent snapshots            generated caches
 ```
 
-The bootstrap process must be safe to check repeatedly, but it must not overwrite issue bodies, state, dependencies, or planning notes that agents and humans legitimately refined after bootstrap.
+Bootstrap is stable-ID based and idempotent. After the generated state PR merges, reruns verify drift and do not overwrite issue bodies, state, dependencies, or planning notes legitimately refined by people or agents.
+
+Issue-form submissions remain unclassified proposals until a maintainer adds the hidden stable marker, required metadata, milestone, area/kind/visibility labels, and `roadmap` label.
