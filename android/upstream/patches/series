@@ -1,2 +1,6 @@
 # Applied in order to the exact commit in ../podroid.lock.
 0001-compose-salvagenet-workspace.patch
+0002-record-node-composition-and-security.patch
+0003-record-android-api-and-resource-fixes.patch
+0004-record-input-and-test-fixes.patch
+0005-record-podman-build-support.patch
