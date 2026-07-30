@@ -7,7 +7,7 @@
 - `agent/<task-id>-<slug>` — one active task packet in one worktree.
 - `agent/<phase>-realignment` — narrow planning/status correction at a phase boundary.
 
-Completed integration and task branches are historical provenance. Queued or merged packets are not reusable work authorization.
+Completed integration and task branches are historical provenance. Queued, superseded, or merged packets are not reusable work authorization.
 
 ## Start the active phase
 
@@ -16,25 +16,25 @@ make install-hooks
 make dev-plan
 make validate
 make status
-make context TASK=F01
+make context TASK=H02A
 ```
 
-Verify phase entry criteria before creating implementation worktrees. The current `foundation-1` phase has one task, so a multi-worktree wave is unnecessary. Use `make wave` only when a later reviewed phase contains genuinely independent, path-disjoint tasks.
+Verify phase entry criteria before creating implementation worktrees. The current `guest-boot-1` phase has one task, so a multi-worktree wave is unnecessary. Use `make wave` only when a later reviewed phase contains genuinely independent, path-disjoint tasks.
 
 ## Task cycle
 
 ```sh
-make worktree TASK=F01
-cd .worktrees/F01-canonical-artifact-profile-resolution
-make context TASK=F01
-# Read .local/context/F01.md plus applicable AGENTS.md files.
-# Perform the packet's phase-start review before implementation.
-python3 tools/agents/verify-scope.py F01
+make worktree TASK=H02A
+cd .worktrees/H02A-canonical-ubuntu-guest-boot-qualification
+make context TASK=H02A
+# Read .local/context/H02A.md plus applicable AGENTS.md files.
+# Reconfirm the packet's phase-start findings before implementation.
+python3 tools/agents/verify-scope.py H02A
 AGENT_MODEL='<exact runtime-reported model>' \
 AGENT_RUN_ID='<stable runner id>' \
-AGENT_TASK_ID=F01 \
+AGENT_TASK_ID=H02A \
 AGENT_MODE=goal \
-  tools/provenance/commit-agent.sh 'profiles: make packaged JSON authoritative'
+  tools/provenance/commit-agent.sh 'lab: qualify canonical Ubuntu guest boot'
 ```
 
 The task worktree must be clean before handoff. If discovery changes the real scope, update the task packet and phase plan before continuing rather than silently crossing allowed paths.
