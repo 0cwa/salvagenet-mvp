@@ -1,0 +1,12 @@
+GOAL.md
+AGENTS.md
+agents/task-dag.json
+agents/task-registry.json
+docs/roadmap/podroid-mvp-alignment.md
+docs/roadmap/public-roadmap-governance.md
+docs/development/roadmap-agent-workflow.md
+docs/roadmap/acceptance-ledger.md
+docs/roadmap/post-mvp.md
+docs/architecture/debt-register.md
+.github/roadmap/README.md
+website/README.md
