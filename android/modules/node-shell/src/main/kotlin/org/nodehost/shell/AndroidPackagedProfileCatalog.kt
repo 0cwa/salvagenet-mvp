@@ -32,6 +32,15 @@ internal data class PackagedProfileSummary(
     val bootKind: BootKind,
 )
 
+private val PACKAGED_VENDOR_ASSET = Regex("guest-init/[a-z0-9][a-z0-9._/-]{0,255}")
+
+internal fun requirePackagedVendorAssetPath(relative: String) {
+    require(PACKAGED_VENDOR_ASSET.matches(relative)) { "invalid vendor-data asset path" }
+    require(relative.split('/').all { it.isNotEmpty() && it != "." && it != ".." }) {
+        "vendor-data asset path contains a traversal segment"
+    }
+}
+
 /** Reads the three qualified profiles from immutable APK assets and rejects contract drift before side effects. */
 internal class AndroidPackagedProfileCatalog(context: Context) {
     private val assets = context.applicationContext.assets
@@ -169,6 +178,7 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
         val document = documents[profileId.value] ?: error("unsupported profile: ${profileId.value}")
         val initialization = document.getJSONObject("spec").getJSONObject("initialization")
         val relative = initialization.getString("vendorData")
+        requirePackagedVendorAssetPath(relative)
         val bytes = readAsset(assetPath(relative), MAX_VENDOR_DATA_BYTES)
         require(bytes.isNotEmpty()) { "profile vendor data is empty: $relative" }
         if (initialization.getString("type") == "nocloud-net") {
@@ -199,7 +209,7 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
     }
 
     private fun requireVendorAsset(relative: String) {
-        require(VENDOR_ASSET.matches(relative)) { "invalid vendor-data asset path" }
+        requirePackagedVendorAssetPath(relative)
         readAsset(assetPath(relative), MAX_VENDOR_DATA_BYTES)
     }
 
@@ -280,7 +290,6 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
             "ubuntu-2404-arm64-uefi",
             "k3s-worker-lab",
         )
-        val VENDOR_ASSET = Regex("guest-init/[a-z0-9./_-]+")
         val ROOT_FIELDS = setOf("apiVersion", "kind", "metadata", "spec")
         val METADATA_FIELDS = setOf("id", "version")
         val METADATA_FIELDS_WITH_EXTENDS = setOf("id", "version", "extends")
