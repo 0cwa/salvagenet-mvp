@@ -1,87 +1,31 @@
 {
   "schemaVersion": 1,
+  "cycle": "hardware-independent-1",
+  "historicalCycle": "T00-T09 packets remain under agents/tasks for provenance but are not active.",
   "tasks": [
     {
-      "id": "T00",
-      "name": "Import and baseline Podroid",
+      "id": "H01",
+      "name": "Authenticated resumable artifact upload",
       "dependsOn": [],
-      "packet": "agents/tasks/T00/task.md"
+      "packet": "agents/tasks/H01/task.md"
     },
     {
-      "id": "T01",
-      "name": "Domain contracts, schemas, and profiles",
+      "id": "H02",
+      "name": "Host-QEMU and Headscale guest E2E",
       "dependsOn": [],
-      "packet": "agents/tasks/T01/task.md"
+      "packet": "agents/tasks/H02/task.md"
     },
     {
-      "id": "T02",
-      "name": "Podroid-derived QEMU adapter",
-      "dependsOn": [
-        "T00",
-        "T01"
-      ],
-      "packet": "agents/tasks/T02/task.md"
-    },
-    {
-      "id": "T03",
-      "name": "Durable store and NodeSupervisorService",
-      "dependsOn": [
-        "T01"
-      ],
-      "packet": "agents/tasks/T03/task.md"
-    },
-    {
-      "id": "T04",
-      "name": "Headscale lab and guest-init assets",
+      "id": "H03",
+      "name": "Managed-emulator lifecycle suite",
       "dependsOn": [],
-      "packet": "agents/tasks/T04/task.md"
+      "packet": "agents/tasks/H03/task.md"
     },
     {
-      "id": "T05",
-      "name": "Embedded Android host mesh",
-      "dependsOn": [
-        "T00",
-        "T01",
-        "T04"
-      ],
-      "packet": "agents/tasks/T05/task.md"
-    },
-    {
-      "id": "T06",
-      "name": "Typed Host API and MVP CLI",
-      "dependsOn": [
-        "T01"
-      ],
-      "packet": "agents/tasks/T06/task.md"
-    },
-    {
-      "id": "T07",
-      "name": "Vertical Android integration",
-      "dependsOn": [
-        "T02",
-        "T03",
-        "T04",
-        "T05",
-        "T06"
-      ],
-      "packet": "agents/tasks/T07/task.md"
-    },
-    {
-      "id": "T08",
-      "name": "QA, failure injection, and evidence",
-      "dependsOn": [
-        "T07"
-      ],
-      "packet": "agents/tasks/T08/task.md"
-    },
-    {
-      "id": "T09",
-      "name": "USB networking MVP+",
-      "dependsOn": [
-        "T08",
-        "BASE_MVP_PASS"
-      ],
-      "packet": "agents/tasks/T09/task.md"
+      "id": "H04",
+      "name": "Physical evidence automation",
+      "dependsOn": [],
+      "packet": "agents/tasks/H04/task.md"
     }
   ]
 }
