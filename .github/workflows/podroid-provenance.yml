@@ -1,0 +1,32 @@
+name: podroid-provenance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - android/upstream/podroid.lock
+      - tools/vendor/check-podroid-provenance.py
+      - .github/workflows/podroid-provenance.yml
+  pull_request:
+    paths:
+      - android/upstream/podroid.lock
+      - tools/vendor/check-podroid-provenance.py
+      - .github/workflows/podroid-provenance.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: podroid-provenance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify release tag and pinned commit identity
+        run: python3 tools/vendor/check-podroid-provenance.py
