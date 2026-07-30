@@ -6,13 +6,13 @@ Physical Android evidence remains authoritative. Hardware-independent work exist
 
 | Task | State | Repository truth |
 |---|---|---|
-| F01 | **IN_PROGRESS** | Initial canonical profile/manifest implementation passed full CI, but phase-end review found non-Podroid bare files could still bypass active manifests. The fallback is now restricted to three pinned Podroid qualification artifacts; the hardened head is being revalidated. |
+| F01 | **MERGE_READY** | Canonical profile/manifest foundation and verified pre-F01 Ubuntu/AAVMF migration passed the full workflow at head `71a04acedd11221fbefe2c0fa43984141ec11ed4`, run `30543765626`. The final documentation head still requires the same workflow before merge. |
 | H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validated head run `30510377089` was fully green. |
-| H02 | **QUEUED_REVIEW** | Original broad guest QEMU/NoCloud/SSH/Headscale packet is superseded by the Phase 1 exit direction and will be split after F01 merges. |
-| H03 | **QUEUED_REVIEW** | Original broad emulator packet is superseded by the Phase 1 exit direction and will be split after F01 merges. |
+| H02 | **QUEUED_REVIEW** | Original broad guest QEMU/NoCloud/SSH/Headscale packet is superseded. Only guest boot qualification should be activated after F01 merges. |
+| H03 | **QUEUED_REVIEW** | Original broad emulator packet is superseded and remains queued behind an explicit phase-start review. |
 | H04 | **MERGED** | HIL evidence hardening landed at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`. |
 
-Only F01 appears in `agents/task-dag.json`. Queued and completed packets remain in the registry for provenance.
+Only F01 appears in `agents/task-dag.json` until PR #7 merges. Queued and completed packets remain in the registry for provenance.
 
 ## Layered path
 
@@ -30,29 +30,24 @@ Exit evidence:
 
 ### Phase 1 — canonical artifact/profile foundation
 
-**Task:** F01 — post-exit hardening.
+**Task:** F01 — merge ready.
 
 **Purpose:** ensure Linux labs, emulator tests, Android runtime behavior, and uploaded artifacts use the same profile and manifest semantics.
 
-Implemented and previously validated:
+Verified result:
 
 - Android production profile resolution loads strict, bounded packaged JSON rather than duplicated Kotlin definitions.
 - The APK contains byte-for-byte canonical profiles, schema, index, and rendered guest-init assets.
 - Artifact publication, listing, cleanup, installed checks, and runtime consumption use one strict manifest contract.
-- H01, HTTPS importer, QEMU, Android, guest, package, signature, and 16 KiB alignment checks passed on implementation head `a343b3dc283d22fe49bbef3caefb6e05f446f4a8`, Actions run `30533830617`.
+- Steady-state bare-file resolution is limited to the three pinned Podroid qualification artifacts.
+- A complete digest-verified pre-F01 Ubuntu/AAVMF bare bundle migrates once into active manifests; an isolated bare non-Podroid artifact fails closed.
+- H01, HTTPS importer, QEMU, Android, guest, package, signature, 16 KiB alignment, and artifact checks passed at implementation head `71a04acedd11221fbefe2c0fa43984141ec11ed4`, Actions run `30543765626`.
 
-Post-exit correction:
-
-- bare-file plus `.sha256` fallback is limited to `podroid-kernel`, `podroid-initramfs`, and `podroid-alpine-squashfs`;
-- Ubuntu cloud and AAVMF artifacts require valid active manifests;
-- runtime fixtures now use the same manifest contract for non-Podroid artifacts;
-- a regression test proves a bare AAVMF artifact cannot bypass the manifest requirement.
-
-The phase remains open until the hardened final documentation head passes static, JVM, Android/lint, guest, package, canonical asset, signature, alignment, scope, and artifact checks. No physical gate changes in this phase.
+The phase closes only when the final documentation head passes the same workflow and the exact tested head is merged. No physical gate changes in this phase.
 
 ### Phase 2 — deterministic guest boot qualification
 
-Activate only after F01 merges and the new phase packet is reviewed against the merged result.
+Activate only after F01 merges and a new phase packet is reviewed against the merged result.
 
 The sole first active task should cover:
 
