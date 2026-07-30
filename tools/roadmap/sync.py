@@ -3,7 +3,8 @@
 
 The live issue graph owns planning state and dependencies. Acceptance IDs and
 bounded context paths remain reviewed repository metadata; issue closure never
-changes gate status.
+changes gate status. Only transient transport failures may use a recent complete
+snapshot; structural graph errors always fail.
 """
 from __future__ import annotations
 
@@ -13,19 +14,20 @@ import datetime as dt
 import json
 import os
 from pathlib import Path
+import re
 import sys
 
 from commands import normalized_seed
+from live import PR_REFERENCE_RE, RoadmapTransportError, StrictGitHubClient, fetch_validated_live_graph
 from roadmap import (
-    GitHubClient,
     INDEX_PATH,
     RoadmapError,
     SNAPSHOT_PATH,
     derive_snapshot,
-    fetch_live_graph,
     parse_time,
     read_json,
     seed_graph,
+    sha256_json,
     validate_seed,
     write_snapshots,
 )
@@ -41,7 +43,61 @@ def enrich(graph: dict, seed: dict) -> dict:
             item["summary"] = source["summary"]
         if not item.get("taskPacket"):
             item["taskPacket"] = source.get("taskPacket")
+        if "pullRequestNumbers" not in item:
+            source_text = json.dumps(source, sort_keys=True)
+            item["pullRequestNumbers"] = sorted(
+                {int(match.group("number")) for match in PR_REFERENCE_RE.finditer(source_text)}
+            )
+        if "pullRequests" not in item:
+            item["pullRequests"] = [
+                {
+                    "number": number,
+                    "state": "unknown",
+                    "draft": None,
+                    "merged": None,
+                    "mergedAt": None,
+                    "url": None,
+                    "headSha": None,
+                }
+                for number in item["pullRequestNumbers"]
+            ]
     return graph
+
+
+def project_pull_requests(snapshot: dict, index: dict, graph: dict) -> None:
+    graph_items = graph["items"]
+    disagreements = list(snapshot.get("disagreements", []))
+    snapshot_by_id = {item["id"]: item for item in snapshot["items"]}
+
+    for item_id, item in snapshot_by_id.items():
+        pulls = copy.deepcopy(graph_items[item_id].get("pullRequests", []))
+        item["pullRequests"] = pulls
+        if item["workState"] in {"active", "review"} and pulls:
+            if all(pull.get("merged") or pull.get("state") == "closed" for pull in pulls):
+                disagreements.append(
+                    f"{item_id} is {item['workState']} but all linked pull requests are closed or merged"
+                )
+        if item["workState"] == "done" and any(
+            pull.get("state") == "open" and not pull.get("merged") for pull in pulls
+        ):
+            disagreements.append(f"{item_id} is done while a linked pull request remains open")
+
+    normalized = {
+        "repository": snapshot["source"]["repository"],
+        "milestones": snapshot["milestones"],
+        "items": snapshot["items"],
+    }
+    source_hash = sha256_json(normalized)
+    snapshot["source"]["sourceHash"] = source_hash
+    snapshot["disagreements"] = sorted(set(disagreements))
+
+    source_by_id = {item["id"]: item for item in snapshot["items"]}
+    for key in ("active", "ready", "blocked"):
+        for item in index.get(key, []):
+            source = source_by_id[item["id"]]
+            item["pullRequests"] = copy.deepcopy(source["pullRequests"])
+    index["sourceHash"] = source_hash
+    index["disagreements"] = list(snapshot["disagreements"])
 
 
 def recent_committed_fallback(reason: str, max_age_hours: int) -> tuple[dict, dict]:
@@ -63,14 +119,17 @@ def recent_committed_fallback(reason: str, max_age_hours: int) -> tuple[dict, di
 
 
 def live_projection(seed: dict, token: str) -> tuple[dict, dict]:
-    graph = fetch_live_graph(GitHubClient(seed["repository"], token))
+    graph = fetch_validated_live_graph(StrictGitHubClient(seed["repository"], token))
     graph = enrich(graph, seed)
-    return derive_snapshot(graph, fallback=False)
+    snapshot, index = derive_snapshot(graph, fallback=False)
+    project_pull_requests(snapshot, index, graph)
+    return snapshot, index
 
 
 def seed_projection(seed: dict) -> tuple[dict, dict]:
     graph = enrich(seed_graph(seed), seed)
     snapshot, index = derive_snapshot(graph, fallback=True)
+    project_pull_requests(snapshot, index, graph)
     snapshot["source"]["fallbackReason"] = "reviewed pre-bootstrap seed projection"
     return snapshot, index
 
@@ -93,14 +152,16 @@ def main() -> int:
     elif token:
         try:
             snapshot, index = live_projection(seed, token)
-        except Exception as exc:
+        except RoadmapTransportError as exc:
             if args.strict_live or args.check:
-                raise
+                raise RoadmapError(str(exc)) from exc
             snapshot, index = recent_committed_fallback(str(exc), args.max_age_hours)
     elif args.strict_live or args.check:
         raise RoadmapError("GH_TOKEN or GITHUB_TOKEN is required for strict live generation")
     elif SNAPSHOT_PATH.is_file() and INDEX_PATH.is_file():
-        snapshot, index = recent_committed_fallback("live fetch not requested because no token is available", args.max_age_hours)
+        snapshot, index = recent_committed_fallback(
+            "live fetch not requested because no token is available", args.max_age_hours
+        )
     else:
         snapshot, index = seed_projection(seed)
 
@@ -121,15 +182,24 @@ def main() -> int:
 
     if args.write:
         write_snapshots(snapshot, index)
-    print(json.dumps({
-        "snapshot": str(SNAPSHOT_PATH.relative_to(Path.cwd())) if SNAPSHOT_PATH.is_relative_to(Path.cwd()) else str(SNAPSHOT_PATH),
-        "index": str(INDEX_PATH.relative_to(Path.cwd())) if INDEX_PATH.is_relative_to(Path.cwd()) else str(INDEX_PATH),
-        "sourceHash": snapshot["source"]["sourceHash"],
-        "fallback": snapshot["source"].get("fallback", False),
-        "fallbackReason": snapshot["source"].get("fallbackReason"),
-        "items": len(snapshot["items"]),
-        "disagreements": snapshot["disagreements"],
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "snapshot": str(SNAPSHOT_PATH.relative_to(Path.cwd()))
+                if SNAPSHOT_PATH.is_relative_to(Path.cwd())
+                else str(SNAPSHOT_PATH),
+                "index": str(INDEX_PATH.relative_to(Path.cwd()))
+                if INDEX_PATH.is_relative_to(Path.cwd())
+                else str(INDEX_PATH),
+                "sourceHash": snapshot["source"]["sourceHash"],
+                "fallback": snapshot["source"].get("fallback", False),
+                "fallbackReason": snapshot["source"].get("fallbackReason"),
+                "items": len(snapshot["items"]),
+                "disagreements": snapshot["disagreements"],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
