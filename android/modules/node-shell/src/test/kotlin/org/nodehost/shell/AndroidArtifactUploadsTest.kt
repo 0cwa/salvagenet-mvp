@@ -23,10 +23,10 @@ class AndroidArtifactUploadsTest {
     private var now = 1_000L
     private var idCounter = 0
 
-    @Before fun cleanBefore() = clean()
-    @After fun cleanAfter() = clean()
+    @Before fun cleanBefore(): Unit = clean()
+    @After fun cleanAfter(): Unit = clean()
 
-    @Test fun createIsIdempotentAndSurvivesAdapterRecreation() = runBlocking {
+    @Test fun createIsIdempotentAndSurvivesAdapterRecreation(): Unit = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val request = ArtifactUploadCreateRequest("ubuntu-test", sha256(bytes), bytes.size.toLong())
         val store = store()
@@ -40,7 +40,7 @@ class AndroidArtifactUploadsTest {
         }
     }
 
-    @Test fun sequentialChunksReplayAndPublishAtomically() = runBlocking {
+    @Test fun sequentialChunksReplayAndPublishAtomically(): Unit = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val request = ArtifactUploadCreateRequest("ubuntu-test", sha256(bytes), bytes.size.toLong())
         val store = store()
@@ -67,7 +67,7 @@ class AndroidArtifactUploadsTest {
         assertEquals(true, manifest.isFile)
     }
 
-    @Test fun recoveryTruncatesBytesNotCommittedInMetadata() = runBlocking {
+    @Test fun recoveryTruncatesBytesNotCommittedInMetadata(): Unit = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val request = ArtifactUploadCreateRequest("ubuntu-test", sha256(bytes), bytes.size.toLong())
         val store = store()
@@ -80,7 +80,7 @@ class AndroidArtifactUploadsTest {
         assertEquals(4L, payload.length())
     }
 
-    @Test fun recoveryFinishesStalePayloadMovedBeforeManifestPublication() = runBlocking {
+    @Test fun recoveryFinishesStalePayloadMovedBeforeManifestPublication(): Unit = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val request = ArtifactUploadCreateRequest("ubuntu-test", sha256(bytes), bytes.size.toLong())
         val store = store()
@@ -101,7 +101,7 @@ class AndroidArtifactUploadsTest {
         assertEquals(request.sha256, manifest.getString("sha256"))
     }
 
-    @Test fun staleAndCancelledRecordsDoNotConsumeOpenUploadCapacity() = runBlocking {
+    @Test fun staleAndCancelledRecordsDoNotConsumeOpenUploadCapacity(): Unit = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val request = ArtifactUploadCreateRequest("ubuntu-test", sha256(bytes), bytes.size.toLong())
         val store = store()
@@ -124,7 +124,7 @@ class AndroidArtifactUploadsTest {
         assertNotEquals(fresh.id, restarted.id)
     }
 
-    @Test fun persistedMetadataVersionFailsClosed() = runBlocking {
+    @Test fun persistedMetadataVersionFailsClosed(): Unit = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val request = ArtifactUploadCreateRequest("ubuntu-test", sha256(bytes), bytes.size.toLong())
         val upload = store().createUpload(request, "idempotency-key-005", "request-five".toByteArray())
@@ -136,7 +136,7 @@ class AndroidArtifactUploadsTest {
         }
     }
 
-    @Test fun activeManifestWithUnknownFieldsIsNotTrusted() = runBlocking {
+    @Test fun activeManifestWithUnknownFieldsIsNotTrusted(): Unit = runBlocking {
         val bytes = "abcdefgh".toByteArray()
         val digest = sha256(bytes)
         val payload = File(context.filesDir, "nodehost-artifacts/versions/ubuntu-test/$digest/payload")
