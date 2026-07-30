@@ -77,6 +77,7 @@ Stable IDs below become hidden issue markers. Issue numbers are assigned during 
 | `FND-03` | One evidence-bound HIL runner owns physical-device scenarios and records exact device, commit, and APK identity. | Done |
 | `FND-04` | Podroid upstream source, downstream patches, packaging hooks, and updates are deterministic and reviewable. | Done |
 | `FND-05` | Phase/task tooling enforces one authorised phase and an explicit clean-break unreleased-alpha compatibility policy. | Done |
+| `FND-06` | Supervised device work uses serial-specific leases, expiring scenario authorisation, diagnostic/candidate evidence classes, clean-tree promotion rules, and exact-input records. | In review |
 
 ### M0.5 — Public project surface
 
@@ -137,9 +138,10 @@ The roadmap/agent-management foundation intentionally precedes website implement
 | `PLAT-02` | QEMU, launcher, libslirp, kernel, initramfs, and profile artifacts are built from pinned source with project-owned provenance. | `RELEASE-01` |
 | `PLAT-03` | A Rust controller core and Slint desktop application replace the Python test client without changing host contracts. | `RELEASE-01`, `WEB-00` |
 | `PLAT-04` | Linux, SBC, and WSL hosts implement the same host API and operation semantics through a Rust service. | `RELEASE-01`, `PLAT-03` |
-| `PLAT-05` | Additional ARM64 profiles pass the same contract and a real K3s worker joins, drains, leaves, and recovers under an external control plane. | `RELEASE-01`, `REL-03` |
+| `PLAT-15` | Guest class, immutable image identity, image-source provider, and distro-family bootstrap adapter are separated and proved by concrete families without exposing raw QEMU or host configuration. | `RELEASE-01` |
+| `PLAT-05` | Additional ARM64 profiles pass the same guest-class contract and a real K3s worker joins, drains, leaves, and recovers under an external control plane. | `PLAT-15`, `REL-03` |
 | `PLAT-06` | Nebula or another structurally different mesh adapter validates the host-mesh port. | `RELEASE-01`, `REL-03` |
-| `PLAT-07` | TUF metadata and digest-addressed OCI/ORAS transport protect project artifact distribution. | `RELEASE-01`, `REL-06` |
+| `PLAT-07` | TUF metadata and digest-addressed OCI/ORAS transport protect normalized bootable artifact distribution. | `PLAT-15`, `REL-06` |
 | `PLAT-08` | Multiple VM instances have isolated paths, identities, disks, operations, and measured admission. | `REL-05`, `PLAT-01` |
 | `PLAT-09` | The MVP controller-capability adapter is replaced by reviewed mTLS/principal authorization with bounded multi-controller recovery and revocation. | `RELEASE-01` |
 | `PLAT-10` | Docker/Swarm reference provisioning joins, drains, leaves, replaces, and recovers a phone worker without moving orchestrator state into the Host API. | `RELEASE-01`, `REL-03` |
@@ -168,6 +170,7 @@ Every direction currently named in `docs/roadmap/post-mvp.md` is represented exp
 | TUF and OCI/ORAS distribution | `PLAT-07` |
 | Strong QEMU isolation and arbitrary-image threat model | `PLAT-01` |
 | Multiple VMs | `PLAT-08` |
+| Guest-class/image/source separation | `PLAT-15` |
 | Additional Linux profiles and real K3s worker | `PLAT-05` |
 | Docker/Swarm reference provisioning | `PLAT-10` |
 | Device Owner and patched Android tiers | `PLAT-11` |
@@ -186,14 +189,15 @@ The roadmap is complete only when all of the following hold:
 2. every active task packet maps to exactly one roadmap issue;
 3. every accepted post-MVP direction is represented or explicitly declined with a reason;
 4. every release-blocking open debt item is represented or explicitly dispositioned;
-5. every roadmap issue has one milestone, one area, one kind, and one visibility label;
-6. the dependency graph is acyclic and all dependencies point to roadmap issues;
-7. no issue labelled `agent:active` has an unresolved dependency;
-8. `agents/task-dag.json` contains only the current authorised phase;
-9. public summaries do not claim validation that the acceptance ledger does not support;
-10. the generated snapshot records source time, source hash, and fallback state;
-11. queued issues are re-evaluated before each new phase instead of being activated automatically;
-12. the current critical path and deferred scope remain aligned with `GOAL.md` and `podroid-mvp-alignment.md`.
+5. every open implementation or governance PR maps to a roadmap issue or is explicitly closed/superseded before bootstrap;
+6. every roadmap issue has one milestone, one area, one kind, and one visibility label;
+7. the dependency graph is acyclic and all dependencies point to roadmap issues;
+8. no issue labelled `agent:active` has an unresolved dependency;
+9. `agents/task-dag.json` contains only the current authorised phase;
+10. public summaries do not claim validation that the acceptance ledger does not support;
+11. the generated snapshot records source time, source hash, and fallback state;
+12. queued issues are re-evaluated before each new phase instead of being activated automatically;
+13. the current critical path and deferred scope remain aligned with `GOAL.md` and `podroid-mvp-alignment.md`.
 
 ## Phase-boundary replanning
 
@@ -201,7 +205,7 @@ Agents are expected to reshape the roadmap when evidence changes the best path.
 
 At the end of each development phase and before the next phase begins:
 
-1. refresh the issue graph, acceptance status, open debt, and exact current `main`;
+1. refresh the issue graph, pull requests, acceptance status, open debt, and exact current `main`;
 2. inspect the completed result, unresolved uncertainty, and current critical path;
 3. compare the proposed next work with `GOAL.md` and `podroid-mvp-alignment.md`;
 4. verify that each queued issue is still necessary and correctly scoped;
@@ -219,7 +223,7 @@ A replan may change issue structure. It may not silently weaken `GOAL.md`, an ac
 
 The initial issue inventory is bootstrapped from a reviewed seed so labels, milestones, stable IDs, issue bodies, and dependency links are created consistently.
 
-Before bootstrap, review the seed against current `main`; the issue graph must reflect merged work and current authorization rather than the historical state at which the seed was first drafted.
+Before bootstrap, review the seed against current `main`; the issue graph must reflect merged work, open PRs, and current authorization rather than the historical state at which the seed was first drafted.
 
 After bootstrap:
 
