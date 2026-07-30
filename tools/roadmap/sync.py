@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import sys
 
+from commands import normalized_seed
 from roadmap import (
     GitHubClient,
     INDEX_PATH,
@@ -20,7 +21,6 @@ from roadmap import (
     SNAPSHOT_PATH,
     derive_snapshot,
     fetch_live_graph,
-    load_seed,
     seed_graph,
     validate_seed,
     write_snapshots,
@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument("--strict-live", action="store_true")
     args = parser.parse_args()
 
-    seed = load_seed()
+    seed = normalized_seed()
     validate_seed(seed)
     graph = seed_graph(seed)
     fallback = True
