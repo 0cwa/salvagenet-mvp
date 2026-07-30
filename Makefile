@@ -2,6 +2,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 TASK ?=
+ISSUE ?=
 HIL_CONFIG ?= .local/hil.json
 HIL_BUILD ?= 0
 HIL_ARGS = --config $(HIL_CONFIG)
@@ -12,6 +13,7 @@ endif
 .PHONY: help install-go doctor validate import-podroid wire-podroid podroid-import podroid-update podroid-verify podroid-diff context lab-up lab-down lab-keys lab-status \
         integration-worktree test-jvm test-android test-guest test-static test-emulator device-facts goal-preflight install-hooks \
         provenance-report wave worktree integrate status mvp-status dev-plan dev-check dev-full new-task \
+        roadmap-validate roadmap-status roadmap-sync roadmap-check roadmap-context roadmap-bootstrap-dry-run \
         hil-doctor hil-smoke hil-mvp hil-resilience hil-all emulator-install emulator-start emulator-stop \
         qemu-lab-prepare qemu-lab-start qemu-lab-smoke qemu-lab-e2e qemu-lab-stop package
 
@@ -29,6 +31,12 @@ help:
 	  'podroid-verify  reproduce vendored Podroid from upstream + patches' \
 	  'podroid-diff    show uncaptured Podroid downstream changes' \
 	  'context TASK=H01 build a scoped context packet' \
+	  'roadmap-validate validate the reviewed bootstrap seed' \
+	  'roadmap-status show compact active/ready/blocked roadmap state' \
+	  'roadmap-sync   refresh snapshots from live GitHub or recent fallback' \
+	  'roadmap-check  compare the committed snapshot with live GitHub' \
+	  'roadmap-context ISSUE=WEB-04 build one bounded issue context pack' \
+	  'roadmap-bootstrap-dry-run plan labels/milestones/issues/dependencies' \
 	  'integration-worktree create the active-cycle integration worktree' \
 	  'worktree TASK=H01 create one task branch/worktree' \
 	  'integrate TASK=H01 verify and merge one task into integration' \
@@ -103,6 +111,28 @@ wire-podroid:
 context:
 	@test -n "$(TASK)" || (echo 'usage: make context TASK=H01' >&2; exit 2)
 	@python3 tools/agents/context-pack.py "$(TASK)"
+
+roadmap-validate:
+	@python3 tools/roadmap/roadmap.py validate-seed
+
+roadmap-status:
+	@test -f website/data/roadmap.snapshot.v1.json || python3 tools/roadmap/sync.py --seed-only --write >/dev/null
+	@python3 tools/roadmap/roadmap.py status
+
+roadmap-sync:
+	@python3 tools/roadmap/sync.py --write
+
+roadmap-check:
+	@python3 tools/roadmap/roadmap.py check
+
+roadmap-context:
+	@test -n "$(ISSUE)" || (echo 'usage: make roadmap-context ISSUE=WEB-04' >&2; exit 2)
+	@test -f website/data/roadmap.snapshot.v1.json || python3 tools/roadmap/sync.py --seed-only --write >/dev/null
+	@mkdir -p .agent-context/roadmap
+	@python3 tools/roadmap/roadmap.py context "$(ISSUE)" --output ".agent-context/roadmap/$(ISSUE).md"
+
+roadmap-bootstrap-dry-run:
+	@python3 tools/roadmap/roadmap.py bootstrap
 
 integration-worktree:
 	@tools/agents/create-integration-worktree.sh
