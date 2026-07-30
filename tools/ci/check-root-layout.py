@@ -20,6 +20,7 @@ ALLOWED_ROOT_DIRECTORIES = {
     "tools",
 }
 
+# The Git index is authoritative. Filesystem-only directories can be created by checkout tooling.
 tracked = subprocess.run(
     ["git", "ls-files", "-z"],
     cwd=ROOT,
