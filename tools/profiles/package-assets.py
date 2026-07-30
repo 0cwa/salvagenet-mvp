@@ -110,20 +110,6 @@ def prepare(output_dir: Path) -> None:
             target = staging / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)
-        marker = staging / ".prepared.json"
-        marker.write_text(
-            json.dumps(
-                {
-                    "schemaVersion": 1,
-                    "assetCount": len(assets),
-                    "assetDigests": {path: sha256_bytes(content) for path, content in sorted(assets.items())},
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
         old = output_dir.with_name(output_dir.name + ".old")
         if old.exists():
             shutil.rmtree(old)
