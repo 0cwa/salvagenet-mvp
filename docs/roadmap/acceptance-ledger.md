@@ -36,4 +36,4 @@ Status values: `TODO`, `IN-PROGRESS`, `PASS`, `FAIL`, `BLOCKED-HARDWARE`, `DEFER
 | U04 | Disconnect falls back to SLIRP | DEFERRED | [record](../../evidence/gates/U04.json) |
 <!-- MVP-PLUS-END -->
 
-Only T08/integration ownership updates base statuses. The gate script requires all B-items `PASS` before executable changes under `usb-link/` are allowed.
+Gate status changes require a reviewed evidence record that satisfies the criterion and evidence schema; no historical task owns status updates. Physical records should be promoted from the single HIL runner through the validated evidence tooling. The gate script requires every B-item to be PASS before executable changes under `usb-link/` are allowed.

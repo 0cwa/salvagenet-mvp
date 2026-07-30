@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the task DAG, packet completeness, and parallel path ownership."""
-
+"""Validate active-phase metadata, packet completeness, dependencies, and path ownership."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,9 +7,18 @@ import fnmatch
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 DAG = json.loads((ROOT / "agents/task-dag.json").read_text(encoding="utf-8"))
+REGISTRY = json.loads((ROOT / "agents/task-registry.json").read_text(encoding="utf-8"))
+SPECIAL_DEPENDENCIES = {"BASE_MVP_PASS"}
+ACTIVE_STATUSES = {"PLANNED", "IN_PROGRESS", "MERGE_READY"}
+REQUIRED_PACKET_HEADINGS = (
+    "## Status",
+    "## Phase-start review",
+    "## Acceptance criteria",
+    "## Phase-end verification",
+    "## Handoff",
+)
 
 
 @dataclass(frozen=True)
@@ -39,13 +47,7 @@ def read_patterns(task_id: str) -> list[str]:
 
 
 def patterns_overlap(left: OwnedPattern, right: OwnedPattern) -> bool:
-    """Conservatively identify overlapping ownership patterns.
-
-    Task paths are repository-relative and intentionally simple. Prefix checks
-    catch broad-tree overlaps; fnmatch catches exact-file/glob combinations.
-    False positives are preferable to overnight write conflicts.
-    """
-
+    """Conservatively identify overlapping ownership patterns."""
     if left.pattern == right.pattern:
         return True
     if fnmatch.fnmatch(left.static_prefix, right.pattern):
@@ -61,20 +63,57 @@ def patterns_overlap(left: OwnedPattern, right: OwnedPattern) -> bool:
     ) or right_prefix.startswith(left_prefix)
 
 
+def validate_phase() -> None:
+    phase = DAG.get("phase")
+    assert isinstance(phase, dict), "active DAG must declare one phase"
+    assert isinstance(phase.get("id"), str) and phase["id"], "phase id is required"
+    assert isinstance(phase.get("objective"), str) and phase["objective"], "phase objective is required"
+    for key in ("entryCriteria", "exitCriteria"):
+        values = phase.get(key)
+        assert isinstance(values, list) and values, f"phase {key} must be non-empty"
+        assert all(isinstance(value, str) and value.strip() for value in values), (
+            f"phase {key} entries must be non-empty strings"
+        )
+
+
 def main() -> int:
+    validate_phase()
     tasks = DAG["tasks"]
     ids = {task["id"] for task in tasks}
-    assert len(ids) == len(tasks), "duplicate task ID"
+    assert len(ids) == len(tasks), "duplicate active task ID"
+    assert tasks, "active phase must contain at least one task"
+
+    registry_tasks = REGISTRY["tasks"]
+    registry_by_id = {task["id"]: task for task in registry_tasks}
+    assert len(registry_by_id) == len(registry_tasks), "duplicate registry task ID"
+    cycle_status = REGISTRY.get("cycleStatus", {})
 
     for task in tasks:
-        unknown = set(task["dependsOn"]) - {"BASE_MVP_PASS"} - ids
-        assert not unknown, f"{task['id']} has unknown dependencies: {sorted(unknown)}"
-        packet = ROOT / "agents/tasks" / task["id"]
-        for name in ("task.md", "context.list", "allowed-paths.txt", "README.md"):
-            assert (packet / name).is_file(), f"{task['id']} missing {name}"
-        assert read_patterns(task["id"]), f"{task['id']} has no allowed paths"
+        task_id = task["id"]
+        assert task_id in registry_by_id, f"active task missing from registry: {task_id}"
+        status = registry_by_id[task_id].get("status") or cycle_status.get(task_id)
+        assert status in ACTIVE_STATUSES, f"active task {task_id} has inactive status: {status}"
+        assert cycle_status.get(task_id) == status, f"registry status disagreement for {task_id}"
 
-    # Cycle check, ignoring the virtual acceptance gate.
+        unknown = set(task["dependsOn"]) - SPECIAL_DEPENDENCIES - set(registry_by_id)
+        assert not unknown, f"{task_id} has unknown dependencies: {sorted(unknown)}"
+        blocked = [
+            dependency
+            for dependency in task["dependsOn"]
+            if dependency not in SPECIAL_DEPENDENCIES
+            and dependency not in ids
+            and (registry_by_id[dependency].get("status") or cycle_status.get(dependency)) != "MERGED"
+        ]
+        assert not blocked, f"{task_id} depends on inactive, unmerged tasks: {sorted(blocked)}"
+
+        packet = ROOT / "agents/tasks" / task_id
+        for name in ("task.md", "context.list", "allowed-paths.txt", "README.md"):
+            assert (packet / name).is_file(), f"{task_id} missing {name}"
+        assert read_patterns(task_id), f"{task_id} has no allowed paths"
+        task_text = (packet / "task.md").read_text(encoding="utf-8")
+        for heading in REQUIRED_PACKET_HEADINGS:
+            assert heading in task_text, f"{task_id} missing packet heading: {heading}"
+
     visiting: set[str] = set()
     done: set[str] = set()
     by_id = {task["id"]: task for task in tasks}
@@ -93,7 +132,6 @@ def main() -> int:
     for task_id in sorted(ids):
         visit(task_id)
 
-    # Parallel tasks must not own overlapping write paths.
     groups: dict[int, list[dict[str, object]]] = {}
     for task in tasks:
         groups.setdefault(int(task["parallelGroup"]), []).append(task)
@@ -110,7 +148,7 @@ def main() -> int:
                             f"{right.task_id}:{right.pattern}"
                         )
 
-    print("task DAG and parallel path ownership OK")
+    print("active phase, task status, dependencies, and path ownership OK")
     return 0
 
 

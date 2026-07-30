@@ -1,3 +1,5 @@
-# H03
+# H03 — managed-emulator lifecycle suite
 
-Active hardware-independent cycle packet. Generate context with `make context TASK=H03`.
+Status: **QUEUED FOR PHASE-START REVIEW**.
+
+This is not an active packet and must not authorize implementation yet. After F01 merges, compare unit-test coverage with the remaining physical lifecycle ambiguity and decide whether emulator infrastructure and lifecycle scenarios should be separate tasks.

@@ -1,18 +1,57 @@
 {
   "schemaVersion": 1,
-  "cycle": "hardware-independent-1",
-  "historicalCycle": "T00-T09 packets remain under agents/tasks for provenance but are not active.",
+  "cycle": "foundation-1",
+  "historicalCycles": [
+    "T00-T09 initial implementation packets",
+    "hardware-independent-1"
+  ],
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
-    "H01": "MERGE_READY",
-    "H02": "PLANNED",
-    "H03": "PLANNED",
+    "F01": "PLANNED",
+    "H01": "MERGED",
+    "H02": "QUEUED_REVIEW",
+    "H03": "QUEUED_REVIEW",
     "H04": "MERGED"
   },
   "tasks": [
-    {"id":"H01","name":"Authenticated resumable artifact upload","dependsOn":[],"packet":"agents/tasks/H01/task.md"},
-    {"id":"H02","name":"Host-QEMU and Headscale guest E2E","dependsOn":[],"packet":"agents/tasks/H02/task.md"},
-    {"id":"H03","name":"Managed-emulator lifecycle suite","dependsOn":[],"packet":"agents/tasks/H03/task.md"},
-    {"id":"H04","name":"HIL evidence hardening","dependsOn":[],"packet":"agents/tasks/H04/task.md"}
+    {
+      "id": "F01",
+      "name": "Canonical artifact and profile resolution",
+      "dependsOn": [],
+      "packet": "agents/tasks/F01/task.md",
+      "status": "PLANNED"
+    },
+    {
+      "id": "H01",
+      "name": "Authenticated resumable artifact upload",
+      "dependsOn": [],
+      "packet": "agents/tasks/H01/task.md",
+      "status": "MERGED",
+      "mergeCommit": "60d0394e25cc84f8ea0dcc39f62a349c17171b2b",
+      "validatedHead": "839f3638a4ee31e601d7f0c093596acc799c5b57",
+      "validationRun": "30510377089"
+    },
+    {
+      "id": "H02",
+      "name": "Host-QEMU and Headscale guest E2E",
+      "dependsOn": ["F01"],
+      "packet": "agents/tasks/H02/task.md",
+      "status": "QUEUED_REVIEW"
+    },
+    {
+      "id": "H03",
+      "name": "Managed-emulator lifecycle suite",
+      "dependsOn": ["F01"],
+      "packet": "agents/tasks/H03/task.md",
+      "status": "QUEUED_REVIEW"
+    },
+    {
+      "id": "H04",
+      "name": "HIL evidence hardening",
+      "dependsOn": [],
+      "packet": "agents/tasks/H04/task.md",
+      "status": "MERGED",
+      "mergeCommit": "1f127ef8b5fcf04762a0cc4dd15f8313df23839e"
+    }
   ]
 }

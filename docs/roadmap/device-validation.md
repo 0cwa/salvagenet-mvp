@@ -1,6 +1,17 @@
-# Small hardware-validation cycle
+# Small hardware-validation path
 
-The software candidate is implemented. The fastest route to a validated MVP is one Linux workstation, one dedicated ARM64 phone, the existing Headscale lab, and the `tests/hil/` runner. Do not create a device farm or testing daemon before these scenarios demonstrate the need.
+The repository is a software-qualified device-lab candidate. The fastest physical route remains one Linux workstation, one dedicated ARM64 phone, the existing Headscale lab, and the single `tests/hil/` runner. Do not create a device farm or testing daemon before repeated scenarios demonstrate the need.
+
+## Relationship to implementation phases
+
+Physical validation is not one final waterfall step:
+
+- run the smallest useful scenario during a phase when a device is available;
+- treat a run as diagnostic when later foundational/runtime work changes the tested APK semantics;
+- record unavailable checks honestly at phase end;
+- re-run the full gate-relevant sequence against one exact final candidate before the MVP seal.
+
+F01 changes production profile/artifact resolution, so an HIL run during F01 may expose a mismatch but must not be reused as the final B10–B12 evidence without a final-candidate rerun.
 
 ## H0 — consolidated physical path
 
@@ -12,39 +23,42 @@ make lab-up
 make hil-doctor
 ```
 
-## H1 — QEMU smoke
+## H1 — device substrate smoke
 
 ```sh
 make hil-smoke HIL_BUILD=1
 ```
 
-This closes the physical part of B02 only when the exact APK starts the Alpine qualification profile, reaches real QMP-backed runtime readiness, has exactly one QEMU process, stops it, and restarts exactly one process. Do not normalize more Podroid arguments until H1 passes.
+This supports B02 only when the exact APK starts the Alpine qualification profile, reaches real QMP-backed runtime readiness, has exactly one QEMU process, stops it, and restarts exactly one process. During a profile/runtime-changing phase, record the result as diagnostic and rerun on the final candidate.
 
-## H2 — useful MVP path
+## H2 — useful guest vertical slice
 
 ```sh
 make hil-mvp
 ```
 
-This exercises host Headscale identity, authenticated Host API, bounded image import or verified images, Ubuntu UEFI, distinct guest identity, ordinary key-only SSH, guest-mesh failure, and host-mediated recovery SSH. It is the evidence path for B08–B13.
+This exercises host Headscale identity, authenticated Host API, bounded artifact upload/import, Ubuntu UEFI, distinct guest identity, ordinary key-only SSH, guest-mesh failure, and host-mediated recovery SSH. It is the physical evidence path for B08–B13.
 
-## H3 — resilience
+Before promoting B10–B12, confirm the evidence identifies the exact packaged profile and artifact manifest/digest used by the APK rather than only a similarly named lab profile.
+
+## H3 — durability and independence
 
 ```sh
 make hil-resilience
 ```
 
-This exercises service restart, QEMU child death/reconciliation, and a controller-silent interval. Reboot is opt-in; a skipped reboot cannot close B16. The controller-silent smoke assertion demonstrates that desired state is not lease-driven, but B17 still requires evidence appropriate to the claimed duration and actual controller/network unavailability. H04 defines that distinction explicitly.
+This exercises service restart, QEMU child death/reconciliation, and a controller-silent interval. Reboot is opt-in; a skipped reboot cannot close B16. The controller-silent smoke demonstrates that desired state is not lease-driven, but B17 requires evidence appropriate to the claimed duration and actual controller/network unavailability.
 
 ## MVP seal
 
-After H1–H3 pass on one exact CI-built APK:
+After the relevant foundations and fixes have landed, run H1–H3 on one exact green CI-built APK:
 
-1. promote reviewed run evidence into `evidence/gates/`;
-2. regenerate status with `make mvp-status`;
-3. rerun automated suites;
-4. title the release **MVP** only when every B01–B20 item is `PASS`;
-5. only then allow USB/AOA MVP+ work.
+1. verify all phase acceptance/exit criteria that affect the candidate;
+2. promote reviewed run evidence into `evidence/gates/`;
+3. regenerate status with `make mvp-status`;
+4. rerun automated suites;
+5. title the release MVP only when every B01–B20 item is PASS;
+6. only then activate USB/AOA MVP+ work.
 
 ## Deliberately deferred lab infrastructure
 
