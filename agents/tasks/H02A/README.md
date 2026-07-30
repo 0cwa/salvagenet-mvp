@@ -1,6 +1,8 @@
 # H02A — Canonical Ubuntu guest boot qualification
 
-Status: **PLANNED** and the sole active task in phase `guest-boot-1` after the transition PR merges.
+Status: **QUEUED FOR REACTIVATION — not active work.** The task was reviewed and ready, but is paused for the bounded WEB04 roadmap/agent foundation selected before website implementation.
+
+Do not implement from this packet until a post-WEB04 phase-start review restores H02A to `agents/task-dag.json`.
 
 ```sh
 make context TASK=H02A
