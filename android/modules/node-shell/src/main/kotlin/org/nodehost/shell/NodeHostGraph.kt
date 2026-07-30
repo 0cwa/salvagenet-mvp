@@ -13,7 +13,6 @@ import org.nodehost.api.HostApiController
 import org.nodehost.api.HostControlServer
 import org.nodehost.core.ApplyRuntimeUseCase
 import org.nodehost.core.Clock
-import org.nodehost.core.RuntimeBackend
 import org.nodehost.mesh.LibtailscaleHostMesh
 import org.nodehost.store.NodeHostDatabase
 import org.nodehost.store.RoomOperationRepository
@@ -41,10 +40,24 @@ object NodeHostGraph {
             beginBootToken = bootstrap::beginBoot,
             recoveryPort = recoverySshPort,
         )
+        val artifactPublications = ArtifactPublicationCoordinator()
         components = Components(
-            application, database, operations, runtime, EncryptedEnrollmentRepository(application),
-            LibtailscaleHostMesh(application), bootstrap, AndroidEnrollmentPhaseStore(application),
-            recoverySshPort, clock,
+            application,
+            database,
+            operations,
+            runtime,
+            EncryptedEnrollmentRepository(application),
+            LibtailscaleHostMesh(application),
+            bootstrap,
+            AndroidEnrollmentPhaseStore(application),
+            AndroidArtifactUploadStore(
+                application,
+                clock::epochMillis,
+                publicationCoordinator = artifactPublications,
+            ),
+            artifactPublications,
+            recoverySshPort,
+            clock,
         )
     }
 
@@ -81,7 +94,10 @@ object NodeHostGraph {
     ): InstalledNode {
         val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
         val installed = enrollmentInstaller(graph).install(
-            rawEnrollment, rawGuestBootstrapSecret, idempotencyKey, approvedIssuerSpkiSha256,
+            rawEnrollment,
+            rawGuestBootstrapSecret,
+            idempotencyKey,
+            approvedIssuerSpkiSha256,
         )
         startApi(graph, installed.controllerAuthenticator)
         return installed
@@ -99,7 +115,9 @@ object NodeHostGraph {
 
     suspend fun prepareDeviceTlsTrust(): String {
         val graph = checkNotNull(components) { "NodeHostGraph is not initialized" }
-        val address = graph.mesh.status().addresses.firstNotNullOfOrNull { runCatching { TailnetBindAddress(it) }.getOrNull() }
+        val address = graph.mesh.status().addresses.firstNotNullOfOrNull {
+            runCatching { TailnetBindAddress(it) }.getOrNull()
+        }
         requireNotNull(address) { "tailnet address is not ready" }
         AndroidTlsCredentials.loadOrCreate(address.value)
         return AndroidTlsCredentials.spkiSha256()
@@ -136,28 +154,48 @@ object NodeHostGraph {
             repeat(API_START_ATTEMPTS) { attempt ->
                 runCatching { enrollmentInstaller(graph).recoverOnStartup() }
                     .onFailure {
-                        val classification = (it as? EnrollmentRecoveryException)?.classification ?: it::class.java.simpleName
+                        val classification = (it as? EnrollmentRecoveryException)?.classification
+                            ?: it::class.java.simpleName
                         Log.w(TAG, "Enrollment recovery attempt ${attempt + 1} failed class=$classification")
                     }
                 val meshStatus = graph.mesh.status()
-                val address = meshStatus.addresses.firstNotNullOfOrNull { raw -> runCatching { TailnetBindAddress(raw) }.getOrNull() }
+                val address = meshStatus.addresses.firstNotNullOfOrNull { raw ->
+                    runCatching { TailnetBindAddress(raw) }.getOrNull()
+                }
                 if (meshStatus.state == org.nodehost.core.HostMeshStatus.State.RUNNING && address != null) {
                     graph.enrollments.clearConsumedOneTimeCredentials()
+                    graph.uploads.recoverAndCollect()
                     val applyRuntime = ApplyRuntimeUseCase(graph.operations, SecureOperationIdFactory())
                     val mutations = AndroidHostMutations(
-                        graph.application, graph.database, graph.operations, applyRuntime,
+                        graph.application,
+                        graph.database,
+                        graph.operations,
+                        applyRuntime,
                         enrolledRepositoryOrigin = {
-                            URI(requireNotNull(graph.enrollments.load()) { "enrollment authority unavailable" }.artifacts.repositoryUrl)
+                            URI(
+                                requireNotNull(graph.enrollments.load()) {
+                                    "enrollment authority unavailable"
+                                }.artifacts.repositoryUrl
+                            )
                         },
                         serviceScope = scope,
+                        artifactPublicationCoordinator = graph.artifactPublications,
                     ).also(AndroidHostMutations::recoverInterruptedImports)
                     val controller = HostApiController(
-                        authenticator,
-                        AndroidHostResourceQueries(graph.application, graph.database, graph.operations, graph.mesh, graph.clock::epochMillis),
-                        mutations,
-                        applyRuntime,
-                        LoopbackRecoverySshGateway(graph.recoverySshPort),
-                        AcceptedOperationDispatcher {
+                        authenticator = authenticator,
+                        queries = ArtifactUploadResourceQueries(
+                            AndroidHostResourceQueries(
+                                graph.application,
+                                graph.database,
+                                graph.operations,
+                                graph.mesh,
+                                graph.clock::epochMillis,
+                            )
+                        ),
+                        mutations = mutations,
+                        applyRuntime = applyRuntime,
+                        recoverySsh = LoopbackRecoverySshGateway(graph.recoverySshPort),
+                        acceptedOperationDispatcher = AcceptedOperationDispatcher {
                             val reconciler = checkNotNull(graph.reconciler) {
                                 "reconciliation actor is unavailable"
                             }
@@ -165,6 +203,7 @@ object NodeHostGraph {
                                 "reconciliation actor is unavailable"
                             }
                         },
+                        artifactUploads = graph.uploads,
                     )
                     val server = HostControlServer(controller, AndroidTlsCredentials.loadOrCreate(address.value))
                     runCatching {
@@ -180,7 +219,9 @@ object NodeHostGraph {
                         graph.apiServer = server
                         Log.i(TAG, "Host API started on tailnet address port=$API_PORT")
                         return@launch
-                    }.onFailure { Log.w(TAG, "Host API start attempt ${attempt + 1} failed class=${it::class.java.simpleName}") }
+                    }.onFailure {
+                        Log.w(TAG, "Host API start attempt ${attempt + 1} failed class=${it::class.java.simpleName}")
+                    }
                 }
                 delay(API_RETRY_MILLIS)
             }
@@ -197,6 +238,8 @@ object NodeHostGraph {
         val mesh: LibtailscaleHostMesh,
         val bootstrap: AndroidGuestBootstrapStore,
         val enrollmentPhases: AndroidEnrollmentPhaseStore,
+        val uploads: AndroidArtifactUploadStore,
+        val artifactPublications: ArtifactPublicationCoordinator,
         val recoverySshPort: org.nodehost.qemu.RecoverySshHostPort,
         val clock: Clock,
         @Volatile var reconciler: ReconciliationActor? = null,
@@ -206,11 +249,16 @@ object NodeHostGraph {
     )
 
     private fun enrollmentInstaller(graph: Components) = EnrollmentInstaller(
-        graph.enrollments, graph.operations, graph.mesh, graph.bootstrap,
+        graph.enrollments,
+        graph.operations,
+        graph.mesh,
+        graph.bootstrap,
         wakeReconciler = { graph.reconciler?.wake(WakeReason.DESIRED_STATE_CHANGED) },
         clock = graph.clock,
         phaseStore = graph.enrollmentPhases,
-        isControllerRevoked = { ControllerRevocations.isRevoked(graph.database.openHelper.readableDatabase, it) },
+        isControllerRevoked = {
+            ControllerRevocations.isRevoked(graph.database.openHelper.readableDatabase, it)
+        },
     )
 
     private const val TAG = "NodeHostSupervisor"

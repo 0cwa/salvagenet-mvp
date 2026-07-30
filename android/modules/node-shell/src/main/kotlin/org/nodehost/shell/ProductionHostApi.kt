@@ -140,6 +140,7 @@ internal class AndroidHostMutations(
     private val serviceScope: CoroutineScope? = null,
     private val addressResolver: (String) -> List<InetAddress> = { InetAddress.getAllByName(it).toList() },
     private val beforePublicationClaim: suspend (OperationId) -> Unit = {},
+    private val artifactPublicationCoordinator: ArtifactPublicationCoordinator = ArtifactPublicationCoordinator(),
 ) : HostMutationUseCases {
     private val artifacts = File(context.filesDir, "nodehost-artifacts")
     private val pendingImports = File(context.filesDir, "nodehost-imports")
@@ -406,25 +407,35 @@ internal class AndroidHostMutations(
         }
         if (!claimed) return false
         // PREPARING_DISKS is the durable non-cancellable publication claim. Cancellation can no longer win.
-        val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
-        val versionDirectory = requireNotNull(versionPayload.parentFile)
-        check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
-        java.nio.file.Files.move(
-            temporary.toPath(), versionPayload.toPath(),
-            java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-        )
-        val manifest = File(artifacts, "$imageId.manifest.json")
-        val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
-        try {
-            val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
-                .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
-            FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
-            java.nio.file.Files.move(
-                manifestTemporary.toPath(), manifest.toPath(),
-                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-            )
-        } finally { manifestTemporary.delete() }
-        return true
+        return artifactPublicationCoordinator.serialized {
+            val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
+            val versionDirectory = requireNotNull(versionPayload.parentFile)
+            check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
+            if (versionPayload.exists()) {
+                check(versionPayload.isFile && versionPayload.length() == request.expectedSizeBytes) {
+                    "digest-addressed payload has inconsistent size"
+                }
+                check(sha256(versionPayload) == request.sha256) {
+                    "digest-addressed payload has inconsistent digest"
+                }
+            } else {
+                java.nio.file.Files.move(
+                    temporary.toPath(), versionPayload.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                )
+            }
+            val manifest = File(artifacts, "$imageId.manifest.json")
+            val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
+            try {
+                val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
+                    .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
+                FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
+                java.nio.file.Files.move(
+                    manifestTemporary.toPath(), manifest.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                )
+            } finally { manifestTemporary.delete() }
+            true
+        }
     }
 
     internal fun cleanupInterruptedPublications() {
@@ -454,7 +465,8 @@ internal class AndroidHostMutations(
         val payload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
         if (!manifest.isFile || manifest.length() !in 1..MAX_MANIFEST_BYTES || !payload.isFile || payload.length() != request.expectedSizeBytes) return false
         val value = runCatching { JSONObject(manifest.readText()) }.getOrNull() ?: return false
-        if (value.optInt("version") != 1 || value.optString("sha256") != request.sha256 ||
+        if (value.keys().asSequence().toSet() != MANIFEST_KEYS ||
+            value.optInt("version") != 1 || value.optString("sha256") != request.sha256 ||
             value.optLong("sizeBytes") != request.expectedSizeBytes ||
             value.optString("relativePath") != "versions/$imageId/${request.sha256}/payload"
         ) return false
@@ -558,6 +570,7 @@ internal class AndroidHostMutations(
         const val MAX_PENDING_IMPORTS = 16
         const val MAX_PENDING_FILE_BYTES = 4096L
         val PAYLOAD_PATH = Regex("versions/([a-z0-9][a-z0-9.-]{0,127})/([a-f0-9]{64})/payload")
+        val MANIFEST_KEYS = setOf("version", "sha256", "sizeBytes", "relativePath")
         const val MAX_ARTIFACT_FILES = 512
         const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
         const val ARTIFACT_QUOTA_BYTES = 96L * 1024 * 1024 * 1024

@@ -22,6 +22,7 @@ class HostApiController(
     private val applyRuntime: ApplyRuntimeUseCase,
     private val recoverySsh: RecoverySshGateway,
     private val acceptedOperationDispatcher: AcceptedOperationDispatcher = AcceptedOperationDispatcher.UNCONFIGURED,
+    private val artifactUploads: ArtifactUploadUseCases = ArtifactUploadUseCases.UNCONFIGURED,
     monotonicNanos: () -> Long = System::nanoTime,
     recoveryMaxStartsPerMinute: Int = RECOVERY_MAX_STARTS_PER_MINUTE,
 ) {
@@ -51,6 +52,46 @@ class HostApiController(
                 SENSITIVE_DIAGNOSTIC_WORDS.none { key.contains(it, ignoreCase = true) }
         }) { "diagnostics entry exceeded resource or redaction bound" }
         return result
+    }
+
+    suspend fun createArtifactUpload(
+        request: ArtifactUploadCreateRequest,
+        idempotencyKey: String,
+        canonicalRequest: ByteArray,
+    ): HostArtifactUpload {
+        validateIdempotencyKey(idempotencyKey)
+        require(canonicalRequest.isNotEmpty() && canonicalRequest.size <= MAX_REQUEST_BYTES) {
+            "canonical upload request is out of bounds"
+        }
+        return artifactUploads.createUpload(request, idempotencyKey, canonicalRequest)
+    }
+
+    suspend fun artifactUpload(id: String): HostArtifactUpload? {
+        require(UPLOAD_ID.matches(id)) { "invalid upload id" }
+        return artifactUploads.upload(id)
+    }
+
+    suspend fun writeArtifactChunk(
+        id: String,
+        offset: Long,
+        chunkSha256: String,
+        bytes: ByteArray,
+    ): HostArtifactUpload {
+        require(UPLOAD_ID.matches(id)) { "invalid upload id" }
+        require(offset >= 0) { "upload offset must be non-negative" }
+        require(SHA256.matches(chunkSha256)) { "invalid chunk sha256" }
+        require(bytes.size in 1..MAX_UPLOAD_CHUNK_BYTES) { "upload chunk size is out of range" }
+        return artifactUploads.writeChunk(id, offset, chunkSha256, bytes)
+    }
+
+    suspend fun completeArtifactUpload(id: String): HostImage {
+        require(UPLOAD_ID.matches(id)) { "invalid upload id" }
+        return artifactUploads.completeUpload(id)
+    }
+
+    suspend fun cancelArtifactUpload(id: String): HostArtifactUpload {
+        require(UPLOAD_ID.matches(id)) { "invalid upload id" }
+        return artifactUploads.cancelUpload(id)
     }
 
     suspend fun importImage(request: ImageImportRequest, key: String, canonical: ByteArray): OperationRecord {
@@ -126,6 +167,7 @@ class HostApiController(
 
     companion object {
         const val MAX_REQUEST_BYTES = 1_048_576
+        const val MAX_UPLOAD_CHUNK_BYTES = 1_048_576
         const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
         const val MAX_CAPABILITIES = 128
         const val MAX_PROFILES = 32
@@ -136,6 +178,7 @@ class HostApiController(
         const val RECOVERY_MAX_STARTS_PER_MINUTE = 6
         val OPERATION_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
         val CONTROLLER_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
+        val UPLOAD_ID = Regex("upload-[a-f0-9]{32}")
         val SHA256 = Regex("[a-f0-9]{64}")
         val DIAGNOSTIC_KEY = Regex("[a-z][a-z0-9_.-]{0,63}")
         val SENSITIVE_DIAGNOSTIC_WORDS = setOf("authorization", "credential", "password", "secret", "token", "capability")

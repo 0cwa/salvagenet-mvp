@@ -65,7 +65,6 @@ class HostControlServer(
         require(port in 1..65535) { "invalid API port" }
         check(server == null) { "Host API already started" }
         server = embeddedServer(CIO, configure = {
-            // Bounds idle connections before an application route receives a request.
             connectionIdleTimeoutSeconds = REQUEST_CONNECTION_IDLE_TIMEOUT_SECONDS
             sslConnector(
                 keyStore = tls.keyStore,
@@ -84,6 +83,9 @@ class HostControlServer(
                 exception<IllegalArgumentException> { call, cause ->
                     call.problem(HttpStatusCode.BadRequest, "INVALID_REQUEST", cause.message ?: "invalid request")
                 }
+                exception<NoSuchElementException> { call, _ ->
+                    call.problem(HttpStatusCode.NotFound, "NOT_FOUND", "resource not found")
+                }
                 exception<HostApiRateLimitException> { call, cause ->
                     call.problem(HttpStatusCode.TooManyRequests, "RATE_LIMITED", cause.message ?: "rate limited")
                 }
@@ -91,7 +93,6 @@ class HostControlServer(
                     call.problem(HttpStatusCode.RequestTimeout, "REQUEST_TIMEOUT", "request body timed out")
                 }
                 exception<Throwable> { call, _ ->
-                    // Deliberately omit exception detail: it can contain adapter or credential data.
                     call.problem(HttpStatusCode.InternalServerError, "INTERNAL_ERROR", "request failed")
                 }
             }
@@ -109,6 +110,49 @@ class HostControlServer(
                             HttpStatusCode.Accepted,
                         )
                     }
+                }
+                post("/v1/artifact-uploads") {
+                    authenticated {
+                        val (request, canonical) = HostApiJson.parseArtifactUploadCreate(call.boundedBody())
+                        call.json(
+                            controller.createArtifactUpload(request, call.idempotencyKey(), canonical),
+                            HttpStatusCode.Created,
+                        )
+                    }
+                }
+                get("/v1/artifact-uploads/{id}") {
+                    authenticated {
+                        val value = controller.artifactUpload(call.pathParameter("id"))
+                        if (value == null) call.problem(HttpStatusCode.NotFound, "NOT_FOUND", "upload not found")
+                        else call.json(value)
+                    }
+                }
+                put("/v1/artifact-uploads/{id}/chunks/{offset}") {
+                    authenticated {
+                        val mediaType = call.request.header("Content-Type")
+                            ?.substringBefore(';')?.trim()?.lowercase()
+                        require(mediaType == "application/octet-stream") {
+                            "upload chunks require application/octet-stream"
+                        }
+                        val digest = call.request.header("Content-SHA256")
+                            ?: throw IllegalArgumentException("Content-SHA256 is required")
+                        val offset = call.pathParameter("offset").toLongOrNull()
+                            ?: throw IllegalArgumentException("upload offset must be an integer")
+                        call.json(
+                            controller.writeArtifactChunk(
+                                call.pathParameter("id"),
+                                offset,
+                                digest,
+                                call.boundedBody(HostApiController.MAX_UPLOAD_CHUNK_BYTES),
+                            )
+                        )
+                    }
+                }
+                post("/v1/artifact-uploads/{id}/complete") {
+                    authenticated { call.json(controller.completeArtifactUpload(call.pathParameter("id"))) }
+                }
+                delete("/v1/artifact-uploads/{id}") {
+                    authenticated { call.json(controller.cancelArtifactUpload(call.pathParameter("id"))) }
                 }
                 get("/v1/vms") { authenticated { call.json(controller.vms()) } }
                 get("/v1/vms/{id}") {
@@ -208,7 +252,6 @@ class HostControlServer(
                                                 }
                                             }
                                             try {
-                                                // EOF, failure, or cancellation in either direction tears down the whole tunnel.
                                                 select<Unit> {
                                                     inbound.onJoin { }
                                                     outbound.onJoin { }
@@ -245,12 +288,16 @@ class HostControlServer(
             call.request.httpMethod.value,
             call.request.path(),
         )
-        if (principal == null) call.problem(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "authentication required")
-        else block(principal)
+        if (principal == null) {
+            call.problem(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "authentication required")
+        } else {
+            block(principal)
+        }
     }
 
-    private suspend fun io.ktor.server.routing.RoutingContext.authenticated(block: suspend () -> Unit) =
-        authenticatedPrincipal { block() }
+    private suspend fun io.ktor.server.routing.RoutingContext.authenticated(
+        block: suspend () -> Unit,
+    ) = authenticatedPrincipal { block() }
 
     companion object {
         const val RECOVERY_CHUNK_BYTES = 64 * 1024
@@ -296,14 +343,14 @@ internal class RecoveryByteBudget(private val maximumBytes: Long) {
 
 internal class HostApiRequestTimeoutException : RuntimeException("request body timed out")
 
-private suspend fun ApplicationCall.boundedBody(): ByteArray {
+private suspend fun ApplicationCall.boundedBody(
+    maximumBytes: Int = HostApiController.MAX_REQUEST_BYTES,
+): ByteArray {
     val declared = request.header("Content-Length")?.toLongOrNull()
-    require(declared == null || declared in 0..HostApiController.MAX_REQUEST_BYTES.toLong()) {
-        "request body is too large"
-    }
+    require(declared == null || declared in 0..maximumBytes.toLong()) { "request body is too large" }
     return readBoundedBody(
         receive = { receiveChannel() },
-        maximumBytes = HostApiController.MAX_REQUEST_BYTES,
+        maximumBytes = maximumBytes,
         idleTimeoutMillis = HostControlServer.REQUEST_BODY_IDLE_TIMEOUT_MILLIS,
         overallTimeoutMillis = HostControlServer.REQUEST_BODY_OVERALL_TIMEOUT_MILLIS,
     )
@@ -326,53 +373,61 @@ internal suspend fun readBoundedBody(
             channel = receive()
             val output = java.io.ByteArrayOutputStream(minOf(maximumBytes, BODY_CHUNK_BYTES))
             val buffer = ByteArray(BODY_CHUNK_BYTES)
-            while (true) {
+            var complete = false
+            while (!complete) {
                 val count = withTimeoutOrNull(idleTimeoutMillis) {
                     var read: Int
                     do {
                         read = channel!!.readAvailable(buffer)
-                        if (read == 0) yield() // A zero read made no progress; do not spin.
+                        if (read == 0) yield()
                     } while (read == 0)
                     read
                 } ?: throw HostApiRequestTimeoutException()
-                if (count == -1) return@withTimeoutOrNull output.toByteArray()
-                require(output.size() <= maximumBytes - count) { "request body is too large" }
-                output.write(buffer, 0, count)
+                if (count == -1) {
+                    complete = true
+                } else {
+                    require(output.size() <= maximumBytes - count) { "request body is too large" }
+                    output.write(buffer, 0, count)
+                }
             }
-            error("unreachable")
+            output.toByteArray()
+        } ?: throw HostApiRequestTimeoutException()
+        return body
+    } catch (failure: Throwable) {
+        if (failure is CancellationException || channel?.isClosedForRead == false) {
+            channel?.cancel(failure)
         }
-        return body ?: throw HostApiRequestTimeoutException()
-    } catch (cause: HostApiRequestTimeoutException) {
-        channel?.cancel(cause)
-        throw cause
-    } catch (cause: CancellationException) {
-        channel?.cancel(cause)
-        throw cause
-    } catch (cause: Throwable) {
-        channel?.cancel(cause)
-        throw cause
+        throw failure
     }
 }
 
-private const val BODY_CHUNK_BYTES = 8 * 1024
+private suspend fun ApplicationCall.json(value: Any?, status: HttpStatusCode = HttpStatusCode.OK) =
+    respondText(HostApiJson.encode(value), ContentType.Application.Json, status)
+
+private suspend fun ApplicationCall.problem(
+    status: HttpStatusCode,
+    code: String,
+    detail: String,
+) = respondText(
+    HostApiJson.encode(
+        linkedMapOf(
+            "type" to "urn:nodehost:problem:${code.lowercase()}",
+            "title" to code.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase),
+            "status" to status.value,
+            "detail" to detail.take(512),
+            "code" to code,
+        )
+    ),
+    ContentType.parse("application/problem+json"),
+    status,
+)
 
 private fun ApplicationCall.pathParameter(name: String): String =
-    parameters[name] ?: throw IllegalArgumentException("missing $name")
+    parameters[name]?.takeIf { it.isNotBlank() }
+        ?: throw IllegalArgumentException("missing path parameter: $name")
 
 private fun ApplicationCall.idempotencyKey(): String =
-    request.header("Idempotency-Key") ?: throw IllegalArgumentException("Idempotency-Key is required")
+    request.header("Idempotency-Key")
+        ?: throw IllegalArgumentException("Idempotency-Key is required")
 
-private suspend fun ApplicationCall.json(value: Any?, status: HttpStatusCode = HttpStatusCode.OK) {
-    respondText(HostApiJson.encode(value), ContentType.Application.Json, status)
-}
-
-private suspend fun ApplicationCall.problem(status: HttpStatusCode, code: String, detail: String) {
-    val value = mapOf(
-        "type" to "https://nodehost.invalid/problems/${code.lowercase()}",
-        "title" to status.description,
-        "status" to status.value,
-        "detail" to detail.take(512),
-        "code" to code,
-    )
-    respondText(HostApiJson.encode(value), ContentType.Application.ProblemJson, status)
-}
+private const val BODY_CHUNK_BYTES = 16 * 1024
