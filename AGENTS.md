@@ -21,6 +21,7 @@
 ## Development rules
 
 - This is a modular monolith. Keep each change inside the task's allowed paths unless the task explicitly grants integration ownership.
+- Root-level directories are an allowlisted context boundary. Do not add a root for future work or a README-only placeholder; keep deferred designs under `docs/` until an active task creates executable code in an owning root.
 - The domain/application center must not import Android, QEMU, Tailscale, Ktor, Room, Headscale, or Podroid types.
 - Prefer new code in `android/modules/` beside Podroid. Modify `android/podroid/` only for a narrow composition/packaging hook or an explicitly assigned migration.
 - Preserve Podroid's executable-in-`nativeLibraryDir` QEMU launch, dedicated spawn/reap thread, launcher lifetime behavior, Unix sockets, and diagnostic learnings until physical acceptance proves a replacement.
@@ -43,6 +44,8 @@
 
 - `tests/hil/` is the sole physical-device scenario implementation. Existing `tests/device/` and `tests/e2e/` scripts are compatibility wrappers.
 - Use only the exact ADB serial in `.local/hil.json`; never auto-select the first connected phone.
+- Every mutating scenario must hold the serial-specific local lease and pass non-expired scenario/action authorization before installing, killing, rebooting, or isolating connectivity.
+- HIL defaults to diagnostic mode. Only a clean candidate-mode run may be reviewed for gate promotion, and final evidence still binds one exact candidate commit/APK.
 - Changes under `runtime-qemu` should run `hil-smoke` when an authorized configured phone is available.
 - Changes under `mesh-tailscale`, `control-api`, profiles, artifact consumption, or guest bootstrap should run `hil-mvp` when the phase reaches physical validation.
 - Changes to supervisor lifecycle, persistence, or reconciliation should run `hil-resilience`.
@@ -55,7 +58,7 @@
 - Run the smallest relevant test first, then the task packet's required checks.
 - Before handing off a registered task, run `python3 tools/agents/verify-scope.py <TASK>`.
 - Report tests that could not run, especially physical-device, VPN-permission, reboot, storage-pressure, or root-authorized checks.
-- Physical evidence must identify the source commit, APK digest, configured device facts, scenario, commands, and assertions.
+- Physical evidence must identify source mode/cleanliness, source commit, APK digest, configured device facts, profile/image identities, desired state, scenario, commands, and assertions.
 
 ## Git and provenance
 
