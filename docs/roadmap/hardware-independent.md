@@ -9,7 +9,7 @@ Physical Android evidence remains authoritative. Hardware-independent work exist
 | F01 | **MERGED** | Canonical packaged profiles and the strict active artifact-manifest contract landed at `246d551ca7e691a0319a4b30e29d6e4905cd9910`. Final head `31dcd75199928b7887132a1429392266388c0b60` passed Actions run `30549498423`. |
 | H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validated head run `30510377089` was fully green. |
 | H02 | **SUPERSEDED** | The combined guest boot and guest mesh packet mixed separate failure domains and was split into H02A and H02B. |
-| H02A | **PLANNED** | Sole active task: canonical Ubuntu UEFI/QMP, NoCloud, loopback SSH, restart, and secret-hygiene qualification on host QEMU. |
+| H02A | **ACTIVE** | Sole active task: canonical Ubuntu UEFI/QMP, NoCloud, loopback SSH, restart, and secret-hygiene qualification on host QEMU. |
 | H02B | **QUEUED_REVIEW** | Guest Headscale identity, tailnet SSH, coordination interruption, and recovery. Requires H02A to pass. |
 | H03 | **QUEUED_REVIEW** | Emulator infrastructure and lifecycle scenarios remain queued for a later value/cost review. |
 | H04 | **MERGED** | HIL evidence hardening landed at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`. |
