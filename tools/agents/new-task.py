@@ -3,7 +3,7 @@
 from __future__ import annotations
 import argparse, json, re
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[2]; ID=re.compile(r'^[A-Z][0-9]{2}$'); SLUG=re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
+ROOT=Path(__file__).resolve().parents[2]; ID=re.compile(r'^[A-Z][0-9]{2}$'); SLUG=re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$'); SPECIAL_DEPENDENCIES={'BASE_MVP_PASS'}
 def load(path:Path): return json.loads(path.read_text())
 def dump(path:Path,data): path.write_text(json.dumps(data,indent=2)+'\n')
 def build(args):
@@ -19,7 +19,7 @@ def build(args):
     if len(args.context)>12: raise ValueError('context list may contain at most 12 paths')
     dag=load(ROOT/'agents/task-dag.json'); registry=load(ROOT/'agents/task-registry.json'); ids={item['id'] for item in dag['tasks']}
     if task in ids or (ROOT/'agents/tasks'/task).exists(): raise ValueError(f'task already exists: {task}')
-    unknown=set(args.depends_on)-ids
+    unknown=set(args.depends_on)-ids-SPECIAL_DEPENDENCIES
     if unknown: raise ValueError(f'unknown dependencies: {sorted(unknown)}')
     dag['tasks'].append({'id':task,'slug':args.slug,'dependsOn':args.depends_on,'parallelGroup':args.group,'mvpPlus':args.mvp_plus}); registry['tasks'].append({'id':task,'name':args.name,'dependsOn':args.depends_on,'packet':f'agents/tasks/{task}/task.md'})
     acceptance='\n'.join(f'- {item}' for item in args.acceptance)
