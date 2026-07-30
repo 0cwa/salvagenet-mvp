@@ -1,11 +1,11 @@
-# F01 — canonical artifact and profile resolution
+# F01 — Canonical artifact and profile resolution
 
-Status: **PLANNED** and the sole active task in phase `foundation-1`.
+Status: **IN PROGRESS** on `agent/F01-canonical-artifact-profile-resolution`.
 
-Generate the scoped context with:
+Generate scoped context with:
 
 ```sh
 make context TASK=F01
 ```
 
-Read `task.md` before implementation. Its phase-start review and phase-end verification are mandatory. H02 and H03 are queued hypotheses, not active work, until F01 is merged and the next phase is explicitly re-evaluated.
+Phase-start review and implementation findings are recorded in `docs/research/experiments/F01.md`. The branch is not merge-ready until every task and phase exit criterion passes on the exact reviewed head. H02 and H03 remain queued hypotheses.
