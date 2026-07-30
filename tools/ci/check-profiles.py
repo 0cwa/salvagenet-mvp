@@ -63,6 +63,10 @@ def enforce_production_boundaries() -> None:
     assert "when (id.value)" not in storage, "runtime storage must not branch into profile mirrors"
     assert "AndroidPackagedProfileCatalog" in storage, "runtime must use the packaged profile catalog"
 
+    catalog = (SHELL_MAIN / "AndroidPackagedProfileCatalog.kt").read_text(encoding="utf-8")
+    assert 'index.json' in catalog, "Android profile loading must consume the packaged registry index"
+    assert "EXPECTED_PROFILE_IDS" not in catalog, "Android must not duplicate the packaged profile registry"
+
     manifest_adapter = SHELL_MAIN / "ArtifactManifest.kt"
     assert manifest_adapter.is_file(), "shared artifact manifest adapter is missing"
     direct_manifest_literals = []
@@ -70,7 +74,7 @@ def enforce_production_boundaries() -> None:
         if path == manifest_adapter:
             continue
         text = path.read_text(encoding="utf-8")
-        if '.manifest.json"' in text or 'MANIFEST_KEYS' in text or 'MANIFEST_VERSION' in text:
+        if '.manifest.json"' in text or "MANIFEST_KEYS" in text or "MANIFEST_VERSION" in text:
             direct_manifest_literals.append(path.name)
     assert not direct_manifest_literals, (
         "active artifact manifests must be interpreted only by ArtifactManifestStore: "
@@ -108,14 +112,15 @@ def main() -> None:
     assert alpine["spec"]["initialization"]["type"] == "legacy-podroid"
     assert ubuntu["spec"]["boot"]["type"] == "uefi"
     assert ubuntu["spec"]["initialization"]["type"] == "nocloud-net"
+    assert ubuntu["spec"]["systemDisk"]["writableLayer"] == "copied-writable"
     assert {
         "uefi", "virtio-block", "virtio-net", "serial-console", "cloud-init", "openssh"
     } <= set(ubuntu["spec"]["requirements"]["qualificationChecks"])
 
-    assert k3s["metadata"]["extends"] == "ubuntu-2404-arm64-uefi"
-    for inherited_section in ("architecture", "machine", "boot", "systemDisk", "dataDisk", "network", "health"):
-        assert k3s["spec"][inherited_section] == ubuntu["spec"][inherited_section], (
-            f"k3s-worker-lab diverges from Ubuntu hardware in {inherited_section}"
+    assert k3s["metadata"]["derivedFrom"] == "ubuntu-2404-arm64-uefi"
+    for derived_section in ("architecture", "machine", "boot", "systemDisk", "dataDisk", "network", "health"):
+        assert k3s["spec"][derived_section] == ubuntu["spec"][derived_section], (
+            f"k3s-worker-lab diverges from Ubuntu hardware in {derived_section}"
         )
     checks = set(k3s["spec"]["requirements"]["qualificationChecks"])
     required_checks = {

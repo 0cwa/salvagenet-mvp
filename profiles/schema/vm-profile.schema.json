@@ -15,7 +15,7 @@
       "properties": {
         "id": {"$ref": "#/$defs/id"},
         "version": {"type": "integer", "minimum": 1, "maximum": 2147483647},
-        "extends": {"$ref": "#/$defs/id"}
+        "derivedFrom": {"$ref": "#/$defs/id"}
       }
     },
     "spec": {
@@ -67,7 +67,7 @@
           "properties": {
             "artifact": {"$ref": "#/$defs/artifactId"},
             "format": {"enum": ["raw", "qcow2", "squashfs"]},
-            "writableLayer": {"enum": ["qcow2-overlay", "separate-ext4-overlay", "none"]}
+            "writableLayer": {"enum": ["copied-writable", "separate-ext4-overlay", "none"]}
           }
         },
         "dataDisk": {
