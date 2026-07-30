@@ -20,6 +20,10 @@ Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact iden
 - Emulator and physical-device behavior are out of scope; host-QEMU evidence cannot close Android gates.
 - The task may update only its packet, the specifically listed host-QEMU laboratory files, H02A-named helpers, guest-side qualification tests, the exact Ubuntu image lock/pinning helper, its experiment record, and Makefile entry points needed to expose the reviewed flow.
 
+## Compatibility policy
+
+None. H02A is pre-release host-QEMU qualification and may make clean-break changes to laboratory inputs. Do not add migration, fallback, dual-read, legacy parsing, or compatibility paths without identifying real deployed state, explaining why reset is unacceptable, isolating compatibility code from canonical production paths, and naming a deletion trigger.
+
 ## Acceptance criteria
 
 - One command performs bounded preflight, preparation, boot, verification, restart checks, evidence capture, and cleanup.
