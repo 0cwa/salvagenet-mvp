@@ -4,13 +4,13 @@ NodeHost is an open-source Android host-enablement project built around a durabl
 
 > **Current maturity: device-lab candidate, not yet a validated MVP.**
 >
-> Automated software and packaging checks are substantially implemented. The current foundation phase removes remaining configuration drift before the live Android and network validation sequence.
+> Automated software and packaging checks are substantially implemented. The active phase makes the one-phone HIL path safe and deterministic for supervised agent automation before further guest/runtime changes.
 
 <!-- MVP-STATUS-BEGIN -->
 **Acceptance:** 10/20 base gates passed; 10 are blocked on physical-device validation. USB networking remains deferred until every base gate passes.
 <!-- MVP-STATUS-END -->
 
-See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/roadmap/hardware-independent.md`](docs/roadmap/hardware-independent.md) for the active foundation-first plan, and [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) for the physical evidence path.
+See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/roadmap/hardware-independent.md`](docs/roadmap/hardware-independent.md) for the active phase, and [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) for the physical evidence path.
 
 ## Current implementation
 
@@ -29,10 +29,12 @@ See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/
 make dev-plan
 make dev-check
 make status
-make context TASK=F01
+make context TASK=F02
 ```
 
-F01 is the sole active task. It makes the checked-in profile JSON and one strict artifact-manifest contract the production source of truth. H01 and H04 are merged. H02 and H03 are queued for review after F01; they are not active work authorization.
+F02 is the sole active task. It adds device leasing, explicit local action authorization, diagnostic/candidate evidence modes, deterministic local artifact provisioning, exact runtime-input evidence, cleanup guarantees, and root-layout enforcement. F01 merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910`; Podroid vendoring hardening merged at `778feb4bf286d24774eadbf8a6ea0051c0f7a219`.
+
+The broader guest-class, OCI artifact, storage, update, and distro-adapter direction is recorded in an ADR and roadmap, but is not active implementation authorization.
 
 ## Base-MVP work still requiring live evidence
 
@@ -44,7 +46,7 @@ The physical vertical slice must establish:
 4. ordinary guest access plus the independent recovery route;
 5. service, process, reboot, and controller-offline continuity.
 
-A physical run during an implementation phase is useful diagnostic evidence. All gate-relevant scenarios must be rerun against one exact final candidate before the MVP seal. Emulator, host-QEMU, packaging, and code-review results cannot close physical gates.
+A physical run during an implementation phase is useful diagnostic evidence. All gate-relevant scenarios must be rerun in candidate mode against one exact final candidate before the MVP seal. Emulator, host-QEMU, packaging, and code-review results cannot close physical gates.
 
 ## Start here
 
@@ -66,6 +68,7 @@ make validate
 | Current acceptance state | [`docs/STATUS.md`](docs/STATUS.md) |
 | Active phase and queued work | [`docs/roadmap/hardware-independent.md`](docs/roadmap/hardware-independent.md), `agents/task-dag.json`, `agents/task-registry.json` |
 | Architecture and module boundaries | [`docs/architecture/overview.md`](docs/architecture/overview.md), [`docs/architecture/module-map.md`](docs/architecture/module-map.md) |
+| Guest/image direction | [`docs/architecture/decisions/guest-classes-and-image-sources.md`](docs/architecture/decisions/guest-classes-and-image-sources.md), [`docs/roadmap/guest-runtime-classes.md`](docs/roadmap/guest-runtime-classes.md) |
 | Known debt and expiry triggers | [`docs/architecture/debt-register.md`](docs/architecture/debt-register.md) |
 | Physical validation | [`tests/hil/README.md`](tests/hil/README.md), [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) |
 | Development loop | [`docs/development/development-loop.md`](docs/development/development-loop.md) |
@@ -73,4 +76,4 @@ make validate
 
 ## Historical material
 
-The initial scaffold, overnight packets, and completed H01/H04 packets remain as provenance. They do not define current task authorization. The active phase metadata, acceptance ledger, generated status, and reviewed evidence are authoritative.
+The initial scaffold, overnight packets, and completed phase packets remain as provenance. They do not define current task authorization. The active DAG, registry, acceptance ledger, generated status, and reviewed evidence are authoritative.
