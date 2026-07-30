@@ -45,6 +45,7 @@ internal class AndroidArtifactUploadStore(
 ) : ArtifactUploadUseCases {
     private val uploadsRoot = File(context.filesDir, "nodehost-uploads")
     private val artifactsRoot = File(context.filesDir, "nodehost-artifacts")
+    private val manifests = ArtifactManifestStore(artifactsRoot)
     private val lock = Mutex()
 
     override suspend fun createUpload(
@@ -235,13 +236,13 @@ internal class AndroidArtifactUploadStore(
 
     private fun recoverMovedPayloadLocked(metadata: UploadMetadata): Boolean {
         if (metadata.committedBytes != metadata.expectedSizeBytes || payloadFile(metadata.id).exists()) return false
-        val versionPayload = versionPayload(metadata.artifactId, metadata.sha256)
+        val versionPayload = manifests.versionPayload(metadata.artifactId, metadata.sha256)
         if (!versionPayload.isFile) return false
         check(versionPayload.length() == metadata.expectedSizeBytes) { "moved upload payload size is inconsistent" }
         check(sha256(versionPayload) == metadata.sha256) { "moved upload payload digest is inconsistent" }
         publicationCoordinator.serialized {
             if (!published(metadata.artifactId, metadata.sha256, metadata.expectedSizeBytes)) {
-                writeActiveManifestLocked(metadata)
+                manifests.writeActive(metadata.manifest(), "upload")
             }
         }
         return true
@@ -271,7 +272,7 @@ internal class AndroidArtifactUploadStore(
             check(payload.delete() || !payload.exists()) { "duplicate upload staging payload could not be removed" }
             return
         }
-        val versionPayload = versionPayload(metadata.artifactId, metadata.sha256)
+        val versionPayload = manifests.versionPayload(metadata.artifactId, metadata.sha256)
         val versionDirectory = requireNotNull(versionPayload.parentFile)
         check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
         if (versionPayload.exists()) {
@@ -284,46 +285,11 @@ internal class AndroidArtifactUploadStore(
             Files.move(payload.toPath(), versionPayload.toPath(), StandardCopyOption.ATOMIC_MOVE)
         }
         // Publication is serialized with HTTPS imports. The later serialized completion becomes active.
-        writeActiveManifestLocked(metadata)
+        manifests.writeActive(metadata.manifest(), "upload")
     }
 
-    private fun writeActiveManifestLocked(metadata: UploadMetadata) {
-        val manifest = File(artifactsRoot, "${metadata.artifactId}.manifest.json")
-        val temporary = File(artifactsRoot, ".${metadata.artifactId}.upload-manifest.part")
-        try {
-            val value = JSONObject()
-                .put("version", MANIFEST_VERSION)
-                .put("sha256", metadata.sha256)
-                .put("sizeBytes", metadata.expectedSizeBytes)
-                .put("relativePath", "versions/${metadata.artifactId}/${metadata.sha256}/payload")
-            FileOutputStream(temporary).use { output ->
-                output.write(value.toString().toByteArray())
-                output.fd.sync()
-            }
-            Files.move(
-                temporary.toPath(),
-                manifest.toPath(),
-                StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING,
-            )
-        } finally {
-            temporary.delete()
-        }
-    }
-
-    private fun published(artifactId: String, digest: String, expectedSize: Long): Boolean {
-        val manifest = File(artifactsRoot, "$artifactId.manifest.json")
-        val payload = versionPayload(artifactId, digest)
-        if (!manifest.isFile || manifest.length() !in 1..MAX_METADATA_BYTES || !payload.isFile || payload.length() != expectedSize) {
-            return false
-        }
-        val value = runCatching { JSONObject(manifest.readText()) }.getOrNull() ?: return false
-        if (value.keys().asSequence().toSet() != MANIFEST_KEYS) return false
-        return value.optInt("version") == MANIFEST_VERSION &&
-            value.optString("sha256") == digest &&
-            value.optLong("sizeBytes") == expectedSize &&
-            value.optString("relativePath") == "versions/$artifactId/$digest/payload"
-    }
+    private fun published(artifactId: String, digest: String, expectedSize: Long): Boolean =
+        manifests.isPublished(artifactId, digest, expectedSize, verifyDigest = false)
 
     private fun preflightLocked(expectedBytes: Long) {
         check(artifactsRoot.mkdirs() || artifactsRoot.isDirectory) { "artifact directory unavailable" }
@@ -433,9 +399,9 @@ internal class AndroidArtifactUploadStore(
 
     private fun UploadMetadata.resource() = HostArtifactUpload(id, artifactId, sha256, expectedSizeBytes, committedBytes, state)
     private fun UploadMetadata.image() = HostImage(artifactId, sha256, expectedSizeBytes)
+    private fun UploadMetadata.manifest() = ArtifactManifest(artifactId, sha256, expectedSizeBytes)
     private fun uploadDirectory(id: String) = File(uploadsRoot, id)
     private fun payloadFile(id: String) = File(uploadDirectory(id), PAYLOAD_NAME)
-    private fun versionPayload(artifactId: String, digest: String) = File(artifactsRoot, "versions/$artifactId/$digest/payload")
     private fun ensureRoots() {
         check(uploadsRoot.mkdirs() || uploadsRoot.isDirectory)
         check(artifactsRoot.mkdirs() || artifactsRoot.isDirectory)
@@ -490,9 +456,7 @@ internal class AndroidArtifactUploadStore(
             "version", "id", "artifactId", "sha256", "expectedSizeBytes", "committedBytes", "state",
             "idempotencyKey", "requestDigest", "createdAtEpochMs", "updatedAtEpochMs",
         )
-        val MANIFEST_KEYS = setOf("version", "sha256", "sizeBytes", "relativePath")
         const val METADATA_VERSION = 1
-        const val MANIFEST_VERSION = 1
         const val METADATA_NAME = "metadata.json"
         const val PAYLOAD_NAME = "payload.part"
         const val MAX_OPEN_UPLOADS = 16
