@@ -37,7 +37,7 @@ diff --git a/app/build.gradle.kts b/app/build.gradle.kts
  
  android {
      namespace = "com.excp.podroid"
-@@ -88,6 +91,14 @@ android {
+@@ -88,6 +91,13 @@ android {
          buildConfig = true
      }
  
