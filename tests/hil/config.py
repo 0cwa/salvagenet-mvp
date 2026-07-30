@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -74,6 +75,40 @@ class HilConfig:
         if not command:
             raise ConfigError(f"{dotted} must be null/absent or a non-empty command list")
         return command
+
+    def require_scenario_authorization(self, scenario: str) -> None:
+        if scenario in {"doctor", "facts"}:
+            return
+        authorization = self.value("authorization")
+        if not isinstance(authorization, dict):
+            raise ConfigError("authorization must be an object")
+        expires_at = _require_string(authorization.get("expiresAt"), "authorization.expiresAt")
+        try:
+            expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ConfigError("authorization.expiresAt must be an ISO-8601 timestamp") from exc
+        if expiry.tzinfo is None:
+            raise ConfigError("authorization.expiresAt must include a timezone")
+        if expiry.astimezone(timezone.utc) <= datetime.now(timezone.utc):
+            raise ConfigError("HIL authorization has expired")
+        allowed = _string_list(authorization.get("allowedScenarios"), "authorization.allowedScenarios")
+        if scenario not in allowed:
+            raise ConfigError(f"scenario is not locally authorized: {scenario}")
+        if scenario in {"smoke", "mvp", "resilience", "all"}:
+            self.require_action("allowApkInstall")
+        if scenario in {"resilience", "all"}:
+            self.require_action("allowProcessKill")
+            if self.scenario("resilience").get("allowReboot") is True:
+                self.require_action("allowReboot")
+            offline = self.optional_command("resilience.controllerOfflineCommand")
+            online = self.optional_command("resilience.controllerOnlineCommand")
+            if offline is not None or online is not None:
+                self.require_action("allowControllerIsolation")
+
+    def require_action(self, name: str) -> None:
+        value = self.value(f"authorization.{name}", required=False, default=False)
+        if value is not True:
+            raise ConfigError(f"local HIL authorization does not permit {name}")
 
     @property
     def device_serial(self) -> str:
