@@ -2,46 +2,33 @@
 
 ## Status
 
-**QUEUED FOR PHASE-START REVIEW — not active work.**
+**SUPERSEDED AT THE POST-F01 PHASE BOUNDARY.** Do not activate or implement this combined packet.
 
-H02 may be activated only after F01 is merged and its phase-end review confirms that the Linux lab and Android runtime consume equivalent profile and artifact semantics.
+## Phase-start review
 
-## Provisional outcome
+F01 merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910` and removed the profile/artifact ambiguity. The required review concluded that this packet still combined two independent failure domains:
 
-Turn the existing Ubuntu host-QEMU smoke test into repeatable guest-path qualification for NoCloud, key-only SSH, one-use guest Headscale enrollment, readiness, restart, and redacted evidence.
+1. canonical guest boot, UEFI/QMP, NoCloud, key-only loopback SSH, restart, and secret hygiene;
+2. guest Headscale identity, tailnet SSH, mesh interruption, and recovery.
 
-## Required phase-start review
+The work is therefore split into:
 
-Before activation:
+- **H02A** — canonical Ubuntu guest boot qualification; the sole next active candidate;
+- **H02B** — guest mesh identity and recovery qualification; queued behind H02A.
 
-1. Inspect the F01 result and prove that the lab inputs correspond to the packaged production profile.
-2. Re-run the current QEMU smoke and Headscale lab preflight.
-3. Decide whether H02 should remain one task or split into:
-   - guest boot/NoCloud/key-only SSH/secret-hygiene qualification; and
-   - guest Headscale identity, tailnet SSH, interruption, and recovery qualification.
-4. Remove acceptance items already proved by F01 or existing tests.
-5. Confirm all required external tools and disposable Headscale inputs can be provisioned without storing live credentials in Git.
+## Acceptance criteria
 
-## Provisional acceptance criteria
+This historical packet has no executable acceptance criteria. Its replacement criteria are authoritative in `agents/tasks/H02A/task.md` and, after a later phase-start review, `agents/tasks/H02B/task.md`.
 
-- One command prepares, boots, verifies, records, and cleans up the host-QEMU lab.
-- Exact pinned Ubuntu and UEFI artifacts are recorded by digest.
-- Key-only SSH succeeds through loopback SLIRP before mesh-specific assertions begin.
-- The guest joins the disposable Headscale lab with a separate tagged identity and one-use key.
-- Ordinary SSH succeeds through the guest tailnet identity.
-- Restart and Headscale interruption/recovery scenarios produce bounded machine-readable results.
-- Guest disk and cloud-init log inspection finds no retained one-use auth key or callback capability.
-- No result is represented as Android or physical-device evidence.
+## Phase-end verification
 
-## Provisional checks
+The split itself is accepted when:
 
-```sh
-make validate
-make qemu-lab-e2e
-make test-guest
-python3 tools/agents/verify-scope.py H02
-```
+- H02 is absent from the active DAG;
+- H02A alone is active/planned with explicit entry, acceptance, evidence, and exit criteria;
+- H02B remains queued and depends on H02A;
+- no Headscale behavior is authorized inside H02A.
 
 ## Handoff
 
-Do not begin from this packet as written. At the next phase boundary, revise its scope, dependencies, allowed paths, acceptance criteria, and evidence expectations before changing implementation files.
+Retain this packet only for provenance. Use H02A for guest boot work. Do not copy this combined scope into a branch or worktree.
