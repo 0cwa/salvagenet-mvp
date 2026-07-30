@@ -2,9 +2,10 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
-val profilePackager = rootProject.file("../../tools/profiles/package-assets.py")
-val guestInitRenderer = rootProject.file("../../tools/profiles/render-guest-init.py")
-val profileSources = rootProject.file("../../profiles")
+// Resolve repository-owned tooling from this module, independent of the containing Gradle root.
+val profilePackager = file("../../../tools/profiles/package-assets.py")
+val guestInitRenderer = file("../../../tools/profiles/render-guest-init.py")
+val profileSources = file("../../../profiles")
 val packagedProfileAssets = layout.buildDirectory.dir("generated/nodehostProfileAssets")
 
 val prepareNodeHostProfileAssets by tasks.registering(Exec::class) {
