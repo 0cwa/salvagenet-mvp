@@ -1,13 +1,15 @@
 # H01 — artifact upload
 
-Status: **implementation under hardening** on `agent/H01-artifact-upload`.
+Status: **MERGE READY** on `agent/H01-artifact-upload`.
 
-Generate the current scoped context with:
+Generate the final scoped context with:
 
 ```sh
 make context TASK=H01
 ```
 
-Read `task.md` and `docs/research/experiments/H01.md` before editing. The first implementation exists; the next work is the bounded recovery/cleanup/HTTP-semantics list in `task.md`, not a redesign of the upload protocol.
+The selected protocol and all previously recorded merge blockers are resolved. `task.md` is the authoritative implementation and validation summary; `docs/research/experiments/H01.md` records the design findings and resolution.
 
-H01 is complete only after the task-local checks, scope verifier, and full GitHub Android/package workflow are green.
+GitHub Actions run `30509824017` passed the complete static, JVM, Android, lint, guest, packaging, signature, 16 KiB alignment, and candidate-artifact workflow. No physical acceptance gate is changed by H01.
+
+After PR #5 merges, update the active cycle status from `MERGE_READY` to `MERGED` with the merge commit rather than extending this task silently.
