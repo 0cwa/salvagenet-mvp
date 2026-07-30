@@ -56,6 +56,8 @@ class EvidenceRecorder:
     source_commit: str
     apk_sha256: str | None
     device_serial: str
+    evidence_mode: str
+    source_dirty: bool
     started_at: str = field(default_factory=utc_now)
     assertions: list[dict[str, Any]] = field(default_factory=list)
     private_values: tuple[str, ...] = field(default_factory=tuple)
@@ -68,6 +70,8 @@ class EvidenceRecorder:
         source_commit: str,
         apk_sha256: str | None,
         device_serial: str,
+        evidence_mode: str = "diagnostic",
+        source_dirty: bool = False,
     ) -> "EvidenceRecorder":
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         suffix = hashlib.sha256(f"{stamp}:{scenario}:{device_serial}".encode()).hexdigest()[:8]
@@ -79,6 +83,8 @@ class EvidenceRecorder:
             source_commit,
             apk_sha256,
             device_serial,
+            evidence_mode,
+            source_dirty,
             private_values=(device_serial,),
         )
 
@@ -121,12 +127,16 @@ class EvidenceRecorder:
         return path
 
     def finish(self, result: str, *, detail: str | None = None) -> Path:
+        promotable = result == "PASS" and self.evidence_mode == "candidate" and not self.source_dirty
         payload = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "scenario": self.scenario,
             "result": result,
             "detail": self.redact(detail or ""),
+            "evidenceMode": self.evidence_mode,
             "sourceCommit": self.source_commit,
+            "sourceDirty": self.source_dirty,
+            "promotable": promotable,
             "apkSha256": self.apk_sha256,
             "deviceSerialHash": hashlib.sha256(self.device_serial.encode()).hexdigest(),
             "startedAt": self.started_at,
