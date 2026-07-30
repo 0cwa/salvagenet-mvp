@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
-from tests.hil.adapters import ControllerCli, HeadscaleLab
+from tests.hil.adapters import ControllerCli, HeadscaleLab, SetupBlocked
 from tests.hil.config import ConfigError, HilConfig
 from tests.hil.evidence import EvidenceRecorder, redact
-from tests.hil.scenarios import next_generation
+from tests.hil.lease import DeviceLease
+from tests.hil.scenarios import load_artifact_set, next_generation
 
 PROMOTE_PATH = Path(__file__).resolve().parents[2] / "tools/evidence/promote-hil.py"
 PROMOTE_SPEC = importlib.util.spec_from_file_location("promote_hil", PROMOTE_PATH)
@@ -52,6 +54,24 @@ class HilConfigTest(unittest.TestCase):
             with self.assertRaisesRegex(ConfigError, "device.serial"):
                 _ = config.device_serial
 
+    def test_scenario_authorization_requires_explicit_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expiry = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+            config = self._config(root, {
+                "authorization": {
+                    "expiresAt": expiry,
+                    "allowedScenarios": ["smoke"],
+                    "allowApkInstall": True,
+                    "allowProcessKill": False,
+                    "allowReboot": False,
+                    "allowControllerIsolation": False,
+                }
+            })
+            config.require_scenario_authorization("smoke")
+            with self.assertRaisesRegex(ConfigError, "not locally authorized"):
+                config.require_scenario_authorization("mvp")
+
 
 class FakeRunner:
     def __init__(self, root: Path, evidence: EvidenceRecorder | None = None):
@@ -89,6 +109,7 @@ class PureHelpersTest(unittest.TestCase):
             config_path.write_text(json.dumps({
                 "device": {"serial": "serial-1234", "packageName": "pkg", "supervisorComponent": "pkg/service"},
                 "paths": {"apk": "out.apk", "controller": "ctl", "controllerConfig": "ctl.json"},
+                "authorization": {"allowControllerIsolation": True},
                 "resilience": {"controllerOfflineCommand": ["offline"], "controllerOnlineCommand": ["online"]},
             }), encoding="utf-8")
             config = HilConfig.load(root, str(config_path))
@@ -100,25 +121,69 @@ class PureHelpersTest(unittest.TestCase):
             self.assertTrue(controller.set_controller_reachable(True))
             self.assertEqual([["offline"], ["online"]], runner.commands)
 
+    def test_device_lease_is_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with DeviceLease(root, "serial-1234", {"scenario": "smoke"}):
+                with self.assertRaisesRegex(SetupBlocked, "already leased"):
+                    with DeviceLease(root, "serial-1234", {"scenario": "mvp"}):
+                        pass
+            with DeviceLease(root, "serial-1234", {"scenario": "smoke"}):
+                pass
+
+    def test_artifact_set_verifies_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = root / "image.qcow2"
+            payload.write_bytes(b"image")
+            import hashlib
+            digest = hashlib.sha256(b"image").hexdigest()
+            artifact_set = root / "artifacts.json"
+            artifact_set.write_text(json.dumps({
+                "schemaVersion": 1,
+                "artifacts": [{"id": "ubuntu-image", "path": "image.qcow2", "sha256": digest, "sizeBytes": 5}],
+            }), encoding="utf-8")
+            config_path = root / "hil.json"
+            config_path.write_text(json.dumps({
+                "device": {"serial": "s", "packageName": "pkg", "supervisorComponent": "pkg/service"},
+                "paths": {"apk": "a", "controller": "c", "controllerConfig": "cc"},
+                "mvp": {"artifactSet": "artifacts.json"},
+            }), encoding="utf-8")
+            config = HilConfig.load(root, str(config_path))
+            values = load_artifact_set(config)
+            self.assertEqual("ubuntu-image", values[0]["id"])
+
 
 class PromotionTest(unittest.TestCase):
-    def test_b17_requires_actual_unavailable_assertion(self) -> None:
-        run = {
-            "result": "PASS", "scenario": "resilience", "sourceCommit": "a" * 40,
-            "apkSha256": "b" * 64,
-            "assertions": [{"id": "resilience.controller-silent", "passed": True}],
+    def _candidate(self, scenario: str, assertions: list[dict]) -> dict:
+        return {
+            "result": "PASS", "scenario": scenario, "sourceCommit": "a" * 40,
+            "evidenceMode": "candidate", "sourceDirty": False, "promotable": True,
+            "apkSha256": "b" * 64, "assertions": assertions,
         }
+
+    def test_b17_requires_actual_unavailable_assertion(self) -> None:
+        run = self._candidate("resilience", [{"id": "resilience.controller-silent", "passed": True}])
         with self.assertRaisesRegex(ValueError, "controller-unavailable"):
             promote_hil.validate_run("B17", run, "a" * 40)
 
-    def test_b02_promotion_accepts_complete_smoke_run(self) -> None:
+    def test_b02_promotion_accepts_complete_candidate_smoke_run(self) -> None:
         ids = {"smoke.profile-present", "smoke.one-qemu", "smoke.graceful-stop", "smoke.restart-one-qemu"}
-        run = {
-            "result": "PASS", "scenario": "smoke", "sourceCommit": "a" * 40,
-            "apkSha256": "b" * 64,
-            "assertions": [{"id": item, "passed": True} for item in ids],
-        }
+        run = self._candidate("smoke", [{"id": item, "passed": True} for item in ids])
         self.assertEqual(ids, promote_hil.validate_run("B02", run, "a" * 40))
+
+    def test_diagnostic_or_dirty_runs_cannot_promote(self) -> None:
+        ids = {"smoke.profile-present", "smoke.one-qemu", "smoke.graceful-stop", "smoke.restart-one-qemu"}
+        diagnostic = self._candidate("smoke", [{"id": item, "passed": True} for item in ids])
+        diagnostic["evidenceMode"] = "diagnostic"
+        diagnostic["promotable"] = False
+        with self.assertRaisesRegex(ValueError, "clean candidate"):
+            promote_hil.validate_run("B02", diagnostic, "a" * 40)
+        dirty = self._candidate("smoke", [{"id": item, "passed": True} for item in ids])
+        dirty["sourceDirty"] = True
+        dirty["promotable"] = False
+        with self.assertRaisesRegex(ValueError, "clean candidate"):
+            promote_hil.validate_run("B02", dirty, "a" * 40)
 
 
 if __name__ == "__main__":
