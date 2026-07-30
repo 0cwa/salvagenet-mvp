@@ -14,8 +14,8 @@ The acceptance ledger, not task-completion prose, defines physical success. Phys
 
 ## Phase relationship
 
-- During F01, an HIL smoke or focused scenario is useful diagnostic evidence but cannot be the final MVP seal because production profile/artifact resolution is changing.
-- At each later phase start, decide which physical scenario will most cheaply validate the assumptions being changed.
+- F01 is merged. Active H02 host-QEMU evidence qualifies the Ubuntu guest/bootstrap path but cannot close Android or physical gates.
+- At each phase start, decide which physical scenario will most cheaply validate the assumptions being changed.
 - At each phase end, record physical checks that ran or were unavailable; do not delay all device contact until the end when an early run can expose a foundational mismatch.
 - Re-run all gate-relevant scenarios on one exact final candidate before promoting the complete MVP evidence set.
 
@@ -28,6 +28,7 @@ The acceptance ledger, not task-completion prose, defines physical success. Phys
 - `BLOCKED-HARDWARE` requires `hil-doctor` or scenario evidence ending in exit 77.
 - Keep enrollment keys, controller capabilities, private keys, guest disks, and unfiltered logs out of prompts and commits.
 - Prefer the smallest correction reproduced by the HIL run over speculative refactoring.
+- Do not introduce compatibility migration for disposable unreleased development state; isolate any future authorized migration away from canonical runtime paths.
 - Keep USB/AOA blocked until every base gate passes.
 
 ## Completion
