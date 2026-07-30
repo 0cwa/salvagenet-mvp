@@ -41,7 +41,7 @@ W00/PR #19 established:
 
 - an explicit mapping from the original Podroid-fork MVP to current implementation choices;
 - drift alarms protecting APK-native QEMU, separate host/guest identity, typed APIs, recovery, one VM, and USB deferral;
-- a static Astro website with one global token CSS system and System/Light/Dark theme control;
+- the accepted plan for a static Astro website with one global token CSS system and System/Light/Dark theme control;
 - GitHub Issues as roadmap planning truth after bootstrap;
 - separate task authorization and acceptance authorities;
 - compact, freshness-aware agent context with human-visible replanning.
