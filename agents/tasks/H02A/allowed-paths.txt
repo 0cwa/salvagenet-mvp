@@ -1,0 +1,15 @@
+agents/tasks/H02A/**
+lab/qemu/AGENTS.md
+lab/qemu/README.md
+lab/qemu/scripts/common.sh
+lab/qemu/scripts/prepare.sh
+lab/qemu/scripts/start.sh
+lab/qemu/scripts/smoke.sh
+lab/qemu/scripts/stop.sh
+lab/qemu/scripts/e2e.sh
+lab/qemu/scripts/h02a-*.sh
+tests/guest/**
+profiles/locks/images.lock.json
+tools/profiles/pin-ubuntu-image.sh
+Makefile
+docs/research/experiments/H02A.md

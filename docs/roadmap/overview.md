@@ -8,7 +8,7 @@ Repository scaffold, Podroid pin/import, tool authorization, AGENTS hierarchy, c
 
 ## Track 1 — architectural seams
 
-Domain values, ports, profile schema/registry, artifact manifest contract, command compiler, operation state machine, and adapter contract tests. Most seams exist; F01 is active because production profile and artifact consumption still duplicate checked-in contracts.
+Domain values, ports, canonical packaged profile registry, strict artifact-manifest contract, command compiler, operation state machine, and adapter contract tests. F01 closed the profile/manifest source-of-truth split and merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910`.
 
 ## Track 2 — Podroid QEMU adaptation
 
@@ -24,7 +24,9 @@ Embedded host libtailscale, Headscale enrollment, typed Host API, temporary cont
 
 ## Track 5 — deterministic preflight and physical vertical slice
 
-After F01, re-evaluate focused host-QEMU and emulator preflight work. Then close the exact physical sequence: APK-native QEMU, host mesh/API, uploaded Ubuntu guest, guest SSH/mesh, recovery, process/reboot/controller-offline behavior, and one final commit/APK evidence seal.
+H02A is the sole active preflight task: canonical Ubuntu UEFI/QMP, NoCloud, key-only loopback SSH, restart, and forbidden-material scanning under Linux host QEMU. Guest mesh qualification remains H02B and is queued behind H02A. Emulator infrastructure remains queued for a later value/cost review.
+
+Then close the exact physical sequence: APK-native QEMU, host mesh/API, uploaded Ubuntu guest, guest SSH/mesh, recovery, process/reboot/controller-offline behavior, and one final commit/APK evidence seal.
 
 ## Track 6 — post-base hardening
 

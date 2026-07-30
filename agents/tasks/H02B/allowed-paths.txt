@@ -1,0 +1,7 @@
+agents/tasks/H02B/**
+lab/qemu/**
+lab/headscale/**
+tests/network/**
+tests/guest/**
+Makefile
+docs/research/experiments/H02B.md
