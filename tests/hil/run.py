@@ -12,12 +12,12 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from tests.hil.adapters import AdbDevice, CommandRunner, ControllerCli, HeadscaleLab, SetupBlocked
     from tests.hil.config import ConfigError, HilConfig
-    from tests.hil.evidence import EvidenceRecorder, bounded, redact
+    from tests.hil.evidence import EvidenceRecorder, redact
     from tests.hil import scenarios
 else:
     from .adapters import AdbDevice, CommandRunner, ControllerCli, HeadscaleLab, SetupBlocked
     from .config import ConfigError, HilConfig
-    from .evidence import EvidenceRecorder, bounded, redact
+    from .evidence import EvidenceRecorder, redact
     from . import scenarios
 
 
@@ -26,9 +26,7 @@ def repo_root() -> Path:
 
 
 def source_commit(root: Path) -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=root, text=True, capture_output=True, check=False
-    )
+    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, text=True, capture_output=True, check=False)
     return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
@@ -104,19 +102,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PASS-{args.scenario.upper()}: {path}")
         return 0
     except (SetupBlocked, ConfigError) as exc:
-        detail = redact(str(exc))
+        detail = redact(str(exc), recorder.private_values if recorder else ())
         if recorder:
             recorder.finish("BLOCKED-HARDWARE", detail=detail)
             print(f"evidence: {recorder.directory}", file=sys.stderr)
         print(f"BLOCKED-HARDWARE/SETUP: {detail}", file=sys.stderr)
         return 77
     except (AssertionError, OSError, RuntimeError, TimeoutError) as exc:
-        detail = redact(str(exc))
+        detail = redact(str(exc), recorder.private_values if recorder else ())
         if recorder:
             if device:
                 try:
                     (recorder.directory / "logcat.txt").write_text(
-                        bounded(device.logcat(), limit=1024 * 1024), encoding="utf-8"
+                        recorder.bounded(device.logcat(), limit=1024 * 1024), encoding="utf-8"
                     )
                 except Exception:
                     pass

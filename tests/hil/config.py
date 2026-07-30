@@ -66,9 +66,28 @@ class HilConfig:
             current = current[part]
         return current
 
+    def optional_command(self, dotted: str) -> list[str] | None:
+        value = self.value(dotted, required=False, default=None)
+        if value is None:
+            return None
+        command = _string_list(value, dotted)
+        if not command:
+            raise ConfigError(f"{dotted} must be null/absent or a non-empty command list")
+        return command
+
     @property
     def device_serial(self) -> str:
         return _require_string(self.value("device.serial"), "device.serial")
+
+    @property
+    def adb_command(self) -> list[str]:
+        command = _string_list(
+            self.value("device.adbCommand", required=False, default=["adb"]),
+            "device.adbCommand",
+        )
+        if not command:
+            raise ConfigError("device.adbCommand must not be empty")
+        return command
 
     @property
     def package_name(self) -> str:
