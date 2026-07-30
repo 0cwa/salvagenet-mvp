@@ -104,7 +104,11 @@ def build(args):
 
 ## Phase-start review
 
-Re-evaluate this packet against current `main` before activation. Confirm prerequisites, allowed paths, acceptance criteria, evidence limits, and whether the task should be split, narrowed, reordered, or removed.
+Re-evaluate this packet against current `main` before activation. Confirm prerequisites, allowed paths, acceptance criteria, evidence limits, compatibility policy, and whether the task should be split, narrowed, reordered, or removed.
+
+## Compatibility policy
+
+None. This repository is unreleased alpha; breaking internal changes and development-state reset are allowed. Any exception must identify real deployed state, explain why reset is unacceptable, isolate compatibility code from canonical production paths, and name its deletion trigger.
 
 ## Allowed paths
 
