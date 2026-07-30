@@ -3,6 +3,7 @@ package org.nodehost.shell
 import android.content.Context
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
 import org.nodehost.model.Acceleration
@@ -41,12 +42,12 @@ internal fun requirePackagedVendorAssetPath(relative: String) {
     }
 }
 
-/** Reads the three qualified profiles from immutable APK assets and rejects contract drift before side effects. */
+/** Reads the indexed qualified profiles from immutable APK assets and rejects contract drift before side effects. */
 internal class AndroidPackagedProfileCatalog(context: Context) {
     private val assets = context.applicationContext.assets
-    private val documents: Map<String, JSONObject> by lazy(::loadDocuments)
+    private val registry: PackagedProfileRegistry by lazy(::loadRegistry)
 
-    fun summaries(): List<PackagedProfileSummary> = EXPECTED_PROFILE_IDS.sorted().map { id ->
+    fun summaries(): List<PackagedProfileSummary> = registry.documents.keys.sorted().map { id ->
         val profile = profile(VmProfileId(id), verifyArtifacts = false) { artifactId, _ ->
             ArtifactRef(artifactId, ZERO_SHA256, 1)
         }
@@ -58,16 +59,20 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
         verifyArtifacts: Boolean,
         artifactResolver: (String, Boolean) -> ArtifactRef,
     ): VmProfile {
-        val root = documents[id.value] ?: error("unsupported profile: ${id.value}")
+        val root = registry.documents[id.value]?.root ?: error("unsupported profile: ${id.value}")
         requireKeys(root, ROOT_FIELDS, "profile root")
         require(root.getString("apiVersion") == API_VERSION) { "unsupported profile API version" }
         require(root.getString("kind") == KIND) { "unsupported profile kind" }
 
         val metadata = root.getJSONObject("metadata")
-        requireKeys(metadata, if (metadata.has("extends")) METADATA_FIELDS_WITH_EXTENDS else METADATA_FIELDS, "profile metadata")
+        requireKeys(
+            metadata,
+            if (metadata.has("derivedFrom")) METADATA_FIELDS_WITH_DERIVATION else METADATA_FIELDS,
+            "profile metadata",
+        )
         require(metadata.getString("id") == id.value) { "profile asset id does not match requested id" }
         val version = metadata.getInt("version").also { require(it >= 1) }
-        val extends = metadata.optString("extends").takeIf(String::isNotEmpty)?.let(::VmProfileId)
+        val derivedFrom = metadata.optString("derivedFrom").takeIf(String::isNotEmpty)?.let(::VmProfileId)
 
         val spec = root.getJSONObject("spec")
         requireKeys(spec, SPEC_FIELDS, "profile spec")
@@ -161,7 +166,7 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
         return VmProfile(
             id = id,
             version = version,
-            extends = extends,
+            derivedFrom = derivedFrom,
             architecture = Architecture.AARCH64,
             machine = machineSpec,
             boot = boot,
@@ -175,11 +180,13 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
     }
 
     fun vendorData(profileId: VmProfileId): ByteArray {
-        val document = documents[profileId.value] ?: error("unsupported profile: ${profileId.value}")
-        val initialization = document.getJSONObject("spec").getJSONObject("initialization")
+        val document = registry.documents[profileId.value] ?: error("unsupported profile: ${profileId.value}")
+        val initialization = document.root.getJSONObject("spec").getJSONObject("initialization")
         val relative = initialization.getString("vendorData")
+        require(relative == document.vendorDataPath) { "profile vendor-data path differs from packaged index" }
         requirePackagedVendorAssetPath(relative)
         val bytes = readAsset(assetPath(relative), MAX_VENDOR_DATA_BYTES)
+        require(sha256(bytes) == document.vendorDataSha256) { "profile vendor data differs from packaged index: $relative" }
         require(bytes.isNotEmpty()) { "profile vendor data is empty: $relative" }
         if (initialization.getString("type") == "nocloud-net") {
             val text = bytes.toString(Charsets.UTF_8)
@@ -189,23 +196,61 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
         return bytes
     }
 
-    private fun loadDocuments(): Map<String, JSONObject> {
-        val values = EXPECTED_PROFILE_IDS.associateWith { id ->
-            val root = JSONObject(readAsset("$PROFILE_ASSET_ROOT/$id/profile.json", MAX_PROFILE_BYTES).toString(Charsets.UTF_8))
+    private fun loadRegistry(): PackagedProfileRegistry {
+        val index = JSONObject(readAsset("$PROFILE_ASSET_ROOT/index.json", MAX_INDEX_BYTES).toString(Charsets.UTF_8))
+        requireKeys(index, INDEX_FIELDS, "profile index")
+        require(index.getInt("schemaVersion") == INDEX_VERSION) { "unsupported profile index version" }
+        val schemaDigest = index.getString("profileSchemaSha256")
+        require(SHA256.matches(schemaDigest)) { "invalid profile schema digest" }
+        val schema = readAsset("$PROFILE_ASSET_ROOT/vm-profile.schema.json", MAX_PROFILE_BYTES)
+        require(sha256(schema) == schemaDigest) { "packaged profile schema differs from index" }
+
+        val entries = index.getJSONArray("profiles")
+        require(entries.length() in 1..MAX_PROFILES) { "profile index size is out of bounds" }
+        val documents = linkedMapOf<String, PackagedProfileDocument>()
+        for (position in 0 until entries.length()) {
+            val entry = entries.getJSONObject(position)
+            requireKeys(entry, INDEX_ENTRY_FIELDS, "profile index entry")
+            val id = entry.getString("id")
+            require(VmProfileId(id).value == id)
+            require(documents[id] == null) { "duplicate profile index id: $id" }
+            val profilePath = entry.getString("profilePath")
+            require(profilePath == "profiles/$id/profile.json") { "profile index path is inconsistent: $id" }
+            val profileDigest = entry.getString("profileSha256")
+            val vendorDataPath = entry.getString("vendorDataPath")
+            val vendorDataDigest = entry.getString("vendorDataSha256")
+            require(SHA256.matches(profileDigest) && SHA256.matches(vendorDataDigest)) {
+                "profile index digest is invalid: $id"
+            }
+            requirePackagedVendorAssetPath(vendorDataPath)
+
+            val profileBytes = readAsset("$NODEHOST_ASSET_ROOT/$profilePath", MAX_PROFILE_BYTES)
+            require(sha256(profileBytes) == profileDigest) { "profile asset differs from packaged index: $id" }
+            val root = JSONObject(profileBytes.toString(Charsets.UTF_8))
             requireKeys(root, ROOT_FIELDS, "profile root")
             require(root.getString("apiVersion") == API_VERSION) { "unsupported profile API version" }
             require(root.getString("kind") == KIND) { "unsupported profile kind" }
             val metadata = root.getJSONObject("metadata")
-            requireKeys(metadata, if (metadata.has("extends")) METADATA_FIELDS_WITH_EXTENDS else METADATA_FIELDS, "profile metadata")
+            requireKeys(
+                metadata,
+                if (metadata.has("derivedFrom")) METADATA_FIELDS_WITH_DERIVATION else METADATA_FIELDS,
+                "profile metadata",
+            )
             require(metadata.getString("id") == id) { "profile asset path and metadata id differ" }
-            root
+            require(root.getJSONObject("spec").getJSONObject("initialization").getString("vendorData") == vendorDataPath) {
+                "profile vendor-data path differs from packaged index: $id"
+            }
+            val vendorData = readAsset(assetPath(vendorDataPath), MAX_VENDOR_DATA_BYTES)
+            require(sha256(vendorData) == vendorDataDigest) { "vendor data differs from packaged index: $id" }
+            documents[id] = PackagedProfileDocument(root, vendorDataPath, vendorDataDigest)
         }
-        values.forEach { (id, root) ->
-            val parent = root.getJSONObject("metadata").optString("extends").takeIf(String::isNotEmpty)
-            require(parent == null || parent in values) { "profile $id extends an unavailable profile" }
-            require(parent != id) { "profile cannot extend itself" }
+
+        documents.forEach { (id, document) ->
+            val parent = document.root.getJSONObject("metadata").optString("derivedFrom").takeIf(String::isNotEmpty)
+            require(parent == null || parent in documents) { "profile $id derives from an unavailable profile" }
+            require(parent != id) { "profile cannot derive from itself" }
         }
-        return values
+        return PackagedProfileRegistry(documents)
     }
 
     private fun requireVendorAsset(relative: String) {
@@ -244,6 +289,9 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
         return values
     }
 
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes).joinToString("") { "%02x".format(it) }
+
     private fun bootKind(value: String) = when (value) {
         "direct-kernel" -> BootKind.DIRECT_KERNEL
         "uefi" -> BootKind.UEFI
@@ -258,7 +306,7 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
     }
 
     private fun writableLayer(value: String) = when (value) {
-        "qcow2-overlay" -> WritableLayer.QCOW2_OVERLAY
+        "copied-writable" -> WritableLayer.COPIED_WRITABLE
         "separate-ext4-overlay" -> WritableLayer.SEPARATE_EXT4_OVERLAY
         "none" -> WritableLayer.NONE
         else -> error("unsupported writable layer: $value")
@@ -277,22 +325,33 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
         else -> error("unsupported health type: $value")
     }
 
+    private data class PackagedProfileDocument(
+        val root: JSONObject,
+        val vendorDataPath: String,
+        val vendorDataSha256: String,
+    )
+
+    private data class PackagedProfileRegistry(
+        val documents: Map<String, PackagedProfileDocument>,
+    )
+
     private companion object {
         const val API_VERSION = "nodehost.example/v1alpha1"
         const val KIND = "VirtualMachineProfile"
         const val NODEHOST_ASSET_ROOT = "nodehost"
         const val PROFILE_ASSET_ROOT = "$NODEHOST_ASSET_ROOT/profiles"
+        const val INDEX_VERSION = 1
+        const val MAX_INDEX_BYTES = 64 * 1024
         const val MAX_PROFILE_BYTES = 64 * 1024
         const val MAX_VENDOR_DATA_BYTES = 128 * 1024
+        const val MAX_PROFILES = 32
         const val ZERO_SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
-        val EXPECTED_PROFILE_IDS = setOf(
-            "alpine-direct-qualification",
-            "ubuntu-2404-arm64-uefi",
-            "k3s-worker-lab",
-        )
+        val SHA256 = Regex("[a-f0-9]{64}")
+        val INDEX_FIELDS = setOf("schemaVersion", "profileSchemaSha256", "profiles")
+        val INDEX_ENTRY_FIELDS = setOf("id", "profilePath", "profileSha256", "vendorDataPath", "vendorDataSha256")
         val ROOT_FIELDS = setOf("apiVersion", "kind", "metadata", "spec")
         val METADATA_FIELDS = setOf("id", "version")
-        val METADATA_FIELDS_WITH_EXTENDS = setOf("id", "version", "extends")
+        val METADATA_FIELDS_WITH_DERIVATION = setOf("id", "version", "derivedFrom")
         val SPEC_FIELDS = setOf("architecture", "machine", "boot", "systemDisk", "dataDisk", "initialization", "network", "health", "requirements")
         val MACHINE_FIELDS = setOf("family", "acceleration", "deviceTransport", "cpuModel")
         val DIRECT_BOOT_FIELDS = setOf("type", "kernelArtifact", "initramfsArtifact", "kernelArgumentProfile")
