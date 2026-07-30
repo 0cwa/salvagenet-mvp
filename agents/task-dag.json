@@ -1,27 +1,27 @@
 {
   "schemaVersion": 1,
-  "integrationBranch": "integration/foundation-1",
+  "integrationBranch": "integration/guest-boot-1",
   "phase": {
-    "id": "foundation-1",
-    "objective": "Make checked-in profiles and artifact manifests the exact production source of truth before adding more integration layers.",
+    "id": "guest-boot-1",
+    "objective": "Prove the canonical Ubuntu profile, artifacts, NoCloud bootstrap, and key-only loopback SSH path in the host-QEMU lab before adding guest mesh behavior.",
     "entryCriteria": [
-      "H01 and H04 are merged on main.",
-      "The exact H01 validated head passed the full static and Android/package workflow.",
-      "Checked-in profile JSON and schemas pass current repository validation.",
-      "The phase makes no physical-device acceptance claim."
+      "F01 merged at 246d551ca7e691a0319a4b30e29d6e4905cd9910.",
+      "The final F01 head passed the complete static, Android, guest, packaging, signature, and alignment workflow.",
+      "The host-QEMU lab consumes the same checked-in profile and locked artifact identities packaged for Android.",
+      "This phase makes no Android or physical-device acceptance claim."
     ],
     "exitCriteria": [
-      "Android production profile resolution loads validated packaged JSON rather than duplicating profile definitions in Kotlin.",
-      "Artifact publication, listing, and runtime consumption use one strict manifest contract.",
-      "Existing typed QEMU, profile, artifact-upload, guest, and Android tests remain green.",
-      "The phase packet, debt register, and next-phase candidates are re-evaluated from the implementation result."
+      "One command prepares, boots, verifies, records, and cleans up the canonical Ubuntu host-QEMU lab.",
+      "Real QMP running state, NoCloud completion, and key-only SSH through loopback SLIRP are proven.",
+      "Clean guest and QEMU restart behavior is recorded without introducing Headscale or guest-mesh scope.",
+      "Bounded machine-readable evidence records exact artifact identities and finds no retained one-use bootstrap credentials."
     ]
   },
   "tasks": [
     {
-      "id": "F01",
-      "slug": "canonical-artifact-profile-resolution",
-      "dependsOn": [],
+      "id": "H02",
+      "slug": "guest-boot-qualification",
+      "dependsOn": ["F01"],
       "parallelGroup": 1,
       "mvpPlus": false
     }
