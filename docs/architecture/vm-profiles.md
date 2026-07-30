@@ -4,9 +4,11 @@ A profile describes compatible virtual hardware, boot artifacts, initialization,
 
 ## Current implementation truth
 
-Checked-in JSON is the intended canonical format and already passes schema/guest validation. The Android runtime currently mirrors the three profile definitions in Kotlin inside `AndroidQemuProfileStorage`; the mirror is not the permanent contract and does not contain every checked-in JSON field identically.
+Checked-in JSON is the canonical production format. F01 packages the exact validated profiles, schema, index, and required guest-init assets into the APK and parses them into typed runtime values. A complete Kotlin profile mirror is prohibited.
 
-F01 removes this split source of truth by packaging and loading the validated JSON in production. Until F01 passes, host-QEMU profile evidence narrows guest/image problems but does not prove that the APK resolved the exact same profile data.
+Artifact publication, listing, cleanup, installed checks, and runtime consumption share one strict active-manifest contract. Ubuntu, AAVMF, and every other non-Podroid artifact require an active manifest. Only the three pinned Podroid qualification inputs retain bare-file plus `.sha256` storage.
+
+H02A now tests the same canonical Ubuntu profile and guest-init inputs used by the Android runtime. Host-QEMU evidence still cannot prove APK-native Android execution, but it no longer tests a parallel profile definition.
 
 ## Qualified MVP profiles
 
@@ -16,7 +18,9 @@ Preserves the known Podroid direct-kernel path. It is a compatibility oracle and
 
 ### `ubuntu-2404-arm64-uefi`
 
-Proves distribution independence through an ARM64 cloud image, UEFI boot, virtio disks/network, serial console, NoCloud initialization, OpenSSH, and guest Tailscale enrollment.
+Proves distribution independence through an ARM64 cloud image, UEFI boot, virtio disks/network, serial console, NoCloud initialization, OpenSSH, and later guest Tailscale enrollment.
+
+H02A qualifies boot, QMP, NoCloud, key-only loopback SSH, restart, and secret hygiene. Guest Tailscale is a separate H02B concern.
 
 ### `k3s-worker-lab`
 
@@ -24,15 +28,17 @@ Derives from the Ubuntu profile and runs qualification checks only. It does not 
 
 ## Compatibility contract
 
-MVP generic cloud images must be ARM64, boot on QEMU `virt` with the selected UEFI firmware, support virtio block/network and serial console, support NoCloud, and permit OpenSSH plus Tailscale installation.
+MVP generic cloud images must be ARM64, boot on QEMU `virt` with the selected UEFI firmware, support virtio block/network and serial console, support NoCloud, and permit OpenSSH plus later Tailscale installation.
 
 ## Schema policy
 
-- JSON becomes the sole production source of truth when F01 exits successfully.
+- JSON is the sole production source of truth.
 - Unknown fields are rejected in v1alpha1.
 - Unsupported versions and unresolved inheritance fail before QEMU or filesystem effects.
 - Artifact references require digest and expected size before activation.
+- Non-Podroid artifacts require valid active manifests.
 - Profile bootstrap assets are trusted project code and must be packaged exactly with the profile that names them.
+- Vendor-data paths reject empty, `.` and `..` segments before asset access.
 - No profile contains arbitrary host QEMU argv.
 - Profile-specific guest scripts may execute only from checked-in, reviewed paths.
 
@@ -40,4 +46,4 @@ MVP generic cloud images must be ARM64, boot on QEMU `virt` with the selected UE
 
 Mutable `current` image URLs may be used only by a pinning tool. The resulting digest, size, source URL, and fetch date go into `profiles/locks/images.lock.json`. Deployment consumes the lock, not the mutable URL.
 
-Published artifact manifests are versioned project data. Publication, listing, and runtime consumption must agree on exact fields, digest, expected size, immutable relative path, and root containment; F01 establishes the shared consumer contract.
+Published artifact manifests are versioned project data. Publication, listing, and runtime consumption agree on exact fields, digest, expected size, immutable relative path, payload size, and root containment.
