@@ -12,7 +12,7 @@
 
 ## Phase-boundary rules
 
-- At phase start, verify current `main`, run `make dev-plan` and `make validate`, then re-evaluate task necessity, prerequisites, dependencies, allowed paths, acceptance criteria, and evidence limits.
+- At phase start, verify current `main`, run `make dev-plan` and `make validate`, then re-evaluate task necessity, prerequisites, dependencies, allowed paths, acceptance criteria, evidence limits, and compatibility policy.
 - Keep only current-phase tasks in `agents/task-dag.json`. Retain merged and queued packets in the registry for provenance.
 - During implementation, update the task packet and experiment record when discovery changes the real problem.
 - At phase end, check every task acceptance criterion and phase exit criterion against code, tests, package artifacts, and evidence before activating the next phase.
@@ -29,6 +29,15 @@
 - USB networking is MVP+; do not start it while any base-MVP gate is incomplete.
 - Kotlin/Compose/Hilt/Python/Ktor/Room are current MVP implementations, not permission to couple permanent contracts to them or preclude later Slint/Rust/shared-controller ADRs.
 - Keep code simple. Add `TODO(MVP-HARDENING, <task-id>)` only for a specific deferred refinement with an expiry trigger.
+
+## Alpha compatibility policy
+
+- This repository is unreleased alpha. Breaking changes to internal storage, development configuration, schemas, and unpublished APIs are allowed by default.
+- Prefer one clean current representation and reset or re-provision development state. Do not preserve obsolete formats merely because they existed on an unmerged branch, in a test fixture, or in an unused development build.
+- Do not add migration, fallback, dual-read, legacy parsing, or compatibility branches without explicit task authorization and evidence of real deployed state that must be preserved.
+- An authorized compatibility path must name the preserved population, why reset is unacceptable, the compatibility window, tests, and a deletion trigger.
+- Isolate authorized compatibility code in a dedicated migration or compatibility adapter. Canonical readers, writers, domain models, and runtime paths must not understand obsolete representations.
+- Current packaging adapters are not automatically legacy compatibility. Name them for the active boundary they serve and keep their scope explicit.
 
 ## Hardware-in-the-loop rules
 
