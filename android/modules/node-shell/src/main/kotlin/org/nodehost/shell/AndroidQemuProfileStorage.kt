@@ -97,18 +97,18 @@ internal class AndroidQemuProfileStorage(
             if (verify) require(fileDigest(file) == manifest.sha256) { "artifact digest mismatch: $id" }
             return ResolvedArtifact(ArtifactRef(id, manifest.sha256, manifest.sizeBytes), file)
         }
-        require(id in LEGACY_PODROID_ARTIFACT_IDS) {
+        require(id in PACKAGED_PODROID_ARTIFACT_IDS) {
             "active artifact manifest is required: $id"
         }
         val file = File(artifactRoot, id)
         require(file.isFile && file.length() in 1..MAX_ARTIFACT_BYTES) { "trusted artifact is missing or out of bounds: $id" }
-        val expectedDigest = expectedLegacyPodroidDigest(id)
+        val expectedDigest = expectedPackagedPodroidDigest(id)
         if (verify) require(fileDigest(file) == expectedDigest) { "artifact digest mismatch: $id" }
         return ResolvedArtifact(ArtifactRef(id, expectedDigest, file.length()), file)
     }
 
-    private fun expectedLegacyPodroidDigest(id: String): String {
-        require(id in LEGACY_PODROID_ARTIFACT_IDS) { "legacy digest metadata is not allowed for artifact: $id" }
+    private fun expectedPackagedPodroidDigest(id: String): String {
+        require(id in PACKAGED_PODROID_ARTIFACT_IDS) { "packaged digest metadata is not allowed for artifact: $id" }
         val expected = File(artifactRoot, "$id.sha256")
         require(expected.isFile && expected.length() <= 128) { "artifact digest metadata is missing: $id" }
         return expected.readText().trim().also {
@@ -201,7 +201,7 @@ internal class AndroidQemuProfileStorage(
     }
 
     private companion object {
-        val LEGACY_PODROID_ARTIFACT_IDS = setOf(
+        val PACKAGED_PODROID_ARTIFACT_IDS = setOf(
             "podroid-kernel",
             "podroid-initramfs",
             "podroid-alpine-squashfs",
