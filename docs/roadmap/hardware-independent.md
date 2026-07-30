@@ -6,50 +6,72 @@ Physical Android evidence remains authoritative. Hardware-independent work exist
 
 | Task | State | Repository truth |
 |---|---|---|
-| F01 | **PLANNED** | Sole active task: make packaged JSON profiles and one strict artifact-manifest contract the Android production source of truth. |
+| F01 | **MERGE_READY** | Canonical packaged profiles and the shared artifact-manifest contract passed full CI on head `a343b3dc283d22fe49bbef3caefb6e05f446f4a8`, Actions run `30533830617`. Merge is the remaining Phase 1 action. |
 | H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validated head run `30510377089` was fully green. |
-| H02 | **QUEUED_REVIEW** | Guest QEMU/NoCloud/SSH/Headscale lab remains useful, but its scope and split must be reconsidered after F01. |
-| H03 | **QUEUED_REVIEW** | Emulator lifecycle coverage remains useful, but its harness/scenario split must be reconsidered after F01. |
+| H02 | **QUEUED_REVIEW** | Original broad guest QEMU/NoCloud/SSH/Headscale packet is superseded by the Phase 1 exit decision and will be split after F01 merges. |
+| H03 | **QUEUED_REVIEW** | Original broad emulator packet is superseded by the Phase 1 exit decision and will be split after F01 merges. |
 | H04 | **MERGED** | HIL evidence hardening landed at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`. |
 
-Only F01 appears in `agents/task-dag.json`. Queued and completed packets remain in the registry for provenance.
+Only F01 appears in `agents/task-dag.json` until the exact merge-ready documentation head passes and merges. Queued and completed packets remain in the registry for provenance.
 
 ## Layered path
 
 ### Phase 0 — repository truth and planning discipline
 
-**Purpose:** remove stale status, contradictory task authorization, and unverified future-task activation.
+**Complete.**
 
-**Exit criteria:**
+Exit evidence:
 
 - H01 and H04 are recorded as merged with commit IDs.
 - Completed tasks are absent from the active DAG.
-- H02/H03 are queued for review rather than treated as pre-authorized parallel work.
-- One active foundational packet has explicit entry, acceptance, verification, and phase-end criteria.
-- The debt register, handoff, architecture docs, and development loop agree on the current state.
+- H02/H03 were queued for review rather than treated as pre-authorized parallel work.
+- One active foundational packet had explicit entry, acceptance, verification, and phase-end criteria.
+- The debt register, handoff, architecture docs, and development loop agreed on the current state.
 
 ### Phase 1 — canonical artifact/profile foundation
 
-**Active task:** F01.
+**Task:** F01 — merge-ready.
 
 **Purpose:** ensure Linux labs, emulator tests, Android runtime behavior, and uploaded artifacts use the same profile and manifest semantics.
 
-**Exit criteria:** use the `foundation-1` criteria in `agents/task-dag.json` and the detailed F01 acceptance criteria. No physical gate changes in this phase.
+Exit result:
 
-### Phase 2 — deterministic preflight qualification
+- Android production profile resolution loads strict, bounded packaged JSON rather than duplicated Kotlin definitions.
+- The APK contains byte-for-byte canonical profiles, schema, index, and rendered guest-init assets.
+- Artifact publication, listing, cleanup, installed checks, and runtime consumption use one strict manifest contract.
+- H01, HTTPS importer, QEMU, Android, guest, package, signature, and 16 KiB alignment checks remain green.
+- Candidate APK `ab3d3b841d481088d2f4b8e8800abaa73884a17051484853a8d2060246527928` is bound to exact implementation head `a343b3dc283d22fe49bbef3caefb6e05f446f4a8` with `hardwareValidated: false`.
+- No physical gate changed.
 
-Activated only after the Phase 1 exit review.
+The phase closes only when the final documentation head passes and the exact PR is merged.
 
-Candidate work:
+### Phase 2 — deterministic guest boot qualification
 
-1. Guest boot, NoCloud, key-only SSH, restart, and secret-hygiene qualification under host QEMU.
-2. Guest Headscale identity, tailnet SSH, control-server interruption, and recovery qualification.
-3. Reproducible API 36 emulator harness if unit tests cannot cover the remaining lifecycle ambiguity.
-4. Focused Activity/Service/Room/API lifecycle scenarios through real application ports.
+Activate only after F01 merges and the new phase packet is reviewed against the merged result.
 
-H02 and H03 may be split, narrowed, run sequentially, or removed. They are not requirements merely because packets already exist.
+The sole first active task should cover:
 
-### Phase 3 — physical vertical slice
+1. canonical Ubuntu profile and pinned artifact identity;
+2. UEFI boot and real QMP status;
+3. NoCloud completion;
+4. key-only SSH through loopback SLIRP;
+5. clean QEMU stop/start and guest restart;
+6. inspection of guest disk, cloud-init state, logs, and temporary metadata for retained one-use credentials or callback capabilities;
+7. bounded machine-readable host-QEMU evidence explicitly marked non-Android.
+
+This phase must not include Headscale enrollment. It first proves the guest image/bootstrap path independently of mesh behavior.
+
+### Phase 3 — queued preflight candidates
+
+These tasks are not active merely because their broad predecessors existed:
+
+1. **Guest mesh qualification** — one-use Headscale enrollment, separate guest identity, tailnet SSH, `tailscaled` restart, Headscale interruption, and recovery. Requires successful guest boot qualification.
+2. **Stateless emulator harness** — deterministic API 36 create/boot/install/execute/collect/destroy. Activate only when the remaining lifecycle ambiguity justifies its cost.
+3. **Emulator lifecycle scenarios** — Activity, Service, Room, enrollment, permission, and Host API behavior through real ports with release-surface exclusion. Requires a proven emulator harness.
+
+At each boundary, re-evaluate whether the queued work still reduces physical-debugging ambiguity. Split, narrow, reorder, or remove it rather than preserving stale scope.
+
+### Phase 4 — physical vertical slice
 
 Run through the existing `tests/hil/` implementation and bind every pass to an exact commit/APK.
 
@@ -58,7 +80,7 @@ Run through the existing `tests/hil/` implementation and bind every pass to an e
 3. **Durability:** B07, B16, B17 — Activity/service/process/reboot reconciliation and actual controller/network unavailability.
 4. **MVP seal:** re-run the required scenarios against one exact final candidate and promote reviewed evidence.
 
-### Phase 4 — post-base hardening
+### Phase 5 — post-base hardening
 
 Only after the base vertical slice reveals real needs or all base gates pass:
 
@@ -69,7 +91,7 @@ Only after the base vertical slice reveals real needs or all base gates pass:
 - stronger controller authentication, durable controller implementation, and QEMU process isolation;
 - strategic UI/shared-core decisions, including Slint/Rust, through explicit ADRs rather than accidental MVP coupling.
 
-### Phase 5 — MVP+
+### Phase 6 — MVP+
 
 AOA/USB link, TAP/NAT, second NIC, and fallback remain blocked until all B01–B20 gates are PASS.
 
