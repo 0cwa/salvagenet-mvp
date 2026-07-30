@@ -1,13 +1,7 @@
 # F01 — Canonical artifact and profile resolution
 
-Status: **MERGE READY** on `agent/F01-canonical-artifact-profile-resolution`.
+Status: **MERGED** at `246d551ca7e691a0319a4b30e29d6e4905cd9910`.
 
-Generate scoped context with:
+Final head `31dcd75199928b7887132a1429392266388c0b60` passed the complete workflow in Actions run `30549498423` before merge.
 
-```sh
-make context TASK=F01
-```
-
-Reviewed implementation head `b0dae0581c9d72ae0f7481f7b602573931fbc3a2` passed the complete workflow in Actions run `30548116488`. The downloaded APK matched the commit-bound evidence files exactly. All actionable PR #7 findings were addressed: module-relative Gradle tooling paths, traversal-safe guest-init paths, robust manifest listing, pre-mutation validation, one verified artifact resolution per preparation, 1 MiB streaming copies, and expanded regression coverage.
-
-The final documentation head must pass the same workflow before merge. After F01 merges, activate only the narrowed guest-boot qualification task; guest mesh and both emulator tasks remain queued for their own phase-start reviews.
+This packet remains for provenance and is not active work authorization. Follow-up simplification or contract corrections require their own scoped task; do not extend F01 silently.
