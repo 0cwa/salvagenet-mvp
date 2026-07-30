@@ -14,10 +14,13 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.nodehost.api.ArtifactUploadCreateRequest
 import org.nodehost.api.ArtifactUploadState
 import org.nodehost.api.HostApiConflictException
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class AndroidArtifactUploadsTest {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
     private var now = 1_000L
