@@ -1,5 +1,11 @@
-# H02 — host-QEMU and Headscale guest E2E
+# H02 — Canonical Ubuntu guest boot qualification
 
-Status: **QUEUED FOR PHASE-START REVIEW**.
+Status: **PLANNED** and the sole active task in phase `guest-boot-1`.
 
-This is not an active packet and must not authorize implementation yet. After F01 merges, revise `task.md` and decide whether guest boot/SSH qualification and Headscale resilience should be separate sequential tasks.
+Generate scoped context with:
+
+```sh
+make context TASK=H02
+```
+
+H02 proves the canonical Ubuntu/UEFI/NoCloud/key-only loopback SSH path in the existing host-QEMU lab. It does not add Headscale, guest-tailnet, emulator, Android-device, or compatibility-migration scope.
