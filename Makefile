@@ -9,7 +9,7 @@ ifeq ($(HIL_BUILD),1)
 HIL_ARGS += --build
 endif
 
-.PHONY: help install-go doctor validate import-podroid wire-podroid context lab-up lab-down lab-keys lab-status \
+.PHONY: help install-go doctor validate import-podroid wire-podroid podroid-import podroid-update podroid-verify podroid-diff context lab-up lab-down lab-keys lab-status \
         integration-worktree test-jvm test-android test-guest test-static test-emulator device-facts goal-preflight install-hooks \
         provenance-report wave worktree integrate status mvp-status dev-plan dev-check dev-full new-task \
         hil-doctor hil-smoke hil-mvp hil-resilience hil-all emulator-install emulator-start emulator-stop \
@@ -24,6 +24,10 @@ help:
 	  'dev-check       run the fast non-hardware development loop' \
 	  'dev-full        run all available non-hardware checks (DEV_WITH_QEMU=1 optional)' \
 	  'new-task        print task-generator usage' \
+	  'podroid-import  import pinned upstream and apply ordered patches' \
+	  'podroid-update  merge the newly locked upstream commit' \
+	  'podroid-verify  reproduce vendored Podroid from upstream + patches' \
+	  'podroid-diff    show uncaptured Podroid downstream changes' \
 	  'context TASK=H01 build a scoped context packet' \
 	  'integration-worktree create the active-cycle integration worktree' \
 	  'worktree TASK=H01 create one task branch/worktree' \
@@ -78,11 +82,23 @@ dev-full:
 new-task:
 	@python3 tools/agents/new-task.py --help
 
-import-podroid:
-	@tools/bootstrap/import-podroid-subtree.sh
+podroid-import:
+	@python3 tools/vendor/podroid.py import
+
+podroid-update:
+	@python3 tools/vendor/podroid.py update
+
+podroid-verify:
+	@python3 tools/vendor/podroid.py verify
+
+podroid-diff:
+	@python3 tools/vendor/podroid.py diff
+
+# Compatibility aliases retained for existing developer notes and task packets.
+import-podroid: podroid-import
 
 wire-podroid:
-	@python3 tools/bootstrap/wire-podroid.py
+	@python3 tools/vendor/podroid.py apply-patches
 
 context:
 	@test -n "$(TASK)" || (echo 'usage: make context TASK=H01' >&2; exit 2)

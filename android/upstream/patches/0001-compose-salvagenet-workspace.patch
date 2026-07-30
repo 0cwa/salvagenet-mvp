@@ -1,0 +1,53 @@
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -25,3 +25,6 @@
+ 
+ rootProject.name = "Podroid"
+ include(":app", ":terminal-emulator", ":terminal-view")
++
++// NODEHOST-WORKSPACE-INCLUDE
++apply(from = "../workspace.settings.gradle.kts")
+diff --git a/gradle.properties b/gradle.properties
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -23,3 +23,12 @@
+ kotlin.code.style=official
+ podroidQemuVersion=11.0.0
+ podroidKernelVersion=7.0.10
++
++# NODEHOST-WORKSPACE-PROPERTIES-BEGIN
++# Centralized node-host adapter versions. The imported Podroid toolchain remains authoritative.
++nodehost.roomVersion=2.8.4
++nodehost.ktorVersion=3.5.1
++nodehost.compileSdk=36
++nodehost.minSdk=26
++nodehost.ndkVersion=27.2.12479018
++# NODEHOST-WORKSPACE-PROPERTIES-END
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,6 +12,9 @@
+ }
+ 
+ val podroidQemuVersion = providers.gradleProperty("podroidQemuVersion").get()
++
++// SalvageNet keeps its composition and packaging logic outside the vendored subtree.
++apply(from = rootProject.file("../podroid.integration.gradle.kts"))
+ 
+ android {
+     namespace = "com.excp.podroid"
+@@ -88,6 +91,13 @@ android {
+         buildConfig = true
+     }
+ 
++    // Static generated directories stay in the native Android DSL; the tasks that populate
++    // and verify them remain in the external SalvageNet integration script.
++    sourceSets.getByName("main") {
++        jniLibs.directories.add(layout.buildDirectory.dir("generated/podroidRuntime/jniLibs").get().asFile.absolutePath)
++        assets.directories.add(layout.buildDirectory.dir("generated/podroidRuntime/assets").get().asFile.absolutePath)
++    }
++
+     packaging {
+         resources {
+             excludes += "/META-INF/{AL2.0,LGPL2.1}"

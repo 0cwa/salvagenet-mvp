@@ -1,0 +1,75 @@
+diff --git a/app/src/main/java/com/excp/podroid/ui/screens/x11/X11Screen.kt b/app/src/main/java/com/excp/podroid/ui/screens/x11/X11Screen.kt
+index 2cb2945..73fe843 100644
+--- a/app/src/main/java/com/excp/podroid/ui/screens/x11/X11Screen.kt
++++ b/app/src/main/java/com/excp/podroid/ui/screens/x11/X11Screen.kt
+@@ -476,30 +476,30 @@ fun X11Screen(
+                                     val event = awaitPointerEvent()
+                                     val change = event.changes.firstOrNull() ?: continue
+ 
+-                                        // Physical-mouse scroll wheel → X wheel (buttons 4/5).
+-                                        if (event.type == PointerEventType.Scroll) {
+-                                            val dy = change.scrollDelta.y
+-                                            if (dy != 0f) {
+-                                                viewModel.moveTo(fbX(change.position.x), fbY(change.position.y))
+-                                                viewModel.scroll(up = dy < 0f, ticks = abs(dy).toInt().coerceAtLeast(1))
+-                                            }
+-                                            event.changes.forEach { it.consume() }
+-                                            continue
++                                    // Physical-mouse scroll wheel → X wheel (buttons 4/5).
++                                    if (event.type == PointerEventType.Scroll) {
++                                        val dy = change.scrollDelta.y
++                                        if (dy != 0f) {
++                                            viewModel.moveTo(fbX(change.position.x), fbY(change.position.y))
++                                            viewModel.scroll(up = dy < 0f, ticks = abs(dy).toInt().coerceAtLeast(1))
+                                         }
++                                        event.changes.forEach { it.consume() }
++                                        continue
++                                    }
+ 
+-                                        // Physical mouse → absolute move + native buttons.
+-                                        // Consuming keeps right-click from falling through to
+-                                        // Android Back (which exited fullscreen) and sends it
+-                                        // to X as button 3 instead.
+-                                        if (change.type == PointerType.Mouse) {
+-                                            var mask = 0
+-                                            if (event.buttons.isPrimaryPressed)   mask = mask or VncClient.BTN_LEFT
+-                                            if (event.buttons.isSecondaryPressed) mask = mask or VncClient.BTN_RIGHT
+-                                            if (event.buttons.isTertiaryPressed)  mask = mask or VncClient.BTN_MIDDLE
+-                                            viewModel.mouseUpdate(fbX(change.position.x), fbY(change.position.y), mask)
+-                                            event.changes.forEach { it.consume() }
+-                                            continue
+-                                        }
++                                    // Physical mouse → absolute move + native buttons.
++                                    // Consuming keeps right-click from falling through to
++                                    // Android Back (which exited fullscreen) and sends it
++                                    // to X as button 3 instead.
++                                    if (change.type == PointerType.Mouse) {
++                                        var mask = 0
++                                        if (event.buttons.isPrimaryPressed)   mask = mask or VncClient.BTN_LEFT
++                                        if (event.buttons.isSecondaryPressed) mask = mask or VncClient.BTN_RIGHT
++                                        if (event.buttons.isTertiaryPressed)  mask = mask or VncClient.BTN_MIDDLE
++                                        viewModel.mouseUpdate(fbX(change.position.x), fbY(change.position.y), mask)
++                                        event.changes.forEach { it.consume() }
++                                        continue
++                                    }
+ 
+                                     // Touch → finger-gesture state machine (one gesture).
+                                     if (change.type != PointerType.Touch || !change.changedToDown()) continue
+diff --git a/terminal-emulator/build.gradle.kts b/terminal-emulator/build.gradle.kts
+index 1482948..8d12e81 100644
+--- a/terminal-emulator/build.gradle.kts
++++ b/terminal-emulator/build.gradle.kts
+@@ -31,8 +31,13 @@ android {
+         sourceCompatibility = JavaVersion.VERSION_17
+         targetCompatibility = JavaVersion.VERSION_17
+     }
++
++    testOptions {
++        unitTests.isReturnDefaultValues = true
++    }
+ }
+ 
+ dependencies {
+     implementation("androidx.annotation:annotation:1.9.0")
++    testImplementation(libs.junit)
+ }
