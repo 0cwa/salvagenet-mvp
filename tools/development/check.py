@@ -38,7 +38,10 @@ def main()->int:
         p=sub.add_parser(name); p.add_argument('--level',choices=('quick','full'),default='full' if name=='plan' else 'quick'); p.add_argument('--with-qemu',action='store_true',default=os.environ.get('DEV_WITH_QEMU')=='1'); p.add_argument('--json',type=Path)
     args=parser.parse_args(); checks=plan(args.level,args.with_qemu)
     if args.action=='plan': print_plan(checks); return 0
-    results,ok=execute(checks); report={'schemaVersion':1,'recordedAt':dt.datetime.now(dt.timezone.utc).isoformat(),'level':args.level,'withQemu':args.with_qemu,'results':results}
+    results,ok=execute(checks)
+    commit=subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,text=True,capture_output=True).stdout.strip() or None
+    dirty=bool(subprocess.run(['git','status','--porcelain'],cwd=ROOT,text=True,capture_output=True).stdout.strip())
+    report={'schemaVersion':1,'recordedAt':dt.datetime.now(dt.timezone.utc).isoformat(),'gitCommit':commit,'dirty':dirty,'level':args.level,'withQemu':args.with_qemu,'results':results}
     output=args.json or ROOT/'.local/development/report.json'; output=output if output.is_absolute() else ROOT/output; output.parent.mkdir(parents=True,exist_ok=True); output.write_text(json.dumps(report,indent=2)+'\n')
     for result in results: print(f"{result['status']:<5} {result['name']}")
     print(output.relative_to(ROOT) if ROOT in output.resolve().parents else output); return 0 if ok else 1

@@ -18,6 +18,7 @@ help:
 	  'wave WAVE=1     create all worktrees for one dependency wave' \
 	  'status          summarize active task packets and worktrees' \
 	  'mvp-status      regenerate docs/STATUS.md and README acceptance summary' \
+	  'lab-status      show disposable Headscale laboratory state' \
 	  'qemu-lab-e2e    prepare, boot, verify, record and clean up host-QEMU lab' \
 	  'test-emulator   run managed-emulator instrumentation when implemented' \
 	  'package         create a clean handoff archive in ../'
