@@ -38,10 +38,10 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
     private val documents: Map<String, JSONObject> by lazy(::loadDocuments)
 
     fun summaries(): List<PackagedProfileSummary> = EXPECTED_PROFILE_IDS.sorted().map { id ->
-        val document = documents.getValue(id)
-        val metadata = document.getJSONObject("metadata")
-        val boot = document.getJSONObject("spec").getJSONObject("boot")
-        PackagedProfileSummary(VmProfileId(id), metadata.getInt("version"), bootKind(boot.getString("type")))
+        val profile = profile(VmProfileId(id), verifyArtifacts = false) { artifactId, _ ->
+            ArtifactRef(artifactId, ZERO_SHA256, 1)
+        }
+        PackagedProfileSummary(profile.id, profile.version, profile.boot.kind)
     }
 
     fun profile(
@@ -167,20 +167,26 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
 
     fun vendorData(profileId: VmProfileId): ByteArray {
         val document = documents[profileId.value] ?: error("unsupported profile: ${profileId.value}")
-        val relative = document.getJSONObject("spec").getJSONObject("initialization").getString("vendorData")
-        return readAsset(assetPath(relative), MAX_VENDOR_DATA_BYTES).also { bytes ->
-            require(bytes.isNotEmpty() && bytes.toString(Charsets.UTF_8).startsWith("#cloud-config\n")) {
-                "profile vendor data is not rendered cloud-config: $relative"
-            }
-            require(!bytes.toString(Charsets.UTF_8).contains("{{")) { "profile vendor data contains unresolved template markers" }
+        val initialization = document.getJSONObject("spec").getJSONObject("initialization")
+        val relative = initialization.getString("vendorData")
+        val bytes = readAsset(assetPath(relative), MAX_VENDOR_DATA_BYTES)
+        require(bytes.isNotEmpty()) { "profile vendor data is empty: $relative" }
+        if (initialization.getString("type") == "nocloud-net") {
+            val text = bytes.toString(Charsets.UTF_8)
+            require(text.startsWith("#cloud-config\n")) { "profile vendor data is not rendered cloud-config: $relative" }
+            require(!text.contains("{{")) { "profile vendor data contains unresolved template markers" }
         }
+        return bytes
     }
 
     private fun loadDocuments(): Map<String, JSONObject> {
         val values = EXPECTED_PROFILE_IDS.associateWith { id ->
             val root = JSONObject(readAsset("$PROFILE_ASSET_ROOT/$id/profile.json", MAX_PROFILE_BYTES).toString(Charsets.UTF_8))
             requireKeys(root, ROOT_FIELDS, "profile root")
+            require(root.getString("apiVersion") == API_VERSION) { "unsupported profile API version" }
+            require(root.getString("kind") == KIND) { "unsupported profile kind" }
             val metadata = root.getJSONObject("metadata")
+            requireKeys(metadata, if (metadata.has("extends")) METADATA_FIELDS_WITH_EXTENDS else METADATA_FIELDS, "profile metadata")
             require(metadata.getString("id") == id) { "profile asset path and metadata id differ" }
             root
         }
@@ -268,6 +274,7 @@ internal class AndroidPackagedProfileCatalog(context: Context) {
         const val PROFILE_ASSET_ROOT = "$NODEHOST_ASSET_ROOT/profiles"
         const val MAX_PROFILE_BYTES = 64 * 1024
         const val MAX_VENDOR_DATA_BYTES = 128 * 1024
+        const val ZERO_SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
         val EXPECTED_PROFILE_IDS = setOf(
             "alpine-direct-qualification",
             "ubuntu-2404-arm64-uefi",
