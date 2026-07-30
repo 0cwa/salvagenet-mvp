@@ -123,7 +123,7 @@ roadmap-sync:
 	@python3 tools/roadmap/sync.py --write
 
 roadmap-check:
-	@python3 tools/roadmap/roadmap.py check
+	@python3 tools/roadmap/sync.py --check --strict-live
 
 roadmap-context:
 	@test -n "$(ISSUE)" || (echo 'usage: make roadmap-context ISSUE=WEB-04' >&2; exit 2)
