@@ -1,0 +1,5 @@
+agents/tasks/H02A/**
+lab/qemu/**
+tests/guest/**
+Makefile
+docs/research/experiments/H02A.md
