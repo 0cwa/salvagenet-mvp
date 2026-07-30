@@ -7,7 +7,7 @@
   ],
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
-    "F01": "MERGE_READY",
+    "F01": "IN_PROGRESS",
     "H01": "MERGED",
     "H02": "QUEUED_REVIEW",
     "H03": "QUEUED_REVIEW",
@@ -19,13 +19,11 @@
       "name": "Canonical artifact and profile resolution",
       "dependsOn": [],
       "packet": "agents/tasks/F01/task.md",
-      "status": "MERGE_READY",
+      "status": "IN_PROGRESS",
       "startedFrom": "9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7",
-      "validatedHead": "a343b3dc283d22fe49bbef3caefb6e05f446f4a8",
-      "validationRun": "30533830617",
-      "candidateApkSha256": "ab3d3b841d481088d2f4b8e8800abaa73884a17051484853a8d2060246527928",
-      "candidateApkSizeBytes": 348561505,
-      "workflowArtifactId": "8755952223"
+      "previousValidatedHead": "a343b3dc283d22fe49bbef3caefb6e05f446f4a8",
+      "previousValidationRun": "30533830617",
+      "hardeningReason": "Post-exit review restricted bare-file legacy fallback to the three pinned Podroid qualification artifacts; the updated head requires full revalidation."
     },
     {
       "id": "H01",
