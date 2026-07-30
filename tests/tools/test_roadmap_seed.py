@@ -15,13 +15,10 @@ class RoadmapSeedTest(unittest.TestCase):
     def setUp(self) -> None:
         self.seed = load_seed(SEED_PATH)
 
-    def item(self, item_id: str) -> dict:
-        return next(item for item in self.seed["items"] if item["id"] == item_id)
-
     def test_repository_seed_is_complete_and_valid(self) -> None:
         result = validate_seed(self.seed, ROOT)
         self.assertEqual(7, result.milestone_count)
-        self.assertEqual(42, result.item_count)
+        self.assertEqual(49, result.item_count)
         self.assertEqual(24, len(result.acceptance_coverage))
         self.assertEqual(("H02A",), result.active_task_ids)
 
@@ -45,10 +42,16 @@ class RoadmapSeedTest(unittest.TestCase):
         with self.assertRaisesRegex(SeedError, "active task H02A"):
             validate_seed(seed, ROOT)
 
-    def test_ready_item_cannot_have_unfinished_blocker(self) -> None:
+    def test_active_item_cannot_have_unfinished_blocker(self) -> None:
         seed = copy.deepcopy(self.seed)
         next(item for item in seed["items"] if item["id"] == "FND-01")["seedState"] = "review"
-        with self.assertRaisesRegex(SeedError, "GUEST-01 is ready"):
+        with self.assertRaisesRegex(SeedError, "GUEST-01 is active"):
+            validate_seed(seed, ROOT)
+
+    def test_accepted_post_mvp_direction_cannot_disappear(self) -> None:
+        seed = copy.deepcopy(self.seed)
+        seed["items"] = [item for item in seed["items"] if item["id"] != "PLAT-12"]
+        with self.assertRaisesRegex(SeedError, "PLAT-12"):
             validate_seed(seed, ROOT)
 
 
