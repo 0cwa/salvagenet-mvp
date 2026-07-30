@@ -1,8 +1,9 @@
 GOAL.md
-docs/architecture/networking.md
 docs/architecture/vm-profiles.md
-docs/testing/headscale-lab.md
+docs/testing/strategy.md
 lab/qemu/AGENTS.md
 lab/qemu/README.md
-lab/headscale/AGENTS.md
+profiles/ubuntu-2404-arm64-uefi/profile.json
+profiles/locks/images.lock.json
 profiles/guest-init/AGENTS.md
+tests/guest/AGENTS.md
