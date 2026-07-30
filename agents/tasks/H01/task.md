@@ -2,9 +2,11 @@
 
 ## Status
 
-**IN PROGRESS — implementation exists, hardening and CI remain.**
+**MERGE READY — implementation and full CI are green.**
 
-The branch `agent/H01-artifact-upload` contains the first end-to-end implementation in commit `1567b6694dd642a6606f62ec70965be4019cd88c`. It is not merge-ready until the recovery, cleanup, HTTP-semantics, and concurrency items below are resolved and the full repository workflow is green.
+The branch `agent/H01-artifact-upload` implements and hardens the complete H01 contract. GitHub Actions run `30509824017` passed repository validation, controller tests, JVM/domain tests, Android adapter tests and lint, guest/profile qualification, packaged APK verification, signature verification, 16 KiB alignment, and candidate artifact upload.
+
+This status means software-merge ready. It does not constitute physical Android validation and changes no base-MVP acceptance gate.
 
 ## Outcome
 
@@ -18,29 +20,36 @@ None; the branch is based on current `main`, including the merged HIL evidence h
 
 See `allowed-paths.txt`. Changes outside them require an orchestrator handoff.
 
-## Implemented on this branch
+## Implemented and validated
 
 - Typed create, status, sequential chunk, complete, and cancel resources.
 - A 1 MiB maximum chunk size with per-chunk SHA-256 verification.
 - Exact replay idempotency for already committed chunks.
-- App-private staged payload and metadata with restart-visible committed progress.
+- App-private, versioned staged payload and metadata with restart-visible committed progress.
 - Whole-file size and SHA-256 verification before publication.
+- Recovery of the payload-moved/manifest-not-yet-published crash window, including when the upload is old enough for stale collection.
+- Exact persisted metadata and active-manifest field/version validation.
+- Bounded cancellation and stale-record collection without consuming open-upload capacity or deleting active artifacts.
+- `404 Not Found` for missing uploads and `409 Conflict` for state, offset, replay, capacity, and idempotency conflicts.
 - Publication into the existing digest-addressed payload and active-manifest layout.
+- Process-local serialization shared by resumable upload and HTTPS import; serialized completion order determines the active manifest.
+- Existing published artifacts are recognized through exact immutable digest-path, manifest, and size checks without rehashing the large payload during upload creation.
 - `image.resumable-upload` capability discovery.
-- Controller CLI/client support that resumes from the host-reported committed offset.
+- Controller CLI/client support that hashes locally, streams bounded chunks, resumes only from host-reported committed progress, verifies every response, rejects local-file mutation, and redacts reflected credentials/idempotency keys.
 - OpenAPI and Kotlin/Python regression coverage.
-- The existing HTTPS importer and its SSRF/DNS-rebinding policy remain separate and unchanged.
+- The existing HTTPS importer retains its enrolled-origin, redirect, DNS-rebinding, deadline, size, digest, cancellation, and atomic-publication protections.
+- Pre-H01 Host API bounds, diagnostics validation, apply conflict mapping, and recovery-session admission were restored after review detected regressions in the first implementation.
 
-## Remaining merge blockers
+## Resolved merge blockers
 
-1. Recover the crash window where the payload moved into its digest-addressed destination but the active manifest was not yet published.
-2. Garbage-collect cancelled and stale upload directories so they cannot exhaust the bounded upload count.
-3. Return `404 Not Found` for an absent upload resource.
-4. Validate the persisted upload metadata version and exact field set before recovery.
-5. Validate the exact active-manifest field set when detecting an already published artifact.
-6. Avoid hashing an already published large artifact during upload creation when trusted manifest and size metadata already prove the requested digest.
-7. Map upload state, offset, replay, and idempotency conflicts to `409 Conflict` rather than generic `400 Bad Request`.
-8. Serialize or explicitly arbitrate publication shared by resumable upload and HTTPS import so the active manifest does not have undocumented last-completion-wins behavior.
+1. **Resolved:** durable moved-payload recovery completes the active manifest before stale collection.
+2. **Resolved:** cancelled and stale staging is bounded and reclaimed; only open uploads count against open capacity.
+3. **Resolved:** absent upload resources return `404`.
+4. **Resolved:** persisted metadata requires the exact supported version and field set.
+5. **Resolved:** active manifests require the exact supported field set and immutable digest path.
+6. **Resolved:** creation does not rehash an already-published immutable payload.
+7. **Resolved:** upload and idempotency conflicts map to `409`.
+8. **Resolved:** HTTPS import and controller upload share explicit publication serialization.
 
 ## Acceptance
 
@@ -49,21 +58,28 @@ See `allowed-paths.txt`. Changes outside them require an orchestrator handoff.
 - Exact replay succeeds; gaps, partial overlaps, conflicting replay, oversized chunks, and digest mismatches are rejected deterministically.
 - Completion fsyncs staged bytes and atomically publishes exactly one internally consistent active manifest; partial files are never active.
 - Cancellation and stale-upload collection are bounded, reclaim staging state, and never delete an active artifact.
-- Concurrent upload/import publication follows an explicit deterministic policy.
+- Concurrent upload/import publication follows a documented serialized completion policy.
 - The public HTTPS downloader retains its origin, redirect, DNS-rebinding, size, digest, cancellation, and atomic-publication protections.
 
-## Required checks
+## Validation
 
-```sh
-make validate
-make test-jvm
-make test-android
-python3 -m unittest discover -s controller/mvp-cli/tests
-python3 tools/agents/verify-scope.py H01
+GitHub Actions run `30509824017` passed:
+
+```text
+repository/static/contracts/evidence validation
+controller Python tests
+guest/profile qualification
+JVM/domain tests
+Android adapter unit tests
+Android lint
+debug APK and mesh release packaging
+APK signature verification
+16 KiB alignment verification
+candidate artifact/evidence upload
 ```
 
-GitHub CI must also complete the packaged APK, signature, and 16 KiB alignment jobs before merge.
+Physical transport, Android storage pressure, process death during a real multi-gigabyte transfer, and remote controller/device networking remain physical/integration evidence rather than software-CI claims.
 
 ## Handoff
 
-Report commit SHA(s), exact tests and lab runs, evidence paths, checks unavailable in the current environment, concrete deferred items, and the smallest next blocker. Do not describe H01 as complete while any item under **Remaining merge blockers** is open.
+Merge PR #5 without rewriting the tested commits. After merge, update the cycle registry to `MERGED` with the merge commit, then begin H02 or H03 from current `main`.
