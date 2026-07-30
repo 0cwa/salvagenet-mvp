@@ -8,13 +8,14 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/roadmap"))
 
+import commands  # noqa: E402
 import roadmap  # noqa: E402
 import sync  # noqa: E402
 
 
 class RoadmapTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.seed = roadmap.load_seed()
+        self.seed = commands.normalized_seed()
 
     def test_reviewed_seed_is_complete(self) -> None:
         result = roadmap.validate_seed(self.seed)
