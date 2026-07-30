@@ -29,13 +29,13 @@ After the implementation PR merges, open an issue with this exact title:
 [Roadmap Apply] Bootstrap reviewed graph
 ```
 
-Its body must contain the exact current default-branch commit:
+Then add one explicit comment containing the exact current default-branch commit:
 
 ```text
-expected-main: <40-character-main-sha>
+/roadmap-apply <40-character-main-sha>
 ```
 
-The workflow verifies that identity, applies labels/milestones/issues/dependencies with `issues: write`, reruns without mutation, generates snapshots, and pushes a review branch. The generated state and caches enter `main` only through a normal follow-up PR.
+The comment trigger avoids starting one workflow run for every roadmap issue created during bootstrap. The workflow verifies the comment author is a repository owner, member, or collaborator; verifies exact main; applies labels/milestones/issues/dependencies with `issues: write`; reruns without mutation; generates snapshots; and pushes a review branch. The generated state and caches enter `main` only through a normal follow-up PR.
 
 A manual workflow dispatch offers the same dry-run/apply boundary.
 
