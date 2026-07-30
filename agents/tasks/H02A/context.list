@@ -1,0 +1,10 @@
+GOAL.md
+AGENTS.md
+docs/architecture/vm-profiles.md
+docs/architecture/networking.md
+docs/testing/headscale-lab.md
+profiles/ubuntu-2404-arm64-uefi/profile.json
+profiles/guest-init/ubuntu/vendor-data.yaml
+lab/qemu/AGENTS.md
+lab/qemu/README.md
+lab/qemu/scripts/e2e.sh
