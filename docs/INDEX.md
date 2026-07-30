@@ -1,6 +1,6 @@
 # Documentation index
 
-The current acceptance state is generated in `STATUS.md`. Agents should read this index, `GOAL.md`, the active task or validation packet, and only the additional pages named by that packet.
+The current acceptance state is generated in `STATUS.md`. Agents should read this index, `GOAL.md`, the active task or validation goal, and only the additional pages named by that work.
 
 ## Current status
 
@@ -28,25 +28,26 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 - `development/context-engineering.md` — scoped agent context model.
 - `development/git-cycle.md` — branches, worktrees, commits, integration.
 - `development/provenance.md` — model/run attribution without context bloat.
-- `development/overnight-operations.md` — monitoring and recovery for an overnight run.
+- `development/overnight-operations.md` — historical initial implementation orchestration.
 - `development/upstream-sync.md` — Podroid import and future synchronization.
 
 ## Testing
 
-- `testing/strategy.md` — test pyramid and environments.
+- `testing/strategy.md` — test environments and the small physical HIL boundary.
+- `../tests/hil/README.md` — one-phone setup, scenarios, config, evidence, and exit codes.
 - `testing/qa-gates.md` — exact base-MVP gates.
 - `testing/headscale-lab.md` — local containerized control server.
-- `testing/android-matrix.md` — device and OS matrix.
+- `testing/android-matrix.md` — later device/OS expansion matrix.
 - `testing/failure-injection.md` — lifecycle and storage failure cases.
 - `testing/security-checks.md` — minimum host/guest security checks.
 
 ## Roadmap
 
 - `roadmap/overview.md` — development and implementation roadmap.
-- `roadmap/overnight-plan.md` — one-agent-day parallel plan.
-- `roadmap/dependency-dag.md` — task dependencies and merge order.
+- `roadmap/overnight-plan.md` — historical one-agent-day implementation plan.
+- `roadmap/dependency-dag.md` — historical implementation task dependencies.
 - `roadmap/acceptance-ledger.md` — base MVP and MVP+ acceptance ledger.
-- `roadmap/device-validation.md` — D00–D07 physical validation and release sequence.
+- `roadmap/device-validation.md` — active H0–H3 one-phone validation sequence.
 - `roadmap/post-mvp.md` — deliberately deferred work.
 
 ## Research

@@ -5,7 +5,8 @@
 - `lifecycle/` reconciler/service failure scenarios.
 - `network/` Headscale and host/guest mesh.
 - `guest/` cloud-init and K3s qualification.
-- `e2e/` physical vertical slice.
-- `device/` facts/lifecycle scripts.
-- `tools/` scaffold tooling tests.
+- `hil/` authoritative one-phone physical runner and evidence capture.
+- `e2e/` compatibility wrapper into `hil/`.
+- `device/` compatibility wrappers and device-specific helpers.
+- `tools/` repository-tooling tests.
 - `usb/` blocked MVP+ tests.

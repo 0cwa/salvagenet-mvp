@@ -2,16 +2,23 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 TASK ?=
+HIL_CONFIG ?= .local/hil.json
+HIL_BUILD ?= 0
+HIL_ARGS = --config $(HIL_CONFIG)
+ifeq ($(HIL_BUILD),1)
+HIL_ARGS += --build
+endif
 
 .PHONY: help install-go doctor validate import-podroid wire-podroid context lab-up lab-down lab-keys lab-status \
         integration-worktree test-jvm test-android test-guest test-static device-facts goal-preflight install-hooks \
-        provenance-report wave worktree integrate status mvp-status emulator-install emulator-start emulator-stop qemu-lab-prepare qemu-lab-start qemu-lab-smoke qemu-lab-stop package
+        provenance-report wave worktree integrate status mvp-status hil-doctor hil-smoke hil-mvp hil-resilience hil-all \
+        emulator-install emulator-start emulator-stop qemu-lab-prepare qemu-lab-start qemu-lab-smoke qemu-lab-stop package
 
 help:
 	@printf '%s\n' \
 	  'install-go      install pinned user-local Go toolchain' \
 	  'doctor          validate host tools and authorization' \
-	  'validate        run all scaffold checks that need no Android SDK/device' \
+	  'validate        run all checks that need no physical Android device' \
 	  'import-podroid  import the pinned Podroid snapshot into android/podroid' \
 	  'wire-podroid    wire sibling modules into Podroid Gradle settings' \
 	  'context TASK=T02 build a scoped context packet' \
@@ -24,6 +31,11 @@ help:
 	  'lab-up          start the local Headscale lab' \
 	  'lab-keys        mint one-use lab host/guest keys' \
 	  'lab-down        stop the local Headscale lab' \
+	  'hil-doctor      verify .local/hil.json, APK, controller, and exact ADB device' \
+	  'hil-smoke       physical APK/QEMU stop/restart smoke (HIL_BUILD=1 optional)' \
+	  'hil-mvp         physical host/guest mesh, SSH, and recovery path' \
+	  'hil-resilience  physical service/QEMU/offline/reboot scenario' \
+	  'hil-all         run all physical scenarios in order' \
 	  'emulator-install install/create the optional API 36 AVD' \
 	  'emulator-start  boot the optional headless API 36 AVD' \
 	  'emulator-stop   stop the optional AVD' \
@@ -35,8 +47,8 @@ help:
 	  'test-android    run Android module unit/lint checks after import' \
 	  'test-guest      run profile/guest qualification tests' \
 	  'test-static     alias for validate' \
-	  'device-facts    collect authorized physical-device facts' \
-	  'goal-preflight  check overnight goal prerequisites' \
+	  'device-facts    collect facts through the configured HIL device' \
+	  'goal-preflight  check implementation prerequisites' \
 	  'install-hooks   install provenance hooks' \
 	  'provenance-report show agent trailers in git history' \
 	  'package         create a clean handoff archive in ../'
@@ -95,6 +107,21 @@ lab-keys:
 lab-status:
 	@lab/headscale/scripts/status.sh
 
+hil-doctor:
+	@python3 tests/hil/run.py doctor $(HIL_ARGS)
+
+hil-smoke:
+	@python3 tests/hil/run.py smoke $(HIL_ARGS)
+
+hil-mvp:
+	@python3 tests/hil/run.py mvp $(HIL_ARGS)
+
+hil-resilience:
+	@python3 tests/hil/run.py resilience $(HIL_ARGS)
+
+hil-all:
+	@python3 tests/hil/run.py all $(HIL_ARGS)
+
 emulator-install:
 	@lab/android-emulator/scripts/install.sh
 
@@ -137,7 +164,7 @@ test-guest:
 	@tests/guest/test_k3s_qualifier.sh
 
 device-facts:
-	@tests/device/collect-device-facts.sh
+	@tests/device/collect-device-facts.sh --config $(HIL_CONFIG)
 
 goal-preflight:
 	@tools/agents/goal-preflight.sh

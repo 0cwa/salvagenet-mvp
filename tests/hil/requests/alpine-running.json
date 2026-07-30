@@ -1,0 +1,13 @@
+{
+  "generation": 1,
+  "desiredState": "running",
+  "profileId": "alpine-direct-qualification",
+  "resources": {
+    "memoryMiB": 768,
+    "vcpus": 2
+  },
+  "dataDisk": {
+    "sizeGiB": 4,
+    "preserveOnDelete": true
+  }
+}

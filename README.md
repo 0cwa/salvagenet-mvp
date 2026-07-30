@@ -25,13 +25,36 @@ See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown and [`do
 
 The physical vertical slice must prove:
 
-1. APK-native QEMU boot on an ARM64 Android device.
+1. APK-native QEMU boot on an ARM64 Android device;
 2. host Tailscale/Headscale enrollment and authenticated Host API reachability;
 3. controller-driven Ubuntu deployment and independent guest mesh enrollment;
 4. ordinary guest SSH and host-mediated recovery SSH;
-5. Activity/service/process/reboot recovery and controller-offline continuity.
+5. service/process/reboot recovery and controller-offline continuity.
 
 Do not begin USB/AOA networking while any base gate remains incomplete.
+
+## Small hardware-in-the-loop path
+
+Physical validation is intentionally scoped to one Linux workstation, one dedicated ARM64 phone, the existing Headscale lab, and the standard-library runner under [`tests/hil/`](tests/hil/).
+
+```sh
+cp tests/hil/config.example.json .local/hil.json
+# Set the exact ADB serial, node names, guest SSH target, and artifact imports.
+
+make lab-up
+make hil-doctor
+make hil-smoke HIL_BUILD=1
+make hil-mvp
+make hil-resilience
+```
+
+The three scenarios are orthogonal:
+
+- `hil-smoke` — APK/QEMU start, one-process invariant, graceful stop and restart;
+- `hil-mvp` — host mesh/API, Ubuntu, guest mesh, ordinary SSH and recovery SSH;
+- `hil-resilience` — service restart, QEMU crash recovery, controller-offline continuity, and optional reboot.
+
+Each run writes bounded redacted evidence under `.local/hil-runs/`. Fake, emulator, and host-QEMU results remain useful but cannot close physical gates.
 
 ## Start here
 
@@ -39,11 +62,12 @@ Do not begin USB/AOA networking while any base gate remains incomplete.
 cat GOAL.md
 cat AGENTS.md
 cat docs/STATUS.md
+cat tests/hil/README.md
 make doctor
 make validate
 ```
 
-For physical-device work, read [`agents/device-validation-goal.md`](agents/device-validation-goal.md) and the nearest nested `AGENTS.md` files rather than reusing the completed overnight implementation packets blindly.
+For physical-device work, read [`agents/device-validation-goal.md`](agents/device-validation-goal.md) and [`tests/hil/AGENTS.md`](tests/hil/AGENTS.md). The completed T00–T08 packets are historical implementation provenance, not the active physical-test workflow.
 
 ## Common commands
 
@@ -52,9 +76,12 @@ make validate             # repository, contracts, evidence, and static checks
 make test-jvm             # pure model/application tests
 make test-android         # Android adapter tests and lint
 make test-guest           # guest/profile qualification tests
-make mvp-status           # regenerate docs/STATUS.md and the README summary
+make mvp-status           # regenerate docs/STATUS.md and README summary
 make lab-up               # disposable Headscale laboratory
-make device-facts         # collect facts from an authorized Android device
+make hil-doctor           # verify configured phone/APK/controller setup
+make hil-smoke            # APK-native QEMU physical smoke
+make hil-mvp              # live host/guest mesh and SSH path
+make hil-resilience       # lifecycle and offline recovery
 ```
 
 ## Repository map
@@ -66,10 +93,11 @@ make device-facts         # collect facts from an authorized Android device
 | Acceptance evidence | [`docs/roadmap/acceptance-ledger.md`](docs/roadmap/acceptance-ledger.md) and `evidence/gates/` |
 | Architecture and module boundaries | [`docs/architecture/overview.md`](docs/architecture/overview.md), [`docs/architecture/module-map.md`](docs/architecture/module-map.md) |
 | Known debt and expiry triggers | [`docs/architecture/debt-register.md`](docs/architecture/debt-register.md) |
+| Physical-device implementation | [`tests/hil/README.md`](tests/hil/README.md) |
 | Physical-device sequence | [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) |
 | Development environment | [`HANDOFF.md`](HANDOFF.md), [`docs/development/environment.md`](docs/development/environment.md) |
 | Complete documentation index | [`docs/INDEX.md`](docs/INDEX.md) |
 
 ## Historical scaffold material
 
-`SCAFFOLD-MANIFEST.md`, `VALIDATION.md`, and the T00–T08 overnight packets document how the initial implementation was produced. They are historical provenance, not the current product-status authority. The acceptance ledger and generated status page are authoritative.
+`SCAFFOLD-MANIFEST.md`, `VALIDATION.md`, and the T00–T08 overnight packets document how the initial implementation was produced. They are historical provenance, not the current product-status authority. The acceptance ledger, generated status page, and physical HIL evidence are authoritative.

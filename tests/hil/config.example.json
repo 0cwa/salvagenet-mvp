@@ -1,0 +1,60 @@
+{
+  "device": {
+    "serial": "REPLACE_WITH_ADB_SERIAL",
+    "packageName": "com.excp.podroid.debug",
+    "supervisorComponent": "com.excp.podroid.debug/org.nodehost.shell.NodeSupervisorService",
+    "qemuProcessPattern": "libqemu-system-aarch64.so"
+  },
+  "paths": {
+    "apk": "android/podroid/app/build/outputs/apk/debug/app-debug.apk",
+    "controller": "controller/mvp-cli/bin/phonectl-mvp",
+    "controllerConfig": "controller/mvp-cli/controller.json",
+    "evidenceDirectory": ".local/hil-runs",
+    "buildCommand": [
+      "android/podroid/gradlew",
+      "-p",
+      "android/podroid",
+      ":app:assembleDebug",
+      ":app:verifyPodroidPackaging"
+    ]
+  },
+  "headscale": {
+    "nodesCommand": [
+      "lab/headscale/scripts/container.sh",
+      "exec",
+      "headscale",
+      "nodes",
+      "list",
+      "--output",
+      "json"
+    ]
+  },
+  "smoke": {
+    "applyRequest": "tests/hil/requests/alpine-running.json",
+    "timeoutSeconds": 900
+  },
+  "mvp": {
+    "applyRequest": "tests/hil/requests/ubuntu-running.json",
+    "timeoutSeconds": 1200,
+    "hostNodeName": "salvagenet-phone-01-host",
+    "guestNodeName": "salvagenet-phone-01-vm-default",
+    "imageImports": [],
+    "requiredImageIds": [
+      "ubuntu-2404-arm64-cloud",
+      "aavmf-code",
+      "aavmf-vars"
+    ],
+    "guestSshTarget": "nodeadmin@REPLACE_WITH_GUEST_TAILNET_NAME_OR_IP",
+    "guestCheckCommand": "id && test -f /var/lib/cloud/instance/boot-finished",
+    "guestMeshDisableCommand": "sudo -n tailscale down",
+    "guestMeshRestoreCommand": "sudo -n tailscale up",
+    "guestMeshDownSettleSeconds": 5,
+    "recoveryUser": "nodeadmin"
+  },
+  "resilience": {
+    "timeoutSeconds": 600,
+    "controllerOfflineSeconds": 15,
+    "allowReboot": false,
+    "rebootTimeoutSeconds": 240
+  }
+}
