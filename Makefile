@@ -113,7 +113,7 @@ context:
 	@python3 tools/agents/context-pack.py "$(TASK)"
 
 roadmap-validate:
-	@python3 tools/roadmap/roadmap.py validate-seed
+	@python3 tools/roadmap/commands.py validate-seed
 
 roadmap-status:
 	@test -f website/data/roadmap.snapshot.v1.json || python3 tools/roadmap/sync.py --seed-only --write >/dev/null
@@ -132,7 +132,7 @@ roadmap-context:
 	@python3 tools/roadmap/roadmap.py context "$(ISSUE)" --output ".agent-context/roadmap/$(ISSUE).md"
 
 roadmap-bootstrap-dry-run:
-	@python3 tools/roadmap/roadmap.py bootstrap
+	@python3 tools/roadmap/commands.py bootstrap
 
 integration-worktree:
 	@tools/agents/create-integration-worktree.sh
