@@ -1,5 +1,7 @@
 agents/tasks/H02A/**
 lab/qemu/**
 tests/guest/**
+profiles/locks/images.lock.json
+tools/profiles/pin-ubuntu-image.sh
 Makefile
 docs/research/experiments/H02A.md
