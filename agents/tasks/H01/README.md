@@ -1,15 +1,7 @@
 # H01 — artifact upload
 
-Status: **MERGE READY** on `agent/H01-artifact-upload`.
+Status: **MERGED** at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`.
 
-Generate the final scoped context with:
+The validated head `839f3638a4ee31e601d7f0c093596acc799c5b57` passed GitHub Actions run `30510377089`, including static, JVM, Android, lint, guest, packaging, signature, 16 KiB alignment, and candidate-artifact checks.
 
-```sh
-make context TASK=H01
-```
-
-The selected protocol and all previously recorded merge blockers are resolved. `task.md` is the authoritative implementation and validation summary; `docs/research/experiments/H01.md` records the design findings and resolution.
-
-GitHub Actions run `30509824017` passed the complete static, JVM, Android, lint, guest, packaging, signature, 16 KiB alignment, and candidate-artifact workflow. No physical acceptance gate is changed by H01.
-
-After PR #5 merges, update the active cycle status from `MERGE_READY` to `MERGED` with the merge commit rather than extending this task silently.
+This packet remains for provenance. Do not use it as an active work authorization. F01 owns the next artifact/profile contract foundation; later physical transfer evidence requires its own scoped validation task.
