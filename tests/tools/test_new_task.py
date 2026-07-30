@@ -47,7 +47,10 @@ class NewTaskTest(unittest.TestCase):
         self.assertNotIn("F99", {item["id"] for item in dag["tasks"]})
         created = next(item for item in registry["tasks"] if item["id"] == "F99")
         self.assertEqual("QUEUED_REVIEW", created["status"])
-        self.assertIn("Phase-start review", packet)
+        self.assertIn("## Phase-start review", packet)
+        self.assertIn("## Compatibility policy", packet)
+        self.assertIn("unreleased alpha", packet)
+        self.assertIn("deletion trigger", packet)
 
     def test_explicit_activation_adds_task_to_dag(self):
         args = Args()
