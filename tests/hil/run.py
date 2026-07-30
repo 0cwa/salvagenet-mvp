@@ -104,6 +104,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.build:
                 runner.run(config.build_command, timeout=3600)
                 recorder.apk_sha256 = file_sha256(config.apk_path)
+                post_build_state = source_state(root)
+                recorder.write_json("source-state-after-build.json", post_build_state)
+                recorder.source_dirty = bool(post_build_state["dirty"])
+                if post_build_state["commit"] != state["commit"]:
+                    raise ConfigError("source commit changed during HIL build")
+                if args.mode == "candidate" and post_build_state["dirty"]:
+                    raise ConfigError("candidate HIL build changed tracked source state")
 
             if args.scenario == "doctor":
                 scenarios.doctor(config, device, recorder)
