@@ -2,7 +2,7 @@
 
 ## Status
 
-**ACTIVE — phase-start review complete; implementation not started.** Begin implementation only from current `main` after the post-F01 transition PR merges.
+**QUEUED FOR REACTIVATION — not active work.** The prior phase-start review remains useful, but implementation is paused for the bounded WEB04 roadmap/agent foundation. Re-run phase-start review against current `main` after WEB04; do not implement merely because this packet exists.
 
 ## Outcome
 
@@ -19,6 +19,7 @@ Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact iden
 - Guest boot and guest mesh are separate failure domains. Headscale, Tailscale enrollment, tailnet SSH, and coordination outage/recovery are deferred to H02B.
 - Emulator and physical-device behavior are out of scope; host-QEMU evidence cannot close Android gates.
 - The task may update only its packet, the specifically listed host-QEMU laboratory files, H02A-named helpers, guest-side qualification tests, the exact Ubuntu image lock/pinning helper, its experiment record, and Makefile entry points needed to expose the reviewed flow.
+- Before reactivation, inspect WEB04's live issue graph and compact index, current pull requests, and any merged device-lab safety changes. Update this packet only where those results change the real prerequisite, evidence, or authorization boundary.
 
 ## Compatibility policy
 
