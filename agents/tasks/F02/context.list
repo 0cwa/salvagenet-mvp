@@ -1,0 +1,12 @@
+GOAL.md
+AGENTS.md
+docs/architecture/module-map.md
+docs/architecture/debt-register.md
+docs/architecture/decisions/guest-classes-and-image-sources.md
+docs/roadmap/device-validation.md
+agents/device-validation-goal.md
+tests/hil/AGENTS.md
+tests/hil/README.md
+tests/hil/run.py
+tests/hil/scenarios.py
+tools/evidence/promote-hil.py
