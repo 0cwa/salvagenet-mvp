@@ -39,7 +39,7 @@ See `allowed-paths.txt`. This packet is retained as historical provenance; it no
 - [x] Profile loading is bounded, rejects unknown fields, unsupported contracts, and traversal segments, validates fixed Android/QEMU compatibility fields, preserves typed domain values, and fails closed before QEMU or mutable disk effects.
 - [x] The APK/package test proves the exact profile JSON, schema, index, and required guest-init assets are present.
 - [x] Artifact publication, image listing, cleanup, installed checks, and runtime consumption of active manifests use one strict versioned contract with exact fields, digest, size, immutable relative path, and root-containment checks.
-- [x] Legacy bare fallback is restricted to the three pinned Podroid qualification artifacts; all non-Podroid artifacts require active manifests.
+- [x] The narrowly scoped packaged bare-file adapter is restricted to the three pinned Podroid qualification artifacts; all non-Podroid artifacts require active manifests.
 - [x] Artifact preparation reuses one verified source resolution per preparation and uses a 1 MiB streaming copy buffer with copied-byte digest verification.
 - [x] Manifest listing ignores invalid stray filenames and a remove-after-list race, but continues to fail closed for malformed valid manifests and the explicit active-manifest count invariant.
 - [x] H01 upload behavior and the hardened public HTTPS importer retain their authentication, SSRF, idempotency, digest, size, recovery, cancellation, and atomic-publication invariants.
