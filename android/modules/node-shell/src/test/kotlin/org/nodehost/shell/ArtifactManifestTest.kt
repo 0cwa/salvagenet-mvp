@@ -35,6 +35,24 @@ class ArtifactManifestTest {
         assertTrue(store.isPublished("ubuntu-image", digest, bytes.size.toLong(), verifyDigest = true))
     }
 
+    @Test fun listingIgnoresInvalidManifestFilenamesWithoutHidingValidManifestCorruption() {
+        val root = temporary.newFolder("listing")
+        val store = ArtifactManifestStore(root)
+        val bytes = "payload".toByteArray()
+        val digest = sha256(bytes)
+        val payload = store.versionPayload("valid-image", digest)
+        payload.parentFile!!.mkdirs()
+        payload.writeBytes(bytes)
+        store.writeActive(ArtifactManifest("valid-image", digest, bytes.size.toLong()), "test")
+        File(root, ".manifest.json").writeText("not-an-active-artifact")
+        File(root, "UPPER.manifest.json").writeText("not-an-active-artifact")
+
+        assertEquals(listOf("valid-image"), store.listActive().map { it.artifactId })
+
+        File(root, "broken.manifest.json").writeText("{}")
+        assertThrows(IllegalStateException::class.java) { store.listActive() }
+    }
+
     @Test fun malformedOrEscapingManifestFailsClosed() {
         val root = temporary.newFolder("artifacts")
         val digest = "a".repeat(64)
@@ -49,10 +67,12 @@ class ArtifactManifestTest {
         val root = temporary.newFolder("artifacts")
         val store = ArtifactManifestStore(root)
         val expected = "expected".toByteArray()
+        val tampered = "tampered".toByteArray()
+        assertEquals(expected.size, tampered.size)
         val digest = sha256(expected)
         val payload = store.versionPayload("image", digest)
         payload.parentFile!!.mkdirs()
-        payload.writeBytes("tampered".toByteArray())
+        payload.writeBytes(tampered)
         store.writeActive(ArtifactManifest("image", digest, payload.length()), "test")
 
         assertTrue(store.isPublished("image", digest, payload.length(), verifyDigest = false))
