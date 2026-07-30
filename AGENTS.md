@@ -7,12 +7,26 @@
 3. Read the active packet under `agents/tasks/<TASK>/task.md`; queued or merged packets are not work authorization.
 4. For hardware-independent orchestration, read `agents/hardware-independent-goal.md`.
 5. For physical validation, read `agents/device-validation-goal.md` and `tests/hil/AGENTS.md`; do not invent another physical runner.
-6. Run `python3 tools/agents/context-pack.py <TASK>` and read only that pack plus applicable nested `AGENTS.md` files.
-7. Do not recursively read `docs/`; use `docs/INDEX.md` when more context is necessary.
+6. For roadmap or website planning, read `docs/roadmap/podroid-mvp-alignment.md`, `docs/roadmap/public-roadmap-governance.md`, and ADR-012 before proposing state or public claims.
+7. Run `python3 tools/agents/context-pack.py <TASK>` and read only that pack plus applicable nested `AGENTS.md` files.
+8. Do not recursively read `docs/`; use `docs/INDEX.md` when more context is necessary.
+
+## Roadmap truth
+
+- `GOAL.md` and accepted ADRs define durable project direction.
+- GitHub roadmap issues, milestones, and dependency links define planned outcomes and ordering after roadmap bootstrap.
+- `agents/task-dag.json` and the active packet define current implementation authorization.
+- The acceptance ledger and reviewed evidence define validated product claims.
+- Closing an implementation issue does not close an acceptance gate.
+- A visible or dependency-clear roadmap issue is not work authorization unless it is in the active DAG with a reviewed packet.
+- Generated roadmap and website snapshots are caches/publication inputs, not independent authorities.
+- Do not load the full roadmap, every issue body, or issue comments into normal orchestrator context. Use the compact generated index and a bounded per-issue context pack when those tools exist.
 
 ## Phase-boundary rules
 
-- At phase start, verify current `main`, run `make dev-plan` and `make validate`, then re-evaluate task necessity, prerequisites, dependencies, allowed paths, acceptance criteria, evidence limits, and compatibility policy.
+- At phase start, verify current `main`, run `make dev-plan` and `make validate`, then re-evaluate task necessity, prerequisites, dependencies, allowed paths, acceptance criteria, evidence limits, compatibility policy, and alignment with `docs/roadmap/podroid-mvp-alignment.md`.
+- Refresh and reconcile roadmap issues before activating the next phase. Split, merge, reorder, defer, remove, or rewrite queued issues when evidence changes the safest sequence.
+- Preserve coverage of durable goals and B01–B20/U01–U04 while replanning. A change to `GOAL.md`, an accepted ADR, or an acceptance criterion requires its own explicit review.
 - Keep only current-phase tasks in `agents/task-dag.json`. Retain merged and queued packets in the registry for provenance.
 - During implementation, update the task packet and experiment record when discovery changes the real problem.
 - At phase end, check every task acceptance criterion and phase exit criterion against code, tests, package artifacts, and evidence before activating the next phase.
@@ -38,6 +52,14 @@
 - An authorized compatibility path must name the preserved population, why reset is unacceptable, the compatibility window, tests, and a deletion trigger.
 - Isolate authorized compatibility code in a dedicated migration or compatibility adapter. Canonical readers, writers, domain models, and runtime paths must not understand obsolete representations.
 - Current packaging adapters are not automatically legacy compatibility. Name them for the active boundary they serve and keep their scope explicit.
+
+## Public website rules
+
+- The website is statically generated and component-based.
+- Public claims come from generated project data and reviewed evidence; never hard-code gate counts, candidate identity, active roadmap state, or device support.
+- Default theme follows the visitor's system preference. A visible control offers System, Light, and Dark, with only an explicit local override persisted.
+- All pages remain useful without JavaScript. Browser-side GitHub API calls are prohibited.
+- Use the shared design-system tokens and global CSS layers; do not create page-local brand systems.
 
 ## Hardware-in-the-loop rules
 
