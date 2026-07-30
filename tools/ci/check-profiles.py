@@ -85,8 +85,10 @@ def enforce_production_boundaries() -> None:
         assert "ArtifactManifestStore" in text, f"{name} bypasses the shared artifact manifest adapter"
 
     app_build = (ROOT / "android/podroid/app/build.gradle.kts").read_text(encoding="utf-8")
-    assert "verifyNodeHostProfilePackaging" in app_build
-    assert "package-assets.py" in app_build
+    integration = (ROOT / "android/podroid.integration.gradle.kts").read_text(encoding="utf-8")
+    assert 'apply(from = rootProject.file("../podroid.integration.gradle.kts"))' in app_build
+    assert "verifyNodeHostProfilePackaging" in integration
+    assert "package-assets.py" in integration
 
 
 def main() -> None:
