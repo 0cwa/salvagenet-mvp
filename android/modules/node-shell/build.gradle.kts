@@ -2,6 +2,26 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
+val profilePackager = rootProject.file("../../tools/profiles/package-assets.py")
+val guestInitRenderer = rootProject.file("../../tools/profiles/render-guest-init.py")
+val profileSources = rootProject.file("../../profiles")
+val packagedProfileAssets = layout.buildDirectory.dir("generated/nodehostProfileAssets")
+
+val prepareNodeHostProfileAssets by tasks.registering(Exec::class) {
+    group = "build setup"
+    description = "Renders and packages the canonical NodeHost VM profiles and trusted guest-init assets."
+    inputs.files(profilePackager, guestInitRenderer)
+    inputs.dir(profileSources)
+    outputs.dir(packagedProfileAssets)
+    commandLine(
+        "python3",
+        profilePackager.absolutePath,
+        "--prepare",
+        "--output-dir",
+        packagedProfileAssets.get().asFile.absolutePath,
+    )
+}
+
 android {
     namespace = "org.nodehost.shell"
     compileSdk = providers.gradleProperty("nodehost.compileSdk").orNull?.toInt() ?: 36
@@ -12,6 +32,11 @@ android {
     }
     testOptions { unitTests.isIncludeAndroidResources = true }
     buildFeatures { buildConfig = true }
+    sourceSets.getByName("main").assets.srcDir(packagedProfileAssets)
+}
+
+tasks.named("preBuild") {
+    dependsOn(prepareNodeHostProfileAssets)
 }
 
 dependencies {
