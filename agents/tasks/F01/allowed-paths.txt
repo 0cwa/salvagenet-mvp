@@ -1,4 +1,5 @@
 agents/tasks/F01/**
+agents/task-registry.json
 android/modules/node-model/src/main/**
 android/modules/node-model/src/test/**
 android/modules/node-core/src/main/**
@@ -20,4 +21,5 @@ tools/profiles/**
 tools/ci/check-profiles.py
 docs/architecture/vm-profiles.md
 docs/architecture/debt-register.md
+docs/roadmap/hardware-independent.md
 docs/research/experiments/F01.md
