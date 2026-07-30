@@ -21,54 +21,64 @@ When Gradle and the Android SDK are available, this adds JVM/domain and Android 
 
 `agents/task-dag.json` contains only the active phase; merged, superseded, and queued packets remain in `agents/task-registry.json`.
 
-Before implementation:
+Before current implementation:
 
 ```sh
 git pull --ff-only
 make dev-plan
 make validate
 make status
-make context TASK=H02A
+make context TASK=WEB04
 ```
 
 Then:
 
 1. verify the phase entry criteria in `agents/task-dag.json`;
-2. re-read the active packet against current implementation;
-3. revise or stop if prerequisites, scope, or acceptance criteria are no longer accurate;
+2. compare the task with `GOAL.md`, `docs/roadmap/podroid-mvp-alignment.md`, current roadmap/PR/acceptance/debt state, and current implementation;
+3. revise or stop if prerequisites, scope, compatibility policy, or acceptance criteria are no longer accurate;
 4. create only the active task worktree/branch.
 
-Completed, superseded, or queued packets are not work authorization merely because they exist under `agents/tasks/`.
+Completed, superseded, paused, or queued packets are not work authorization merely because they exist under `agents/tasks/` or GitHub Issues.
 
 ## Task loop
 
+For the current phase:
+
 ```sh
-make worktree TASK=H02A
-make context TASK=H02A
+make worktree TASK=WEB04
+make context TASK=WEB04
 # run the smallest relevant checks while implementing
-python3 tools/agents/verify-scope.py H02A
+python3 tools/agents/verify-scope.py WEB04
 ```
 
-Open a focused PR against `main`. Update the packet and experiment record in the same branch when implementation discovery changes the true remaining work.
+Open a focused PR against `main`. Update the active issue, packet, and experiment record in the same branch when implementation discovery changes the true remaining work. Large roadmap reshaping belongs in a phase-transition PR.
 
 ## Phase-end loop
 
-Before merge-ready status:
+### Before merge-ready
 
 1. check every task acceptance criterion;
 2. check every phase exit criterion;
 3. run packet-local checks and full applicable CI;
-4. inspect packaged artifacts where the criterion concerns runtime assets;
-5. record checks unavailable without hardware;
-6. merge the exact tested head;
-7. update registry/roadmap status with the merge SHA;
-8. re-evaluate queued tasks before creating the next active DAG.
+4. inspect artifacts, live graph, or evidence where the criteria require them;
+5. record unavailable hardware or external checks;
+6. record the exact tested head and resolve or disposition review findings;
+7. mark review/merge-ready state without closing the issue or claiming merge.
 
-Do not pre-create a multi-task wave solely to maximize parallelism. Parallel tasks are appropriate only after prerequisites are true and write paths are disjoint.
+### After approval and merge
+
+1. merge the exact tested and reviewed head;
+2. update registry, roadmap issue, experiment, and evidence references with the merge SHA where applicable;
+3. close the issue only when its implementation outcome is complete;
+4. leave acceptance gates unchanged unless their own required evidence passed;
+5. refresh current `main`, roadmap, PR, debt, and acceptance state;
+6. re-evaluate queued tasks before creating the next active DAG.
+
+Do not pre-create a multi-task wave solely to maximize parallelism. Parallel tasks are appropriate only after prerequisites are true, write paths are disjoint, and the phase remains understandable to a human reviewer.
 
 ## Adding a task
 
-Use the checked generator only after a phase-boundary review has approved the task. The generated packet is a starting point and must be expanded with status, phase-start review, acceptance, verification, and phase-end review before activation.
+Use the checked generator only after a phase-boundary review has approved the task. The generated packet is a starting point and must be expanded with status, phase-start review, compatibility policy, acceptance, verification, and phase-end review before activation.
 
 ```sh
 python3 tools/agents/new-task.py --id F02 --slug example-foundation \

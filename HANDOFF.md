@@ -1,42 +1,85 @@
-# Guest-boot and device-validation handoff
+# Roadmap-foundation and MVP handoff
 
-The repository is a **software-qualified device-lab candidate**, not a validated MVP. F01, H01, and H04 are merged. H02A is the sole active software-preflight task. H02B and H03 remain queued, and 10 of 20 base gates still require physical or live-network evidence.
+The repository is a **software-qualified device-lab candidate**, not a validated MVP. Ten of twenty base gates still require physical or live-network evidence.
+
+PR #19 merged at `b42c35ac17793fb1621baf19905a0eacea9b3521` and accepted the Podroid-MVP alignment, issue-roadmap governance, human-aware agent workflow, and static-site/theme architecture.
 
 ## Current execution order
 
-1. Complete H02A: canonical Ubuntu profile and artifact identity, UEFI/QMP, NoCloud, key-only loopback SSH, restart, secret-residue inspection, and bounded host-QEMU evidence.
-2. At the H02A phase boundary, decide whether guest mesh qualification is still the next highest-value uncertainty. Do not activate H02B automatically.
-3. Reassess emulator work only if a remaining Android lifecycle ambiguity justifies its setup and maintenance cost.
-4. Use the existing one-phone HIL runner for the physical vertical slice when hardware is available.
-5. Bind final gate evidence to one exact candidate commit and APK.
+1. Complete WEB04: reviewed seed, GitHub labels/milestones/issues/dependencies, last-known-good snapshot, compact agent index, bounded context, and visible state/freshness tooling.
+2. At the WEB04 phase boundary, normally reactivate H02A and consider path-disjoint WEB01 website-foundation work in parallel.
+3. Complete H02A guest-boot qualification before deciding whether H02B guest-mesh preflight is still valuable.
+4. Use the one-phone HIL runner for APK-native QEMU, host mesh/API, remote Ubuntu deployment, guest identity/SSH, recovery, lifecycle, reboot, and controller-offline evidence.
+5. Bind every base gate to one exact source commit and APK.
+6. Start USB work only after every B01–B20 gate passes.
 
-F01 merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910`. Its final validated head `31dcd75199928b7887132a1429392266388c0b60` passed Actions run `30549498423` and produced the commit-bound candidate recorded in `agents/task-registry.json`.
+This ordering is deliberate. The roadmap/agent foundation prevents the website and agents from maintaining separate plans. It does not change the product critical path or acceptance state.
 
-Because there are no deployed pre-F01 installations, Ubuntu and AAVMF artifacts always require active manifests. No compatibility migration path is retained.
+## Current authorization
+
+```sh
+cat GOAL.md
+cat AGENTS.md
+cat agents/task-dag.json
+cat agents/tasks/WEB04/task.md
+cat docs/roadmap/podroid-mvp-alignment.md
+make context TASK=WEB04
+make dev-plan
+make validate
+```
+
+Only WEB04 is authorised after the transition PR merges. H02A is queued for reactivation and must not be implemented from its existing packet until a fresh phase-start review restores it to the DAG.
+
+## WEB04 boundaries
+
+WEB04 may change only its reviewed roadmap, agent-context, snapshot, workflow, test, and phase-status paths.
+
+It must not:
+
+- edit Android/QEMU/profile/runtime behaviour;
+- implement public website pages or styling;
+- change acceptance gates or evidence;
+- turn issue labels into work authorization;
+- infer product validation from issue or PR state;
+- overwrite legitimate issue refinements after bootstrap;
+- introduce USB, broader guest-image, controller-rewrite, or platform work.
+
+## Live GitHub bootstrap
+
+GitHub Issues are enabled.
+
+The implementation must:
+
+1. create and review the complete machine-readable seed;
+2. run an idempotent local dry-run;
+3. run a live dry-run against `0cwa/salvagenet-mvp`;
+4. apply from the exact reviewed `main` source through a manual workflow with explicit minimal permissions;
+5. rerun to prove non-destructive idempotency;
+6. generate and review the bounded snapshot and agent index in a normal PR.
+
+Administrative credentials, GitHub tokens, issue comments, and raw API payloads must not enter snapshots or agent context.
 
 ## Phase handoff rule
 
-At the start of a phase:
+### Before merge-ready
 
-1. update from current `main`;
-2. run `make dev-plan` and `make validate`;
-3. verify the active packet's prerequisites, allowed paths, and acceptance criteria against current implementation;
-4. activate only the smallest task that resolves the next uncertainty;
-5. state what evidence the phase cannot claim.
+1. Check every task and phase exit criterion.
+2. Run required tests and complete CI.
+3. Record exact seed/schema/source identity and live dry-run/apply results.
+4. Review graph completeness, dependencies, snapshot bounds, fallback/staleness, and secret absence.
+5. Resolve or disposition every actionable review finding.
 
-At the end of a phase:
+### After merge
 
-1. check every task acceptance criterion and phase exit criterion against actual evidence;
-2. run the task checks and complete applicable CI;
-3. record implemented, tested, merge-ready, merged, host-qualified, and physically validated states separately;
-4. update the merge SHA and evidence identity;
-5. replan queued tasks from the result instead of preserving stale scope.
+1. Record the exact merge SHA and live graph source hash.
+2. Mark WEB04 merged without altering acceptance gates.
+3. Refresh roadmap, pull requests, debt, and current `main`.
+4. Re-review H02A against the live graph and any merged device-lab safety changes.
+5. Authorize WEB01 alongside H02A only if paths are disjoint and parallel work remains understandable.
 
-## H02A host preparation
+## Later H02A host preparation
 
 H02A is a Linux host-QEMU qualification phase. It does not require a phone or Headscale.
-
-Run host setup yourself; do not give a coding agent root credentials:
 
 ```sh
 sudo tools/bootstrap/ubuntu-root-setup.sh
@@ -44,71 +87,30 @@ sudo tools/bootstrap/ubuntu-root-setup.sh
 tools/bootstrap/install-go.sh
 tools/bootstrap/install-android-sdk.sh
 source "$HOME/.config/nodehost/env.sh"
-```
 
-Then inspect the active packet and local capability report:
-
-```sh
-cat agents/tasks/H02A/task.md
 make context TASK=H02A
 make dev-plan
 make validate
 make qemu-lab-e2e
 ```
 
-H02A evidence must remain under `.local/qemu-lab/`, identify its class as `host-qemu`, and state both `androidHardwareValidated: false` and `physicalGateEligible: false`.
+H02A evidence remains host-QEMU only and cannot close Android gates.
 
 ## Later physical preparation
 
-When a dedicated ARM64 Android phone is available, enable USB debugging and accept its RSA prompt. Prepare disposable Headscale/controller state only for H02B or physical HIL work:
+Use one explicitly authorised ARM64 Android phone, exact ADB serial, reviewed APK identity, disposable Headscale state, and `tests/hil/` only.
 
 ```sh
 cp lab/headscale/.env.example lab/headscale/.env
-# Set HEADSCALE_PUBLIC_URL to a URL reachable by the phone.
 make lab-up
 make lab-keys
 make lab-status
 
 cp tests/hil/config.example.json .local/hil.json
-# Set the exact ADB serial, node names, guest SSH target, and artifact-upload/import files.
-```
-
-Complete enrollment and Android VPN approval once for persistent development mode. Live keys remain only in ignored lab/controller files.
-
-## Establish the exact APK for physical work
-
-Use a green CI artifact when possible, or build locally with the same checks:
-
-```sh
-make validate
-make test-jvm
-make test-android
-make test-guest
 make hil-doctor HIL_BUILD=1
-```
-
-Do not transfer a pass from a different source commit, profile package, or APK.
-
-## Run physical scenarios
-
-```sh
 make hil-smoke HIL_BUILD=1
 make hil-mvp
 make hil-resilience
-# or: make hil-all HIL_BUILD=1
 ```
 
-The runner writes ignored evidence under `.local/hil-runs/`. `hil-resilience` leaves reboot skipped unless `.local/hil.json` explicitly enables it.
-
-Review redaction and assertions before promoting relevant evidence into `evidence/gates/`, then regenerate status:
-
-```sh
-make mvp-status
-make validate
-```
-
-A fake, emulator, host-QEMU, package build, or code review cannot close a physical gate. USB/AOA networking remains unscheduled until every B01–B20 gate is PASS.
-
-## Authorization boundaries
-
-The agent may use the repository, existing Docker/Podman socket, SDK/NDK, and ignored lab files required by the active scenario. A later physical agent may use an explicitly authorized ADB device. Do not provide production Headscale credentials, release-signing keys, unrelated private keys, or general root access.
+A fake, emulator, host-QEMU, package build, website, issue, or code review cannot close a physical gate. Never provide production Headscale credentials, release-signing keys, unrelated private keys, or general root access to an agent.
