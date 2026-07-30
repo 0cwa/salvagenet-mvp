@@ -6,13 +6,13 @@ Physical Android evidence remains authoritative. Hardware-independent work exist
 
 | Task | State | Repository truth |
 |---|---|---|
-| F01 | **MERGE_READY** | Canonical packaged profiles and the shared artifact-manifest contract passed full CI on head `a343b3dc283d22fe49bbef3caefb6e05f446f4a8`, Actions run `30533830617`. Merge is the remaining Phase 1 action. |
+| F01 | **IN_PROGRESS** | Initial canonical profile/manifest implementation passed full CI, but phase-end review found non-Podroid bare files could still bypass active manifests. The fallback is now restricted to three pinned Podroid qualification artifacts; the hardened head is being revalidated. |
 | H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validated head run `30510377089` was fully green. |
-| H02 | **QUEUED_REVIEW** | Original broad guest QEMU/NoCloud/SSH/Headscale packet is superseded by the Phase 1 exit decision and will be split after F01 merges. |
-| H03 | **QUEUED_REVIEW** | Original broad emulator packet is superseded by the Phase 1 exit decision and will be split after F01 merges. |
+| H02 | **QUEUED_REVIEW** | Original broad guest QEMU/NoCloud/SSH/Headscale packet is superseded by the Phase 1 exit direction and will be split after F01 merges. |
+| H03 | **QUEUED_REVIEW** | Original broad emulator packet is superseded by the Phase 1 exit direction and will be split after F01 merges. |
 | H04 | **MERGED** | HIL evidence hardening landed at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`. |
 
-Only F01 appears in `agents/task-dag.json` until the exact merge-ready documentation head passes and merges. Queued and completed packets remain in the registry for provenance.
+Only F01 appears in `agents/task-dag.json`. Queued and completed packets remain in the registry for provenance.
 
 ## Layered path
 
@@ -30,20 +30,25 @@ Exit evidence:
 
 ### Phase 1 — canonical artifact/profile foundation
 
-**Task:** F01 — merge-ready.
+**Task:** F01 — post-exit hardening.
 
 **Purpose:** ensure Linux labs, emulator tests, Android runtime behavior, and uploaded artifacts use the same profile and manifest semantics.
 
-Exit result:
+Implemented and previously validated:
 
 - Android production profile resolution loads strict, bounded packaged JSON rather than duplicated Kotlin definitions.
 - The APK contains byte-for-byte canonical profiles, schema, index, and rendered guest-init assets.
 - Artifact publication, listing, cleanup, installed checks, and runtime consumption use one strict manifest contract.
-- H01, HTTPS importer, QEMU, Android, guest, package, signature, and 16 KiB alignment checks remain green.
-- Candidate APK `ab3d3b841d481088d2f4b8e8800abaa73884a17051484853a8d2060246527928` is bound to exact implementation head `a343b3dc283d22fe49bbef3caefb6e05f446f4a8` with `hardwareValidated: false`.
-- No physical gate changed.
+- H01, HTTPS importer, QEMU, Android, guest, package, signature, and 16 KiB alignment checks passed on implementation head `a343b3dc283d22fe49bbef3caefb6e05f446f4a8`, Actions run `30533830617`.
 
-The phase closes only when the final documentation head passes and the exact PR is merged.
+Post-exit correction:
+
+- bare-file plus `.sha256` fallback is limited to `podroid-kernel`, `podroid-initramfs`, and `podroid-alpine-squashfs`;
+- Ubuntu cloud and AAVMF artifacts require valid active manifests;
+- runtime fixtures now use the same manifest contract for non-Podroid artifacts;
+- a regression test proves a bare AAVMF artifact cannot bypass the manifest requirement.
+
+The phase remains open until the hardened final documentation head passes static, JVM, Android/lint, guest, package, canonical asset, signature, alignment, scope, and artifact checks. No physical gate changes in this phase.
 
 ### Phase 2 — deterministic guest boot qualification
 
