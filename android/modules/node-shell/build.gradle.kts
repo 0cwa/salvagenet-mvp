@@ -32,7 +32,8 @@ android {
     }
     testOptions { unitTests.isIncludeAndroidResources = true }
     buildFeatures { buildConfig = true }
-    sourceSets.getByName("main").assets.srcDir(packagedProfileAssets)
+    // Use a static path plus explicit preBuild dependency; AGP disallows Provider values in SourceSet APIs.
+    sourceSets.getByName("main").assets.srcDir(packagedProfileAssets.get().asFile.absolutePath)
 }
 
 tasks.named("preBuild") {
