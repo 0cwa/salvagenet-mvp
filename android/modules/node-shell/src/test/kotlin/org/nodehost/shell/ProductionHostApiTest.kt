@@ -23,6 +23,7 @@ import org.nodehost.api.ImageImportRequest
 import org.nodehost.core.ApplyRuntimeUseCase
 import org.nodehost.core.Clock
 import org.nodehost.model.OperationState
+import org.nodehost.model.VmProfileId
 import org.nodehost.store.NodeHostDatabase
 import org.nodehost.store.OperationEntity
 import org.nodehost.store.RoomOperationRepository
@@ -76,19 +77,22 @@ class ProductionHostApiTest {
     @Test fun productionQueriesAdvertiseExactlyTheThreeBackedProfiles() = runBlocking {
         val queries = AndroidHostResourceQueries(context, database, operations, StoppedMesh, { 1L })
         assertEquals(
-            listOf("alpine-direct-qualification", "ubuntu-2404-arm64-uefi", "k3s-worker-lab"),
-            queries.profiles().map { it.id },
+            setOf("alpine-direct-qualification", "ubuntu-2404-arm64-uefi", "k3s-worker-lab"),
+            queries.profiles().map { it.id }.toSet(),
         )
     }
 
-    @Test fun packagedK3sVendorDataDeploysReviewedQualifierAndReportSemantics() {
-        val vendor = context.assets.open("nodehost/k3s-worker-lab-vendor-data.yaml").bufferedReader().use { it.readText() }
+    @Test fun canonicalK3sVendorDataDeploysReviewedQualifierAndReportSemantics() {
+        val vendor = AndroidPackagedProfileCatalog(context)
+            .vendorData(VmProfileId("k3s-worker-lab"))
+            .toString(Charsets.UTF_8)
         assertTrue(vendor.contains("schemaVersion: 1"))
         assertTrue(vendor.contains("joinedCluster: false"))
         assertTrue(vendor.contains("tailscaleReachable"))
         assertTrue(vendor.contains("minimumStorage"))
         assertTrue(vendor.contains("mv -f \"${'$'}temporary\" \"${'$'}output_path\""))
         assertFalse(vendor.contains("checks='cgroup-v2"))
+        assertFalse(vendor.contains("{{"))
     }
 
     @Test fun publicGuestBootstrapArtifactIsStrictAndCarriesSeparateOneUseKey() {
@@ -108,7 +112,7 @@ class ProductionHostApiTest {
         val root = File(context.filesDir, "nodehost-artifacts").apply { deleteRecursively(); mkdirs() }
         val digest = "a".repeat(64)
         val published = File(root, "versions/image/$digest/payload").apply { parentFile!!.mkdirs(); writeText("published") }
-        File(root, "image.manifest.json").writeText(JSONObject().put("version", 1).put("sha256", digest).put("sizeBytes", published.length()).put("relativePath", "versions/image/$digest/payload").toString())
+        ArtifactManifestStore(root).writeActive(ArtifactManifest("image", digest, published.length()), "test")
         val orphan = File(root, "versions/orphan/${"b".repeat(64)}/payload").apply { parentFile!!.mkdirs(); writeText("orphan") }
         val partial = File(root, ".image.1.part").apply { writeText("partial") }
 
