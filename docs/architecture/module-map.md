@@ -3,7 +3,8 @@
 ## Android workspace
 
 ```text
-android/podroid/                 imported upstream fork; composition host
+android/podroid/                 pinned upstream subtree; Podroid composition host
+android/podroid.integration.gradle.kts SalvageNet-owned app composition/packaging hook
 android/modules/node-model/      domain value types and state machines
 android/modules/node-core/       use cases, reconciler, ports, events
 android/modules/node-store/      Room operation/current-state adapter
@@ -41,13 +42,18 @@ Each module owns its implementation, tests, local README, and nearest `AGENTS.md
 
 ## Podroid modification policy
 
-Prefer sibling modules. Permitted Podroid changes for the MVP:
+Prefer sibling modules and `android/podroid.integration.gradle.kts`. Permitted
+Podroid changes for the MVP:
 
 1. include sibling Gradle modules;
-2. add one dependency on `:node-shell`;
+2. apply the one external app integration script;
 3. add a narrow navigation/setup entry point if needed;
 4. move or wrap QEMU classes only in the assigned extraction task;
-5. preserve upstream history and record copied/moved file provenance.
+5. preserve exact upstream provenance and record copied/moved file origins.
+
+Every tracked subtree edit must be reproduced by
+`android/upstream/patches/series`; `make podroid-verify` enforces this against
+the locked upstream commit.
 
 Do not scatter new node-host business logic throughout Podroid UI, DataStore repositories, or guest product code.
 
