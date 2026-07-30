@@ -11,7 +11,7 @@ python3 tools/ci/check-status.py
 python3 tools/ci/check-profiles.py
 python3 tools/ci/check-openapi.py
 python3 tools/ci/check-dependencies.py
-python3 tools/roadmap/roadmap.py validate-seed
+python3 tools/roadmap/commands.py validate-seed
 python3 -m unittest discover -s tests/tools -p 'test_roadmap*.py'
 python3 tools/vendor/podroid.py verify --offline
 python3 tools/ci/check-release-surface.py
