@@ -1,15 +1,16 @@
 {
   "schemaVersion": 1,
-  "cycle": "foundation-1",
+  "cycle": "guest-boot-1",
   "historicalCycles": [
     "T00-T09 initial implementation packets",
-    "hardware-independent-1"
+    "hardware-independent-1",
+    "foundation-1"
   ],
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
-    "F01": "MERGE_READY",
+    "F01": "MERGED",
     "H01": "MERGED",
-    "H02": "QUEUED_REVIEW",
+    "H02": "PLANNED",
     "H03": "QUEUED_REVIEW",
     "H04": "MERGED"
   },
@@ -19,14 +20,11 @@
       "name": "Canonical artifact and profile resolution",
       "dependsOn": [],
       "packet": "agents/tasks/F01/task.md",
-      "status": "MERGE_READY",
+      "status": "MERGED",
       "startedFrom": "9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7",
-      "validatedHead": "b0dae0581c9d72ae0f7481f7b602573931fbc3a2",
-      "validationRun": "30548116488",
-      "workflowArtifactId": "8761969616",
-      "workflowArtifactDigest": "sha256:6394eaca75c0d50d9d8192f3c6922390425a312be2492b0b18a9390fe71b626b",
-      "apkSha256": "1a3a03a9259a8e5a197e946861c14c54952045b874228288f802a63822a96ebb",
-      "reviewStatus": "all actionable PR #7 findings addressed; final documentation head pending complete workflow"
+      "validatedHead": "31dcd75199928b7887132a1429392266388c0b60",
+      "validationRun": "30549498423",
+      "mergeCommit": "246d551ca7e691a0319a4b30e29d6e4905cd9910"
     },
     {
       "id": "H01",
@@ -40,10 +38,10 @@
     },
     {
       "id": "H02",
-      "name": "Host-QEMU and Headscale guest E2E",
+      "name": "Canonical Ubuntu guest boot qualification",
       "dependsOn": ["F01"],
       "packet": "agents/tasks/H02/task.md",
-      "status": "QUEUED_REVIEW"
+      "status": "PLANNED"
     },
     {
       "id": "H03",
