@@ -2,7 +2,7 @@
 
 ## Objective
 
-Give each implementation agent enough contract and local code to succeed without loading the whole architecture conversation or repository, while preventing queued or completed plans from becoming accidental work authorization.
+Give each implementation agent enough contract and local code to succeed without loading the whole architecture conversation or repository, while preventing queued, superseded, or completed plans from becoming accidental work authorization.
 
 ## Context layers
 
@@ -15,8 +15,8 @@ Give each implementation agent enough contract and local code to succeed without
 
 ## Rules
 
-- `agents/task-dag.json` contains only active tasks. Merged and queued packets remain in `agents/task-registry.json` for provenance and later re-evaluation.
-- A queued packet is not loaded automatically and is not implementation authority.
+- `agents/task-dag.json` contains only active tasks. Merged, superseded, and queued packets remain in `agents/task-registry.json` for provenance and later re-evaluation.
+- An inactive packet is not loaded automatically and is not implementation authority.
 - The orchestrator does not paste large design documents into prompts.
 - Task packets link canonical files rather than duplicating them.
 - `context-pack.py` enforces deterministic ordering and a byte budget.
@@ -26,7 +26,13 @@ Give each implementation agent enough contract and local code to succeed without
 
 ## Goal-mode prompt
 
-Use `agents/hardware-independent-goal.md` for the current foundation phase. Device work uses `agents/device-validation-goal.md`. Create one worktree per active packet and merge only after packet acceptance, phase-exit verification, scope verification, and applicable CI pass.
+Use `agents/hardware-independent-goal.md` for the current hardware-independent phase. Device work uses `agents/device-validation-goal.md`. Create one worktree per active packet and merge only after packet acceptance, phase-exit verification, scope verification, and applicable CI pass.
+
+The current context command is:
+
+```sh
+make context TASK=H02A
+```
 
 ## Adding tasks
 

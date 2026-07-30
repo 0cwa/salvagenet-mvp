@@ -14,8 +14,10 @@ The acceptance ledger, not task-completion prose, defines physical success. Phys
 
 ## Phase relationship
 
-- During F01, an HIL smoke or focused scenario is useful diagnostic evidence but cannot be the final MVP seal because production profile/artifact resolution is changing.
-- At each later phase start, decide which physical scenario will most cheaply validate the assumptions being changed.
+- F01 is merged, so packaged profile and active-manifest semantics are now stable repository truth.
+- H02A is host-QEMU-only; it reduces Ubuntu guest ambiguity but cannot close a physical gate.
+- During H02A or any later phase, an available phone may run the smallest useful HIL scenario as diagnostic evidence.
+- At each phase start, decide which physical scenario will most cheaply validate the assumptions being changed.
 - At each phase end, record physical checks that ran or were unavailable; do not delay all device contact until the end when an early run can expose a foundational mismatch.
 - Re-run all gate-relevant scenarios on one exact final candidate before promoting the complete MVP evidence set.
 
