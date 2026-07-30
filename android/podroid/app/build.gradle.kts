@@ -91,6 +91,13 @@ android {
         buildConfig = true
     }
 
+    // Static generated directories stay in the native Android DSL; the tasks that populate
+    // and verify them remain in the external SalvageNet integration script.
+    sourceSets.getByName("main") {
+        jniLibs.directories.add(layout.buildDirectory.dir("generated/podroidRuntime/jniLibs").get().asFile.absolutePath)
+        assets.directories.add(layout.buildDirectory.dir("generated/podroidRuntime/assets").get().asFile.absolutePath)
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
