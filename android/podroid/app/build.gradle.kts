@@ -16,6 +16,7 @@ val podroidRuntimeLock = rootProject.file("../upstream/podroid-runtime.lock")
 val podroidRuntimePreparer = rootProject.file("prepare-runtime.py")
 val podroidRuntimeOutput = layout.buildDirectory.dir("generated/podroidRuntime")
 val podroidRuntimeApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
+val nodeHostProfilePackager = rootProject.file("../../tools/profiles/package-assets.py")
 
 android {
     namespace = "com.excp.podroid"
@@ -137,10 +138,24 @@ tasks.matching { it.name == "desugarDebugFileDependencies" || it.name == "checkD
         dependsOn(":mesh-tailscale:buildLibtailscale")
     }
 
+val verifyNodeHostProfilePackaging by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Fails unless the debug APK contains the exact canonical profile and guest-init assets."
+    dependsOn("packageDebug", ":node-shell:prepareNodeHostProfileAssets")
+    inputs.files(nodeHostProfilePackager, podroidRuntimeApk)
+    inputs.dir(rootProject.file("../../profiles"))
+    commandLine(
+        "python3",
+        nodeHostProfilePackager.absolutePath,
+        "--verify-apk",
+        podroidRuntimeApk.get().asFile.absolutePath,
+    )
+}
+
 val verifyPodroidPackaging by tasks.registering(Exec::class) {
     group = "verification"
     description = "Fails unless the debug APK contains the complete pinned ARM64 Podroid runtime."
-    dependsOn("packageDebug")
+    dependsOn("packageDebug", verifyNodeHostProfilePackaging)
     inputs.files(podroidRuntimeLock, podroidRuntimePreparer, podroidRuntimeApk)
     commandLine(
         "python3",
@@ -153,7 +168,7 @@ val verifyPodroidPackaging by tasks.registering(Exec::class) {
 tasks.matching { it.name == "assembleDebug" }.configureEach {
     finalizedBy(verifyPodroidPackaging)
 }
-// The repository CI invokes :app:lintDebug, so missing runtime payloads fail that existing gate too.
+// The repository CI invokes :app:lintDebug, so missing runtime/profile payloads fail that existing gate too.
 tasks.matching { it.name == "lintDebug" }.configureEach {
     dependsOn(verifyPodroidPackaging)
 }

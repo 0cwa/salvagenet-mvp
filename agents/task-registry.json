@@ -7,7 +7,7 @@
   ],
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
-    "F01": "PLANNED",
+    "F01": "MERGE_READY",
     "H01": "MERGED",
     "H02": "QUEUED_REVIEW",
     "H03": "QUEUED_REVIEW",
@@ -19,7 +19,14 @@
       "name": "Canonical artifact and profile resolution",
       "dependsOn": [],
       "packet": "agents/tasks/F01/task.md",
-      "status": "PLANNED"
+      "status": "MERGE_READY",
+      "startedFrom": "9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7",
+      "validatedHead": "b0dae0581c9d72ae0f7481f7b602573931fbc3a2",
+      "validationRun": "30548116488",
+      "workflowArtifactId": "8761969616",
+      "workflowArtifactDigest": "sha256:6394eaca75c0d50d9d8192f3c6922390425a312be2492b0b18a9390fe71b626b",
+      "apkSha256": "1a3a03a9259a8e5a197e946861c14c54952045b874228288f802a63822a96ebb",
+      "reviewStatus": "all actionable PR #7 findings addressed; final documentation head pending complete workflow"
     },
     {
       "id": "H01",

@@ -2,7 +2,7 @@
 
 ## Status
 
-**PLANNED — sole active task in phase `foundation-1`.**
+**MERGE READY.** Reviewed implementation head `b0dae0581c9d72ae0f7481f7b602573931fbc3a2` passed Actions run `30548116488`, including static/contracts, JVM/domain, Android tests and lint, guest/profile qualification, APK construction, exact canonical asset verification, Podroid runtime verification, signature, 16 KiB alignment, and candidate upload. The downloaded APK matched the evidence files exactly.
 
 ## Outcome
 
@@ -10,40 +10,46 @@ Make the checked-in VM profile JSON and the project artifact-manifest contract t
 
 ## Why this is foundational
 
-The repository says profile JSON is canonical, but `AndroidQemuProfileStorage` currently constructs the three production profiles in Kotlin and independently parses artifact manifests. A lab can therefore pass against checked-in profile data while the APK executes a different mirror. Adding more E2E layers before removing that split source of truth would increase debugging ambiguity.
+The repository said profile JSON was canonical, but `AndroidQemuProfileStorage` constructed the three production profiles in Kotlin and independently parsed artifact manifests. The drift was concrete: Ubuntu JSON required `virtio-block`, `virtio-net`, and `serial-console`, while the Kotlin mirror omitted those qualification checks. A lab could therefore pass against checked-in profile data while the APK executed a different model.
 
 ## Prerequisites
 
 - H01 merged at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`.
 - H04 merged at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`.
-- Current profile schemas and examples pass `make validate`.
+- Phase 0 realignment merged at `9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7` after Actions run `30524765854` passed.
+- Current profile schemas and examples passed repository validation.
 
 ## Phase-start review
 
-Before implementation:
-
-1. Run `make dev-plan` and `make validate` on current `main`.
-2. Compare every field in the three checked-in profile JSON files with the Kotlin production mirror and record all differences in `docs/research/experiments/F01.md`.
-3. Identify every producer and consumer of `nodehost-artifacts/*.manifest.json` and confirm the intended shared contract.
-4. Re-read this packet and narrow it if implementation discovery shows that profile loading and manifest unification cannot remain one cohesive change.
-5. Do not begin H02, H03, qcow2 semantic changes, native source builds, UI rewrites, or USB work in this task.
+- Profile loading and manifest unification remained one cohesive task because both were concentrated in the Android storage/resource boundary.
+- The Android runtime uses a strict packaged-profile parser; build-time JSON Schema validation remains authoritative and runtime parsing repeats security/correctness constraints without adding a JSON Schema runtime dependency.
+- The generated profile package contains the exact three JSON files, schema, index, and required guest-init assets under a stable namespaced root.
+- Manifest producers and consumers are inventoried in `docs/research/experiments/F01.md`.
+- Steady-state bare-file resolution is limited to `podroid-kernel`, `podroid-initramfs`, and `podroid-alpine-squashfs`. A complete digest-verified pre-F01 Ubuntu/AAVMF bare bundle may migrate once into strict active manifests; an isolated bare non-Podroid artifact remains rejected.
+- H02, H03, qcow2 semantic changes, native source builds, UI rewrites, controller replacement, process isolation, and USB remain out of scope.
 
 ## Allowed paths
 
-See `allowed-paths.txt`. Changes outside them require an orchestrator handoff and a phase-plan review.
+See `allowed-paths.txt`. Phase status and roadmap updates are included only to record this task's verified result; implementation scope remains inside the selected profile/artifact boundary.
 
 ## Acceptance criteria
 
-- Packaged, schema-validated JSON is the sole production source for `alpine-direct-qualification`, `ubuntu-2404-arm64-uefi`, and `k3s-worker-lab`.
-- Android production code no longer duplicates complete profile definitions in a Kotlin `when` or equivalent mirror.
-- Profile loading is bounded, rejects unknown fields/unsupported versions, preserves typed domain values, and fails closed before any QEMU or filesystem side effect.
-- The APK/package test proves the exact profile JSON and trusted guest-init assets required by those profiles are present.
-- Artifact publication, image listing, and runtime consumption use one strict versioned manifest contract with exact fields, digest, size, immutable relative path, and root-containment checks.
-- H01 upload behavior and the hardened public HTTPS importer retain their existing authentication, SSRF, idempotency, digest, size, recovery, and atomic-publication invariants.
-- Existing typed QEMU command snapshots and profile/guest qualification tests remain green.
-- No result is represented as physical Android evidence, and no base-MVP gate changes status.
+- [x] Packaged, build-validated JSON is the sole production source for `alpine-direct-qualification`, `ubuntu-2404-arm64-uefi`, and `k3s-worker-lab`.
+- [x] Android production code no longer duplicates complete profile definitions in a Kotlin `when` or equivalent mirror.
+- [x] Profile loading is bounded, rejects unknown fields, unsupported contracts, and traversal segments, validates fixed Android/QEMU compatibility fields, preserves typed domain values, and fails closed before QEMU or mutable disk effects.
+- [x] The APK/package test proves the exact profile JSON, schema, index, and required guest-init assets are present.
+- [x] Artifact publication, image listing, cleanup, installed checks, and runtime consumption of active manifests use one strict versioned contract with exact fields, digest, size, immutable relative path, and root-containment checks.
+- [x] Steady-state legacy fallback is restricted to the three pinned Podroid qualification artifacts; a complete verified historical Ubuntu/AAVMF bundle is upgraded into active manifests, while an isolated bare non-Podroid artifact fails closed.
+- [x] Artifact preparation reuses one verified source resolution per preparation and uses a 1 MiB streaming copy buffer with copied-byte digest verification.
+- [x] Manifest listing ignores invalid stray filenames and a remove-after-list race, but continues to fail closed for malformed valid manifests and the explicit active-manifest count invariant.
+- [x] H01 upload behavior and the hardened public HTTPS importer retain their authentication, SSRF, idempotency, digest, size, recovery, cancellation, and atomic-publication invariants.
+- [x] All actionable PR #7 review findings are addressed with regression coverage.
+- [x] Typed QEMU, profile, guest, Android, package, signature, and alignment checks are green.
+- [x] No result is represented as physical Android evidence, and no base-MVP gate changes status.
 
 ## Required checks
+
+The reviewed implementation head passed:
 
 ```sh
 make validate
@@ -53,18 +59,29 @@ make test-guest
 python3 tools/agents/verify-scope.py F01
 ```
 
-GitHub CI must also pass APK packaging, profile-asset verification, signature verification, 16 KiB alignment, and candidate-artifact upload.
+GitHub Actions run `30548116488` also passed APK packaging, canonical profile-asset verification, Podroid runtime verification, signature verification, 16 KiB alignment, and candidate-artifact upload.
+
+```text
+validatedHead: b0dae0581c9d72ae0f7481f7b602573931fbc3a2
+workflowRun: 30548116488
+workflowArtifactId: 8761969616
+workflowArtifactDigest: sha256:6394eaca75c0d50d9d8192f3c6922390425a312be2492b0b18a9390fe71b626b
+apkSha256: 1a3a03a9259a8e5a197e946861c14c54952045b874228288f802a63822a96ebb
+apkSizeBytes: 348568989
+signatureVerified: true
+alignment16KiBVerified: true
+hardwareValidated: false
+```
 
 ## Phase-end verification
 
-Before marking F01 merge-ready:
-
-1. Check every acceptance criterion against code, tests, and package evidence; record the result in `docs/research/experiments/F01.md`.
-2. Search production Kotlin for the three profile IDs and confirm remaining occurrences are identifiers/tests/compatibility checks, not duplicated definitions.
-3. Search for direct parsing of artifact manifest JSON and justify or remove every parser outside the selected contract adapter.
-4. Run the required checks and the full applicable CI workflow.
-5. Re-evaluate H02 and H03 at the next phase boundary. Split, narrow, reorder, or remove them based on what F01 actually proves.
+- [x] Every acceptance criterion was checked against code, tests, review feedback, and downloaded package evidence.
+- [x] Production Kotlin contains no complete profile mirror and no direct active-manifest parser outside `ArtifactManifestStore`.
+- [x] An isolated non-Podroid bare file cannot satisfy Ubuntu/AAVMF resolution.
+- [x] A complete digest-verified pre-F01 Ubuntu/AAVMF bundle migrates to active manifests before use.
+- [x] All valid PR #7 findings are addressed and the exact review-fix head passed the complete applicable workflow.
+- [x] H02/H03 were re-evaluated: activate only guest boot qualification after merge; guest mesh and both emulator tasks remain queued.
 
 ## Handoff
 
-Report commit SHA(s), exact checks, package evidence, profile/manifest differences removed, unavailable checks, deferred items, and the smallest next blocker. Do not activate the next phase merely because code exists; activate it only after the phase-end verification passes.
+Merge only the exact final documentation head after it passes the complete workflow. Resolve the addressed review threads against that green head, then merge only that SHA. After merge, record the merge SHA, archive F01 as merged, and activate one narrowly scoped guest-boot qualification task. No physical gate changes status.

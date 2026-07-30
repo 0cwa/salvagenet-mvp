@@ -2,6 +2,27 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
+// Resolve repository-owned tooling from this module, independent of the containing Gradle root.
+val profilePackager = file("../../../tools/profiles/package-assets.py")
+val guestInitRenderer = file("../../../tools/profiles/render-guest-init.py")
+val profileSources = file("../../../profiles")
+val packagedProfileAssets = layout.buildDirectory.dir("generated/nodehostProfileAssets")
+
+val prepareNodeHostProfileAssets by tasks.registering(Exec::class) {
+    group = "build setup"
+    description = "Renders and packages the canonical NodeHost VM profiles and trusted guest-init assets."
+    inputs.files(profilePackager, guestInitRenderer)
+    inputs.dir(profileSources)
+    outputs.dir(packagedProfileAssets)
+    commandLine(
+        "python3",
+        profilePackager.absolutePath,
+        "--prepare",
+        "--output-dir",
+        packagedProfileAssets.get().asFile.absolutePath,
+    )
+}
+
 android {
     namespace = "org.nodehost.shell"
     compileSdk = providers.gradleProperty("nodehost.compileSdk").orNull?.toInt() ?: 36
@@ -12,6 +33,12 @@ android {
     }
     testOptions { unitTests.isIncludeAndroidResources = true }
     buildFeatures { buildConfig = true }
+    // Use a static path plus explicit preBuild dependency; AGP disallows Provider values in SourceSet APIs.
+    sourceSets.getByName("main").assets.srcDir(packagedProfileAssets.get().asFile.absolutePath)
+}
+
+tasks.named("preBuild") {
+    dependsOn(prepareNodeHostProfileAssets)
 }
 
 dependencies {

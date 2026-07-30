@@ -8,29 +8,15 @@ import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
-import org.json.JSONObject
 import org.nodehost.model.ArtifactRef
 import org.nodehost.model.BootSpec
-import org.nodehost.model.DataDiskSpec
-import org.nodehost.model.DiskFormat
-import org.nodehost.model.HealthKind
-import org.nodehost.model.HealthSpec
-import org.nodehost.model.InitializationKind
-import org.nodehost.model.InitializationSpec
-import org.nodehost.model.MachineSpec
-import org.nodehost.model.ProfileRequirements
-import org.nodehost.model.RecoverySshSpec
 import org.nodehost.model.RuntimeSpec
-import org.nodehost.model.SystemDiskSpec
 import org.nodehost.model.VmProfile
 import org.nodehost.model.VmProfileId
-import org.nodehost.model.WritableLayer
 
 internal const val ALPINE_PROFILE_ID = "alpine-direct-qualification"
-private const val UBUNTU_PROFILE_ID = "ubuntu-2404-arm64-uefi"
-private const val K3S_PROFILE_ID = "k3s-worker-lab"
 
-/** Owns profile resolution and offline disk/artifact effects; process lifecycle stays in AndroidQemuRuntimeBackend. */
+/** Owns canonical profile resolution and offline disk/artifact effects; process lifecycle stays in AndroidQemuRuntimeBackend. */
 internal class AndroidQemuProfileStorage(
     context: Context,
     private val atomicMove: (File, File) -> Unit = { source, target ->
@@ -39,49 +25,36 @@ internal class AndroidQemuProfileStorage(
 ) {
     private val application = context.applicationContext
     private val artifactRoot = File(application.filesDir, "nodehost-artifacts")
+    private val manifests = ArtifactManifestStore(artifactRoot)
+    private val profiles = AndroidPackagedProfileCatalog(application)
+    private val legacyMigrationLock = Any()
 
-    internal fun profile(id: VmProfileId, verifyArtifacts: Boolean): VmProfile = when (id.value) {
-        ALPINE_PROFILE_ID -> VmProfile(
-            id, 1, machine = MachineSpec(cpuModel = "max"),
-            boot = BootSpec.DirectKernel(artifact("podroid-kernel", verifyArtifacts), artifact("podroid-initramfs", verifyArtifacts), "podroid-compatible-v1"),
-            systemDisk = SystemDiskSpec(artifact("podroid-alpine-squashfs", verifyArtifacts), DiskFormat.SQUASHFS, WritableLayer.SEPARATE_EXT4_OVERLAY),
-            dataDisk = DataDiskSpec(4, true),
-            initialization = InitializationSpec(InitializationKind.LEGACY_PODROID, "guest-init/alpine-direct/vendor-data.yaml"),
-            recoverySsh = RecoverySshSpec(), health = HealthSpec(HealthKind.CONSOLE_MARKER, "Ready!"),
-            requirements = ProfileRequirements(512, 3, setOf("virtio-block", "virtio-net", "serial-console", "overlayfs")),
-        )
-        UBUNTU_PROFILE_ID, K3S_PROFILE_ID -> {
-            val k3s = id.value == K3S_PROFILE_ID
-            VmProfile(
-                id, 1, extends = if (k3s) VmProfileId(UBUNTU_PROFILE_ID) else null,
-                machine = MachineSpec(cpuModel = "max"),
-                boot = BootSpec.Uefi(artifact("aavmf-code", verifyArtifacts), artifact("aavmf-vars", verifyArtifacts)),
-                systemDisk = SystemDiskSpec(artifact("ubuntu-2404-arm64-cloud", verifyArtifacts), DiskFormat.QCOW2, WritableLayer.QCOW2_OVERLAY),
-                dataDisk = DataDiskSpec(8, true),
-                initialization = InitializationSpec(InitializationKind.NOCLOUD_NET, if (k3s) "guest-init/k3s-worker-lab/vendor-data.yaml" else "guest-init/ubuntu/vendor-data.yaml", "/v1/bootstrap/{token}/"),
-                recoverySsh = RecoverySshSpec(), health = HealthSpec(HealthKind.METADATA_CALLBACK),
-                requirements = if (k3s) ProfileRequirements(1024, 8, K3S_CHECKS) else ProfileRequirements(768, 5, setOf("uefi", "cloud-init", "openssh")),
-            )
-        }
-        else -> error("unsupported profile: ${id.value}")
-    }
+    internal fun profile(id: VmProfileId, verifyArtifacts: Boolean): VmProfile =
+        resolveProfile(id, verifyArtifacts).profile
+
+    internal fun profileSummaries(): List<PackagedProfileSummary> = profiles.summaries()
+
+    internal fun vendorData(id: VmProfileId): ByteArray = profiles.vendorData(id)
 
     internal fun prepareDisks(runtime: RuntimeSpec) {
+        // Resolve and verify each source artifact once for this preparation, then reuse its typed identity and file.
+        val resolved = resolveProfile(runtime.profileId, verifyArtifacts = true)
+        val profile = resolved.profile
         val instance = instanceDirectory().apply { check(mkdirs() || isDirectory) }
         val artifacts = File(instance, "artifacts").apply { check(mkdirs() || isDirectory) }
-        when (runtime.profileId.value) {
-            ALPINE_PROFILE_ID -> {
-                copyVerified("podroid-kernel", File(artifacts, "vmlinuz-virt"))
-                copyVerified("podroid-initramfs", File(artifacts, "initrd.img"))
-                copyVerified("podroid-alpine-squashfs", File(artifacts, "alpine-rootfs.squashfs"))
+        when (val boot = profile.boot) {
+            is BootSpec.DirectKernel -> {
+                copyVerified(resolved.artifact(boot.kernel.id), File(artifacts, "vmlinuz-virt"))
+                copyVerified(resolved.artifact(boot.initramfs.id), File(artifacts, "initrd.img"))
+                copyVerified(resolved.artifact(profile.systemDisk.artifact.id), File(artifacts, "alpine-rootfs.squashfs"))
                 val overlay = File(instance, "storage.img")
                 if (!overlay.exists()) RandomAccessFile(overlay, "rw").use { it.setLength(runtime.dataDiskGiB * GIB) }
             }
-            UBUNTU_PROFILE_ID, K3S_PROFILE_ID -> {
-                copyVerified("aavmf-code", File(artifacts, "AAVMF_CODE.fd"))
+            is BootSpec.Uefi -> {
+                copyVerified(resolved.artifact(boot.firmwareCode.id), File(artifacts, "AAVMF_CODE.fd"))
                 // These are mutable VM state. Verify the imported source, but create each target exactly once.
-                copyVerifiedOnce("aavmf-vars", File(instance, "firmware-vars.fd"))
-                copyVerifiedOnce("ubuntu-2404-arm64-cloud", File(instance, "system.qcow2"))
+                copyVerifiedOnce(resolved.artifact(boot.firmwareVars.id), File(instance, "firmware-vars.fd"))
+                copyVerifiedOnce(resolved.artifact(profile.systemDisk.artifact.id), File(instance, "system.qcow2"))
                 val data = File(instance, "data.raw")
                 val durable = durableDataFile()
                 if (!data.exists() && durable.exists()) {
@@ -90,7 +63,6 @@ internal class AndroidQemuProfileStorage(
                 }
                 if (!data.exists()) RandomAccessFile(data, "rw").use { it.setLength(runtime.dataDiskGiB * GIB) }
             }
-            else -> error("unsupported profile: ${runtime.profileId.value}")
         }
     }
 
@@ -111,56 +83,206 @@ internal class AndroidQemuProfileStorage(
 
     private fun durableDataFile() = File(application.filesDir, "nodehost-durable/vms/default/data.raw")
 
-    private fun artifact(id: String, verify: Boolean): ArtifactRef {
-        val file = artifactFile(id)
+    private fun resolveProfile(id: VmProfileId, verifyArtifacts: Boolean): ResolvedProfile {
+        val artifacts = linkedMapOf<String, ResolvedArtifact>()
+        val profile = profiles.profile(id, verifyArtifacts) { artifactId, verify ->
+            artifacts.getOrPut(artifactId) { resolveArtifact(artifactId, verify) }.reference
+        }
+        return ResolvedProfile(profile, artifacts)
+    }
+
+    private fun resolveArtifact(id: String, verify: Boolean): ResolvedArtifact {
+        val manifest = activeManifest(id)
+        if (manifest != null) {
+            val file = manifests.payload(manifest)
+            if (verify) require(fileDigest(file) == manifest.sha256) { "artifact digest mismatch: $id" }
+            return ResolvedArtifact(ArtifactRef(id, manifest.sha256, manifest.sizeBytes), file)
+        }
+        require(id in LEGACY_PODROID_ARTIFACT_IDS) {
+            "active artifact manifest is required: $id"
+        }
+        val file = File(artifactRoot, id)
         require(file.isFile && file.length() in 1..MAX_ARTIFACT_BYTES) { "trusted artifact is missing or out of bounds: $id" }
-        val digest = sha256(file)
-        if (verify) require(expectedDigest(id) == digest) { "artifact digest mismatch: $id" }
-        return ArtifactRef(id, digest, file.length())
+        val expectedDigest = expectedLegacyPodroidDigest(id)
+        if (verify) require(fileDigest(file) == expectedDigest) { "artifact digest mismatch: $id" }
+        return ResolvedArtifact(ArtifactRef(id, expectedDigest, file.length()), file)
     }
 
-    private fun artifactFile(id: String): File {
-        val manifest = File(artifactRoot, "$id.manifest.json")
-        if (!manifest.isFile) return File(artifactRoot, id)
-        require(manifest.length() in 1..4096) { "artifact manifest is out of bounds: $id" }
-        val relative = JSONObject(manifest.readText()).getString("relativePath")
-        val resolved = File(artifactRoot, relative).canonicalFile
-        require(resolved.path.startsWith(artifactRoot.canonicalPath + File.separator)) { "artifact manifest escaped its root" }
-        return resolved
+    /**
+     * Pre-F01 builds could leave the complete Ubuntu/AAVMF bundle as verified bare files.
+     * Migrate only that complete historical bundle, or a marker-bound interrupted migration;
+     * an isolated bare non-Podroid artifact remains an invalid bypass attempt.
+     */
+    private fun activeManifest(id: String): ArtifactManifest? {
+        val existing = manifests.active(id)
+        if (existing != null) {
+            cleanupCompletedLegacyMigration()
+            return existing
+        }
+        if (id !in LEGACY_UEFI_ARTIFACT_IDS) return null
+        synchronized(legacyMigrationLock) {
+            manifests.active(id)?.let { return it }
+            migrateLegacyUefiBundleIfPresent()
+            return manifests.active(id)
+        }
     }
 
-    private fun expectedDigest(id: String): String {
-        val manifest = File(artifactRoot, "$id.manifest.json")
-        if (manifest.isFile) return JSONObject(manifest.readText()).getString("sha256")
+    private fun migrateLegacyUefiBundleIfPresent() {
+        val marker = File(artifactRoot, LEGACY_UEFI_MIGRATION_MARKER)
+        if (!marker.exists()) {
+            if (LEGACY_UEFI_ARTIFACT_IDS.any { manifests.active(it) != null }) return
+            if (!LEGACY_UEFI_ARTIFACT_IDS.all(::hasCompleteLegacyCandidate)) return
+            writeMigrationMarker(marker)
+        } else {
+            check(marker.isFile && marker.length() in 1..64 && marker.readText() == LEGACY_UEFI_MIGRATION_CONTENT) {
+                "legacy UEFI artifact migration marker is invalid"
+            }
+        }
+
+        LEGACY_UEFI_ARTIFACT_IDS.forEach { artifactId ->
+            if (manifests.active(artifactId) != null) return@forEach
+            val candidate = legacyCandidate(artifactId)
+            val target = manifests.versionPayload(artifactId, candidate.digest)
+            check(target.parentFile?.mkdirs() == true || target.parentFile?.isDirectory == true) {
+                "legacy UEFI artifact version directory is unavailable: $artifactId"
+            }
+            if (candidate.source != target) {
+                if (target.exists()) {
+                    check(target.isFile && target.length() == candidate.sizeBytes && fileDigest(target) == candidate.digest) {
+                        "legacy UEFI artifact migration target is inconsistent: $artifactId"
+                    }
+                    check(candidate.source.delete()) { "legacy UEFI artifact source could not be removed: $artifactId" }
+                } else {
+                    Files.move(candidate.source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+                }
+            }
+            manifests.writeActive(
+                ArtifactManifest(artifactId, candidate.digest, candidate.sizeBytes),
+                "legacy-migrate",
+            )
+            check(candidate.sidecar.delete() || !candidate.sidecar.exists()) {
+                "legacy UEFI artifact digest sidecar could not be removed: $artifactId"
+            }
+        }
+
+        check(LEGACY_UEFI_ARTIFACT_IDS.all { manifests.active(it) != null }) {
+            "legacy UEFI artifact migration did not publish the complete bundle"
+        }
+        check(marker.delete() || !marker.exists()) { "legacy UEFI artifact migration marker could not be removed" }
+    }
+
+    private fun cleanupCompletedLegacyMigration() {
+        val marker = File(artifactRoot, LEGACY_UEFI_MIGRATION_MARKER)
+        if (!marker.exists()) return
+        synchronized(legacyMigrationLock) {
+            if (LEGACY_UEFI_ARTIFACT_IDS.all { manifests.active(it) != null }) {
+                LEGACY_UEFI_ARTIFACT_IDS.forEach { File(artifactRoot, "$it.sha256").delete() }
+                marker.delete()
+            }
+        }
+    }
+
+    private fun hasCompleteLegacyCandidate(id: String): Boolean {
+        val source = File(artifactRoot, id)
+        val sidecar = File(artifactRoot, "$id.sha256")
+        return source.isFile && sidecar.isFile
+    }
+
+    private fun legacyCandidate(id: String): LegacyArtifactCandidate {
+        require(id in LEGACY_UEFI_ARTIFACT_IDS) { "artifact is not part of the legacy UEFI bundle: $id" }
+        val sidecar = File(artifactRoot, "$id.sha256")
+        check(sidecar.isFile && sidecar.length() in 1..128) { "legacy UEFI artifact digest metadata is missing: $id" }
+        val digest = sidecar.readText().trim()
+        check(ArtifactManifest.SHA256.matches(digest)) { "legacy UEFI artifact digest metadata is invalid: $id" }
+        val bare = File(artifactRoot, id)
+        val moved = manifests.versionPayload(id, digest)
+        val source = when {
+            bare.isFile -> bare
+            moved.isFile -> moved
+            else -> error("legacy UEFI artifact payload is missing: $id")
+        }
+        check(source.length() in 1..MAX_ARTIFACT_BYTES) { "legacy UEFI artifact is out of bounds: $id" }
+        check(fileDigest(source) == digest) { "legacy UEFI artifact digest mismatch: $id" }
+        return LegacyArtifactCandidate(source, sidecar, digest, source.length())
+    }
+
+    private fun writeMigrationMarker(marker: File) {
+        check(artifactRoot.mkdirs() || artifactRoot.isDirectory) { "artifact root is unavailable" }
+        val temporary = File(artifactRoot, ".$LEGACY_UEFI_MIGRATION_MARKER.part")
+        try {
+            FileOutputStream(temporary).use { output ->
+                output.write(LEGACY_UEFI_MIGRATION_CONTENT.toByteArray())
+                output.fd.sync()
+            }
+            Files.move(
+                temporary.toPath(),
+                marker.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
+        } finally {
+            temporary.delete()
+        }
+    }
+
+    private fun expectedLegacyPodroidDigest(id: String): String {
+        require(id in LEGACY_PODROID_ARTIFACT_IDS) { "legacy digest metadata is not allowed for artifact: $id" }
         val expected = File(artifactRoot, "$id.sha256")
         require(expected.isFile && expected.length() <= 128) { "artifact digest metadata is missing: $id" }
-        return expected.readText().trim()
+        return expected.readText().trim().also {
+            require(ArtifactManifest.SHA256.matches(it)) { "artifact digest metadata is invalid: $id" }
+        }
     }
 
-    private fun copyVerifiedOnce(id: String, target: File) {
-        artifact(id, true)
+    private fun copyVerifiedOnce(artifact: ResolvedArtifact, target: File) {
         if (target.exists()) {
             require(target.isFile && target.length() in 1..MAX_ARTIFACT_BYTES) { "mutable system state is invalid: ${target.name}" }
             return
         }
-        copyVerified(id, target)
+        copyVerified(artifact, target)
     }
 
-    private fun copyVerified(id: String, target: File) {
-        val source = artifactFile(id)
-        artifact(id, true)
-        if (target.isFile && target.length() == source.length() && sha256(target) == sha256(source)) return
+    private fun copyVerified(artifact: ResolvedArtifact, target: File) {
+        if (
+            target.isFile &&
+            target.length() == artifact.reference.expectedSizeBytes &&
+            fileDigest(target) == artifact.reference.sha256
+        ) return
+
         val temporary = File(target.parentFile, target.name + ".tmp")
-        FileInputStream(source).use { input ->
-            FileOutputStream(temporary).use { output ->
-                input.copyTo(output, COPY_BUFFER_BYTES)
-                output.fd.sync()
+        try {
+            val copiedDigest = MessageDigest.getInstance("SHA-256")
+            FileInputStream(artifact.file).use { input ->
+                FileOutputStream(temporary).use { output ->
+                    val buffer = ByteArray(COPY_BUFFER_BYTES)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        copiedDigest.update(buffer, 0, count)
+                        output.write(buffer, 0, count)
+                    }
+                    output.fd.sync()
+                }
             }
+            val actualDigest = copiedDigest.digest().joinToString("") { "%02x".format(it) }
+            check(temporary.length() == artifact.reference.expectedSizeBytes) {
+                "copied artifact has the wrong size: ${artifact.reference.id}"
+            }
+            check(actualDigest == artifact.reference.sha256) {
+                "copied artifact digest mismatch: ${artifact.reference.id}"
+            }
+            Files.move(
+                temporary.toPath(),
+                target.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
+        } finally {
+            temporary.delete()
         }
-        check(temporary.renameTo(target)) { "atomic artifact publication failed: $id" }
     }
 
-    private fun sha256(file: File): String {
+    private fun fileDigest(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         FileInputStream(file).use { input ->
             val buffer = ByteArray(COPY_BUFFER_BYTES)
@@ -182,10 +304,42 @@ internal class AndroidQemuProfileStorage(
         return budget
     }
 
+    private data class ResolvedArtifact(
+        val reference: ArtifactRef,
+        val file: File,
+    )
+
+    private data class ResolvedProfile(
+        val profile: VmProfile,
+        val artifacts: Map<String, ResolvedArtifact>,
+    ) {
+        fun artifact(id: String): ResolvedArtifact = checkNotNull(artifacts[id]) {
+            "resolved profile is missing artifact: $id"
+        }
+    }
+
+    private data class LegacyArtifactCandidate(
+        val source: File,
+        val sidecar: File,
+        val digest: String,
+        val sizeBytes: Long,
+    )
+
     private companion object {
-        val K3S_CHECKS = setOf("cgroup-v2", "namespaces", "overlayfs", "br-netfilter", "vxlan", "tun", "iptables-or-nft", "ip-forwarding", "swap-policy", "minimum-memory", "minimum-storage", "tailscale-reachability")
+        val LEGACY_PODROID_ARTIFACT_IDS = setOf(
+            "podroid-kernel",
+            "podroid-initramfs",
+            "podroid-alpine-squashfs",
+        )
+        val LEGACY_UEFI_ARTIFACT_IDS = setOf(
+            "ubuntu-2404-arm64-cloud",
+            "aavmf-code",
+            "aavmf-vars",
+        )
+        const val LEGACY_UEFI_MIGRATION_MARKER = "legacy-uefi-bundle-migration-v1"
+        const val LEGACY_UEFI_MIGRATION_CONTENT = "nodehost-legacy-uefi-migration-v1\n"
         const val COPY_BUFFER_BYTES = 1024 * 1024
-        const val MAX_ARTIFACT_BYTES = 64L * 1024 * 1024 * 1024
+        const val MAX_ARTIFACT_BYTES = ArtifactManifest.MAX_ARTIFACT_BYTES
         const val MAX_DELETE_ENTRIES = 4096
         const val GIB = 1024L * 1024 * 1024
     }

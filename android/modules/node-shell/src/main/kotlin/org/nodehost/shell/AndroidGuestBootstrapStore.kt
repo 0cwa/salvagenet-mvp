@@ -8,10 +8,12 @@ import java.security.SecureRandom
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
+import org.nodehost.model.VmProfileId
 
 /** Keystore-encrypted durable bootstrap state; successful redemption is committed before return. */
 class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, BootstrapRequestStore {
     private val application = context.applicationContext
+    private val profiles = AndroidPackagedProfileCatalog(application)
     private val state = AndroidEncryptedBlob(
         application,
         preferencesName = "nodehost_guest_bootstrap_secure_v1",
@@ -72,9 +74,11 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
         state.write(value.toString())
     }
 
-    override suspend fun beginBoot(profileId: org.nodehost.model.VmProfileId): String? = mutex.withLock {
+    override suspend fun beginBoot(profileId: VmProfileId): String? = mutex.withLock {
         val value = state.read()?.let(::JSONObject) ?: return@withLock null
         if (!value.optBoolean("committed", true)) return@withLock null
+        // Resolve before mutating boot generation so unsupported/corrupt packaged profile state fails closed.
+        profiles.vendorData(profileId)
         value.put("profileId", profileId.value)
         value.put("bootGeneration", value.optLong("bootGeneration", 0) + 1)
         value.put("readyCapability", secureCapability())
@@ -97,12 +101,7 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
     override suspend fun vendorData(presentedToken: String): ByteArray? = mutex.withLock {
         val value = state.read()?.let(::JSONObject) ?: return@withLock null
         if (!value.optBoolean("committed", true) || !sameSecret(value.getString("token"), presentedToken)) return@withLock null
-        when (value.optString("profileId")) {
-            "k3s-worker-lab" -> application.assets.open(K3S_VENDOR_ASSET).use { input ->
-                input.readBytes().also { require(it.size <= MAX_VENDOR_DATA_BYTES) { "K3s vendor data is out of bounds" } }
-            }
-            else -> "#cloud-config\n".toByteArray()
-        }
+        profiles.vendorData(VmProfileId(value.getString("profileId")))
     }
 
     override suspend fun redeem(presentedToken: String): ByteArray? = mutex.withLock {
@@ -145,9 +144,4 @@ class AndroidGuestBootstrapStore(context: Context) : GuestBootstrapStore, Bootst
         MessageDigest.getInstance("SHA-256").digest(expected.toByteArray()),
         MessageDigest.getInstance("SHA-256").digest(presented.toByteArray()),
     )
-
-    private companion object {
-        const val K3S_VENDOR_ASSET = "nodehost/k3s-worker-lab-vendor-data.yaml"
-        const val MAX_VENDOR_DATA_BYTES = 128 * 1024
-    }
 }

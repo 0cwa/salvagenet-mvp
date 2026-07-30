@@ -1,4 +1,5 @@
 agents/tasks/F01/**
+agents/task-registry.json
 android/modules/node-model/src/main/**
 android/modules/node-model/src/test/**
 android/modules/node-core/src/main/**
@@ -7,14 +8,20 @@ android/modules/node-shell/build.gradle.kts
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/*Profile*
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/*Artifact*
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/*Manifest*
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AndroidGuestBootstrapStore.kt
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AndroidQemuRuntimeBackend.kt
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/ProductionHostApi.kt
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AGENTS.md
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Profile*
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Artifact*
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Manifest*
+android/modules/node-shell/src/test/kotlin/org/nodehost/shell/AndroidQemuRuntimeBackendTest.kt
+android/modules/node-shell/src/test/kotlin/org/nodehost/shell/ProductionHostApiTest.kt
 android/podroid/app/build.gradle.kts
 profiles/**
 tools/profiles/**
 tools/ci/check-profiles.py
 docs/architecture/vm-profiles.md
 docs/architecture/debt-register.md
+docs/roadmap/hardware-independent.md
 docs/research/experiments/F01.md

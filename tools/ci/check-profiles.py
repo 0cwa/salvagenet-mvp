@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Validate the complete, typed MVP profile registry."""
+"""Validate the complete MVP profile registry, Android assets, and production ownership boundaries."""
 
+import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +20,7 @@ COMMON_SPEC_FIELDS = {
     "architecture", "machine", "boot", "systemDisk", "dataDisk",
     "initialization", "network", "health", "requirements",
 }
+SHELL_MAIN = ROOT / "android/modules/node-shell/src/main/kotlin/org/nodehost/shell"
 
 
 def load(path: Path) -> dict:
@@ -41,11 +44,45 @@ def walk_keys(value: object) -> set[str]:
 def artifact_ids(profile: dict) -> set[str]:
     boot = profile["spec"]["boot"]
     ids = {profile["spec"]["systemDisk"]["artifact"]}
-    ids.update(
-        value for key, value in boot.items()
-        if key.endswith("Artifact")
-    )
+    ids.update(value for key, value in boot.items() if key.endswith("Artifact"))
     return ids
+
+
+def package_module():
+    path = ROOT / "tools" / "profiles" / "package-assets.py"
+    spec = importlib.util.spec_from_file_location("nodehost_profile_packager", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def enforce_production_boundaries() -> None:
+    storage = (SHELL_MAIN / "AndroidQemuProfileStorage.kt").read_text(encoding="utf-8")
+    assert "VmProfile(" not in storage, "runtime storage must not reconstruct complete profiles"
+    assert "when (id.value)" not in storage, "runtime storage must not branch into profile mirrors"
+    assert "AndroidPackagedProfileCatalog" in storage, "runtime must use the packaged profile catalog"
+
+    manifest_adapter = SHELL_MAIN / "ArtifactManifest.kt"
+    assert manifest_adapter.is_file(), "shared artifact manifest adapter is missing"
+    direct_manifest_literals = []
+    for path in sorted(SHELL_MAIN.glob("*.kt")):
+        if path == manifest_adapter:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if '.manifest.json"' in text or 'MANIFEST_KEYS' in text or 'MANIFEST_VERSION' in text:
+            direct_manifest_literals.append(path.name)
+    assert not direct_manifest_literals, (
+        "active artifact manifests must be interpreted only by ArtifactManifestStore: "
+        + ", ".join(direct_manifest_literals)
+    )
+    for name in ("AndroidArtifactUploads.kt", "ProductionHostApi.kt", "AndroidQemuProfileStorage.kt"):
+        text = (SHELL_MAIN / name).read_text(encoding="utf-8")
+        assert "ArtifactManifestStore" in text, f"{name} bypasses the shared artifact manifest adapter"
+
+    app_build = (ROOT / "android/podroid/app/build.gradle.kts").read_text(encoding="utf-8")
+    assert "verifyNodeHostProfilePackaging" in app_build
+    assert "package-assets.py" in app_build
 
 
 def main() -> None:
@@ -69,6 +106,9 @@ def main() -> None:
     assert alpine["spec"]["initialization"]["type"] == "legacy-podroid"
     assert ubuntu["spec"]["boot"]["type"] == "uefi"
     assert ubuntu["spec"]["initialization"]["type"] == "nocloud-net"
+    assert {
+        "uefi", "virtio-block", "virtio-net", "serial-console", "cloud-init", "openssh"
+    } <= set(ubuntu["spec"]["requirements"]["qualificationChecks"])
 
     assert k3s["metadata"]["extends"] == "ubuntu-2404-arm64-uefi"
     for inherited_section in ("architecture", "machine", "boot", "systemDisk", "dataDisk", "network", "health"):
@@ -92,7 +132,29 @@ def main() -> None:
         vendor_data = ROOT / "profiles" / profile["spec"]["initialization"]["vendorData"]
         assert vendor_data.is_file(), f"missing checked-in vendor data: {vendor_data}"
 
-    print("profile registry OK:", ", ".join(sorted(profiles)))
+    packager = package_module()
+    expected = packager.expected_assets()
+    expected_profile_assets = {f"nodehost/profiles/{profile_id}/profile.json" for profile_id in REQUIRED_PROFILE_IDS}
+    assert expected_profile_assets <= set(expected)
+    assert "nodehost/profiles/index.json" in expected
+    assert "nodehost/profiles/vm-profile.schema.json" in expected
+    for path, content in expected.items():
+        assert content, f"empty generated profile asset: {path}"
+        if path.endswith("vendor-data.yaml") and path != "nodehost/guest-init/alpine-direct/vendor-data.yaml":
+            text = content.decode("utf-8")
+            assert text.startswith("#cloud-config\n") and "{{" not in text, f"unrendered guest-init asset: {path}"
+
+    with tempfile.TemporaryDirectory() as temporary:
+        output = Path(temporary) / "assets"
+        packager.prepare(output)
+        generated = {
+            path.relative_to(output).as_posix(): path.read_bytes()
+            for path in output.rglob("*") if path.is_file()
+        }
+        assert generated == expected, "generated Android profile assets differ from expected bytes"
+
+    enforce_production_boundaries()
+    print("profile registry/package assets/production boundaries OK:", ", ".join(sorted(profiles)))
 
 
 if __name__ == "__main__":
