@@ -64,6 +64,8 @@ class AndroidHostResourceQueries(
     private val clockMillis: () -> Long,
 ) : HostResourceQueries {
     private val artifacts = File(context.filesDir, "nodehost-artifacts")
+    private val manifests = ArtifactManifestStore(artifacts)
+    private val profiles = AndroidPackagedProfileCatalog(context)
     private val deviceId = android.provider.Settings.Secure.getString(
         context.contentResolver, android.provider.Settings.Secure.ANDROID_ID,
     )?.take(128).orEmpty().ifEmpty { "android-node" }
@@ -77,28 +79,11 @@ class AndroidHostResourceQueries(
         HostCapability("vm.single", true), HostCapability("image.https-import", true),
         HostCapability("recovery.ssh", true),
     )
-    override suspend fun profiles() = listOf(
-        HostProfile("alpine-direct-qualification", 1, "DIRECT_KERNEL"),
-        HostProfile("ubuntu-2404-arm64-uefi", 1, "UEFI"),
-        HostProfile("k3s-worker-lab", 1, "UEFI"),
-    )
+    override suspend fun profiles() = profiles.summaries().map {
+        HostProfile(it.id.value, it.version, it.bootKind.name)
+    }
     override suspend fun images(): List<HostImage> = withContext(Dispatchers.IO) {
-        val manifests = artifacts.listFiles()?.filter { it.isFile && it.name.endsWith(".manifest.json") }
-            ?.sortedBy { it.name }?.take(128).orEmpty()
-        manifests.mapNotNull { manifest ->
-            runCatching {
-                require(manifest.length() in 1..MAX_MANIFEST_BYTES)
-                val value = JSONObject(manifest.readText())
-                require(value.keys().asSequence().toSet() == setOf("version", "sha256", "sizeBytes", "relativePath"))
-                require(value.getInt("version") == 1)
-                val id = manifest.name.removeSuffix(".manifest.json")
-                val digest = value.getString("sha256")
-                val sizeBytes = value.getLong("sizeBytes")
-                require(IMAGE_ID.matches(id) && SHA256.matches(digest) && sizeBytes in 1..MAX_IMAGE_BYTES)
-                require(value.getString("relativePath") == "versions/$id/$digest/payload")
-                HostImage(id, digest, sizeBytes)
-            }.getOrNull()
-        }
+        manifests.listActive(128).map { HostImage(it.artifactId, it.sha256, it.sizeBytes) }
     }
     override suspend fun vms(): List<HostVm> = vm(RuntimeId.DEFAULT)?.let(::listOf).orEmpty()
     override suspend fun vm(id: RuntimeId): HostVm? {
@@ -121,12 +106,6 @@ class AndroidHostResourceQueries(
         OperationId(getString(0)), getString(1), getString(2), getString(3)?.let(::RuntimeId),
         if (isNull(4)) null else getLong(4), OperationState.valueOf(getString(5)), getString(6), getString(7),
     )
-    private companion object {
-        val IMAGE_ID = Regex("[a-z0-9][a-z0-9.-]{0,127}")
-        val SHA256 = Regex("[a-f0-9]{64}")
-        const val MAX_MANIFEST_BYTES = 4096L
-        const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
-    }
 }
 
 internal class AndroidHostMutations(
@@ -143,6 +122,7 @@ internal class AndroidHostMutations(
     private val artifactPublicationCoordinator: ArtifactPublicationCoordinator = ArtifactPublicationCoordinator(),
 ) : HostMutationUseCases {
     private val artifacts = File(context.filesDir, "nodehost-artifacts")
+    private val manifests = ArtifactManifestStore(artifacts)
     private val pendingImports = File(context.filesDir, "nodehost-imports")
     private val lock = Mutex()
     private val importEffectLock = Mutex()
@@ -408,7 +388,8 @@ internal class AndroidHostMutations(
         if (!claimed) return false
         // PREPARING_DISKS is the durable non-cancellable publication claim. Cancellation can no longer win.
         return artifactPublicationCoordinator.serialized {
-            val versionPayload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
+            val manifest = ArtifactManifest(imageId, request.sha256, request.expectedSizeBytes)
+            val versionPayload = manifests.versionPayload(imageId, request.sha256)
             val versionDirectory = requireNotNull(versionPayload.parentFile)
             check(versionDirectory.mkdirs() || versionDirectory.isDirectory)
             if (versionPayload.exists()) {
@@ -423,17 +404,7 @@ internal class AndroidHostMutations(
                     temporary.toPath(), versionPayload.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE,
                 )
             }
-            val manifest = File(artifacts, "$imageId.manifest.json")
-            val manifestTemporary = File(artifacts, ".$imageId.manifest.part")
-            try {
-                val manifestValue = JSONObject().put("version", 1).put("sha256", request.sha256)
-                    .put("sizeBytes", request.expectedSizeBytes).put("relativePath", "versions/$imageId/${request.sha256}/payload")
-                FileOutputStream(manifestTemporary).use { it.write(manifestValue.toString().toByteArray()); it.fd.sync() }
-                java.nio.file.Files.move(
-                    manifestTemporary.toPath(), manifest.toPath(),
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                )
-            } finally { manifestTemporary.delete() }
+            manifests.writeActive(manifest, "https-import")
             true
         }
     }
@@ -447,11 +418,7 @@ internal class AndroidHostMutations(
             val orphanedPayload = payload != null && run {
                 val imageId = payload.groupValues[1]
                 val digest = payload.groupValues[2]
-                val manifest = File(artifacts, "$imageId.manifest.json")
-                val value = manifest.takeIf { it.isFile && it.length() in 1..MAX_MANIFEST_BYTES }
-                    ?.let { runCatching { JSONObject(it.readText()) }.getOrNull() }
-                value?.optInt("version") != 1 || value.optString("sha256") != digest ||
-                    value.optString("relativePath") != relative
+                runCatching { !manifests.isActivePayload(imageId, digest, relative) }.getOrElse { true }
             }
             if (temporary || orphanedPayload) check(file.delete()) { "interrupted artifact could not be removed" }
         }
@@ -460,18 +427,8 @@ internal class AndroidHostMutations(
         }
     }
 
-    private fun isInstalled(imageId: String, request: ImageImportRequest): Boolean {
-        val manifest = File(artifacts, "$imageId.manifest.json")
-        val payload = File(artifacts, "versions/$imageId/${request.sha256}/payload")
-        if (!manifest.isFile || manifest.length() !in 1..MAX_MANIFEST_BYTES || !payload.isFile || payload.length() != request.expectedSizeBytes) return false
-        val value = runCatching { JSONObject(manifest.readText()) }.getOrNull() ?: return false
-        if (value.keys().asSequence().toSet() != MANIFEST_KEYS ||
-            value.optInt("version") != 1 || value.optString("sha256") != request.sha256 ||
-            value.optLong("sizeBytes") != request.expectedSizeBytes ||
-            value.optString("relativePath") != "versions/$imageId/${request.sha256}/payload"
-        ) return false
-        return sha256(payload) == request.sha256
-    }
+    private fun isInstalled(imageId: String, request: ImageImportRequest): Boolean =
+        manifests.isPublished(imageId, request.sha256, request.expectedSizeBytes, verifyDigest = true)
 
     private fun operationCancelled(id: OperationId): Boolean =
         database.openHelper.readableDatabase.query("SELECT state FROM operations WHERE id = ?", arrayOf(id.value)).use {
@@ -570,12 +527,10 @@ internal class AndroidHostMutations(
         const val MAX_PENDING_IMPORTS = 16
         const val MAX_PENDING_FILE_BYTES = 4096L
         val PAYLOAD_PATH = Regex("versions/([a-z0-9][a-z0-9.-]{0,127})/([a-f0-9]{64})/payload")
-        val MANIFEST_KEYS = setOf("version", "sha256", "sizeBytes", "relativePath")
         const val MAX_ARTIFACT_FILES = 512
-        const val MAX_IMAGE_BYTES = 64L * 1024 * 1024 * 1024
+        const val MAX_IMAGE_BYTES = ArtifactManifest.MAX_ARTIFACT_BYTES
         const val ARTIFACT_QUOTA_BYTES = 96L * 1024 * 1024 * 1024
         const val MIN_FREE_BYTES = 256L * 1024 * 1024
-        const val MAX_MANIFEST_BYTES = 4096L
         const val MAX_CANONICAL_REQUEST_BYTES = 64 * 1024
         const val MAX_CANCEL_RECEIPTS = 256
     }
