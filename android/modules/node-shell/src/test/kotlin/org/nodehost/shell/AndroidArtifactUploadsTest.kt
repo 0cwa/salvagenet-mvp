@@ -165,10 +165,14 @@ class AndroidArtifactUploadsTest {
         }
     }
 
-    private fun store() = AndroidArtifactUploadStore(context, { now }) {
-        idCounter += 1
-        "upload-${idCounter.toString(16).padStart(32, '0')}"
-    }
+    private fun store() = AndroidArtifactUploadStore(
+        context,
+        { now },
+        idFactory = {
+            idCounter += 1
+            "upload-${idCounter.toString(16).padStart(32, '0')}"
+        },
+    )
 
     private fun clean() {
         File(context.filesDir, "nodehost-uploads").deleteRecursively()
