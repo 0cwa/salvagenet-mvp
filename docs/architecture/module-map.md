@@ -57,16 +57,19 @@ the locked upstream commit.
 
 Do not scatter new node-host business logic throughout Podroid UI, DataStore repositories, or guest product code.
 
-## Non-Android roots
+## Repository root boundary
 
 ```text
-profiles/          profile definitions and trusted bootstrap assets
-control/           schemas and OpenAPI contract
-controller/mvp-cli temporary Python controller and ProxyCommand
-lab/               disposable Headscale/QEMU test environments
-hostd/             post-MVP Linux service placeholder
-usb-link/          MVP+ design and skeleton; blocked in base DAG
-agents/            scoped task packets and orchestration metadata
-tools/             deterministic bootstrap, CI, context, and provenance tools
-tests/             cross-module and physical-device harnesses
+android/       Android product, sibling modules, and pinned Podroid composition
+agents/        scoped task packets and orchestration metadata
+control/       schemas and OpenAPI contracts
+controller/    controller implementations
+profiles/      canonical guest profiles and trusted bootstrap assets
+lab/           disposable executable Headscale/QEMU laboratories
+tests/         cross-module, host, emulator, and physical-device harnesses
+tools/         deterministic bootstrap, CI, context, evidence, and provenance tools
+docs/          indexed architecture, decisions, research, and roadmaps
+evidence/      reviewed acceptance evidence
 ```
+
+Root directories are agent context and are enforced by `tools/ci/check-root-layout.py`. Future Linux host services, USB/AOA components, registry providers, and other deferred implementations remain in `docs/` until an active task creates executable code in an owning root. README-only placeholder roots are forbidden.
