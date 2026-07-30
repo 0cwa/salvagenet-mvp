@@ -1,0 +1,9 @@
+GOAL.md
+docs/architecture/control-plane.md
+docs/architecture/security-boundaries.md
+docs/architecture/debt-register.md
+control/openapi.yaml
+android/modules/control-api/AGENTS.md
+android/modules/node-store/src/main/kotlin/org/nodehost/store/AGENTS.md
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AGENTS.md
+controller/mvp-cli/AGENTS.md

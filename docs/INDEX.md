@@ -24,6 +24,7 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 ## Development
 
 - `development/environment.md` — toolchain and reproducibility.
+- `development/development-loop.md` — capability-aware checks, active task cycle, and packet generation.
 - `development/root-authorization-checklist.md` — user-run privileged setup.
 - `development/context-engineering.md` — scoped agent context model.
 - `development/git-cycle.md` — branches, worktrees, commits, integration.
@@ -43,8 +44,9 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 ## Roadmap
 
 - `roadmap/overview.md` — development and implementation roadmap.
-- `roadmap/overnight-plan.md` — one-agent-day parallel plan.
-- `roadmap/dependency-dag.md` — task dependencies and merge order.
+- `roadmap/hardware-independent.md` — active H01–H04 cycle and ordered follow-ons.
+- `roadmap/overnight-plan.md` — historical one-agent-day implementation plan.
+- `roadmap/dependency-dag.md` — historical task dependencies and merge order.
 - `roadmap/acceptance-ledger.md` — base MVP and MVP+ acceptance ledger.
 - `roadmap/device-validation.md` — D00–D07 physical validation and release sequence.
 - `roadmap/post-mvp.md` — deliberately deferred work.

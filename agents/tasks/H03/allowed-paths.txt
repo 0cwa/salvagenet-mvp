@@ -1,0 +1,8 @@
+lab/android-emulator/**
+android/modules/node-shell/src/androidTest/**
+android/modules/node-store/src/androidTest/**
+android/modules/control-api/src/androidTest/**
+tests/lifecycle/**
+.github/workflows/emulator.yml
+docs/testing/android-matrix.md
+docs/research/experiments/H03.md

@@ -1,0 +1,8 @@
+GOAL.md
+docs/STATUS.md
+docs/roadmap/device-validation.md
+docs/testing/qa-gates.md
+tests/device/AGENTS.md
+tests/e2e/AGENTS.md
+tools/evidence/AGENTS.md
+evidence/AGENTS.md

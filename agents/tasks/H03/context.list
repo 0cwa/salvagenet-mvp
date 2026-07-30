@@ -1,0 +1,7 @@
+GOAL.md
+docs/architecture/layers-and-events.md
+docs/testing/strategy.md
+docs/testing/failure-injection.md
+lab/android-emulator/AGENTS.md
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AGENTS.md
+android/modules/node-store/src/main/kotlin/org/nodehost/store/AGENTS.md
