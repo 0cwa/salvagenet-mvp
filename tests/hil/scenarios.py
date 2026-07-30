@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import time
 from typing import Any, Callable
@@ -9,6 +11,10 @@ from typing import Any, Callable
 from .config import ConfigError, HilConfig
 from .evidence import EvidenceRecorder
 from .ports import ControllerPort, DevicePort, MeshLabPort
+
+
+ARTIFACT_ID = re.compile(r"^[a-z0-9][a-z0-9.-]{0,127}$")
+SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
 
 def load_object(path: Path) -> dict[str, Any]:
@@ -19,6 +25,57 @@ def load_object(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ConfigError(f"{path} must contain a JSON object")
     return value
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_artifact_set(config: HilConfig) -> list[dict[str, Any]]:
+    path = config.path("mvp.artifactSet", required=False)
+    if path is None:
+        return []
+    root = load_object(path)
+    if root.get("schemaVersion") != 1 or set(root) != {"schemaVersion", "artifacts"}:
+        raise ConfigError("artifact set must contain exactly schemaVersion=1 and artifacts")
+    values = root.get("artifacts")
+    if not isinstance(values, list) or len(values) > 16:
+        raise ConfigError("artifact set must contain at most 16 artifacts")
+    result: list[dict[str, Any]] = []
+    ids: set[str] = set()
+    for index, value in enumerate(values):
+        if not isinstance(value, dict) or set(value) != {"id", "path", "sha256", "sizeBytes"}:
+            raise ConfigError(f"artifact set entry {index} has invalid fields")
+        artifact_id = value.get("id")
+        digest = value.get("sha256")
+        size = value.get("sizeBytes")
+        raw_path = value.get("path")
+        if not isinstance(artifact_id, str) or not ARTIFACT_ID.fullmatch(artifact_id):
+            raise ConfigError(f"artifact set entry {index} has an invalid id")
+        if artifact_id in ids:
+            raise ConfigError(f"artifact set contains duplicate id: {artifact_id}")
+        ids.add(artifact_id)
+        if not isinstance(digest, str) or not SHA256.fullmatch(digest):
+            raise ConfigError(f"artifact set entry {index} has an invalid sha256")
+        if not isinstance(size, int) or size < 1 or size > 64 * 1024 * 1024 * 1024:
+            raise ConfigError(f"artifact set entry {index} has an invalid sizeBytes")
+        if not isinstance(raw_path, str) or not raw_path:
+            raise ConfigError(f"artifact set entry {index} has an invalid path")
+        artifact_path = Path(raw_path)
+        if not artifact_path.is_absolute():
+            artifact_path = config.root / artifact_path
+        if not artifact_path.is_file():
+            raise ConfigError(f"artifact payload is missing: {artifact_path}")
+        if artifact_path.stat().st_size != size:
+            raise ConfigError(f"artifact payload size mismatch: {artifact_id}")
+        if file_sha256(artifact_path) != digest:
+            raise ConfigError(f"artifact payload digest mismatch: {artifact_id}")
+        result.append({"id": artifact_id, "path": artifact_path, "sha256": digest, "sizeBytes": size})
+    return result
 
 
 def next_generation(vms: list[dict[str, Any]], template: dict[str, Any]) -> int:
@@ -96,7 +153,10 @@ def smoke(config: HilConfig, device: DevicePort, controller: ControllerPort, rec
     status = wait_for_controller_status(controller, min(timeout, 120))
     recorder.write_json("host-status-before.json", status)
 
+    capabilities = controller.capabilities()
     profiles = controller.profiles()
+    recorder.write_json("capabilities.json", capabilities)
+    recorder.write_json("profiles.json", profiles)
     profile_ids = {item.get("id") for item in profiles}
     recorder.assert_that(
         "smoke.profile-present",
@@ -104,9 +164,12 @@ def smoke(config: HilConfig, device: DevicePort, controller: ControllerPort, rec
         f"profile={template.get('profileId')} available={sorted(str(item) for item in profile_ids)}",
     )
 
+    current_vms = controller.vms()
+    recorder.write_json("vms-before.json", current_vms)
     request = dict(template)
-    request["generation"] = next_generation(controller.vms(), template)
+    request["generation"] = next_generation(current_vms, template)
     request["desiredState"] = "running"
+    recorder.write_json("desired-vm.json", request)
     controller.apply_vm("default", request, timeout)
 
     wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="one QEMU process")
@@ -124,6 +187,7 @@ def smoke(config: HilConfig, device: DevicePort, controller: ControllerPort, rec
     controller.apply_vm("default", restarted, timeout)
     wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="QEMU restart")
     recorder.assert_that("smoke.restart-one-qemu", True, "one QEMU process after restart")
+    recorder.write_json("vms-after.json", controller.vms())
     recorder.write_json("host-status-after.json", controller.status())
 
 
@@ -139,6 +203,25 @@ def mvp(config: HilConfig, controller: ControllerPort, mesh: MeshLabPort, record
     recorder.assert_that("mvp.host-mesh", True, f"exact host node observed: {host_node}")
     recorder.write_json("host-status.json", wait_for_controller_status(controller, min(timeout, 120)))
     recorder.assert_that("mvp.host-api", True, "authenticated Host API returned status")
+    recorder.write_json("capabilities.json", controller.capabilities())
+    recorder.write_json("profiles.json", controller.profiles())
+
+    available_by_id = {
+        item.get("id"): item for item in controller.images() if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    artifact_set = load_artifact_set(config)
+    if artifact_set:
+        recorder.write_json(
+            "artifact-set.json",
+            [{key: item[key] for key in ("id", "sha256", "sizeBytes")} for item in artifact_set],
+        )
+    for item in artifact_set:
+        existing = available_by_id.get(item["id"])
+        if existing and existing.get("sha256") == item["sha256"] and existing.get("sizeBytes") == item["sizeBytes"]:
+            continue
+        uploaded = controller.upload_image(item["id"], item["path"], item["sha256"], timeout)
+        if uploaded.get("id") != item["id"] or uploaded.get("sha256") != item["sha256"]:
+            raise AssertionError(f"uploaded artifact identity mismatch: {item['id']}")
 
     image_imports = settings.get("imageImports", [])
     if not isinstance(image_imports, list) or not all(isinstance(item, str) for item in image_imports):
@@ -149,20 +232,26 @@ def mvp(config: HilConfig, controller: ControllerPort, mesh: MeshLabPort, record
             path = config.root / path
         controller.import_image(path, timeout)
 
+    images = controller.images()
+    recorder.write_json("images.json", images)
     required_images = settings.get("requiredImageIds", [])
     if not isinstance(required_images, list) or not all(isinstance(item, str) for item in required_images):
         raise ConfigError("mvp.requiredImageIds must be a list of strings")
-    available = {item.get("id") for item in controller.images()}
+    available = {item.get("id") for item in images}
     missing = [item for item in required_images if item not in available]
     recorder.assert_that("mvp.images-present", not missing, f"missing={missing}")
 
     request_path = config.path("mvp.applyRequest")
     assert request_path is not None
     template = load_object(request_path)
+    current_vms = controller.vms()
+    recorder.write_json("vms-before.json", current_vms)
     request = dict(template)
-    request["generation"] = next_generation(controller.vms(), template)
+    request["generation"] = next_generation(current_vms, template)
     request["desiredState"] = "running"
+    recorder.write_json("desired-vm.json", request)
     controller.apply_vm("default", request, timeout)
+    recorder.write_json("vms-after.json", controller.vms())
     recorder.assert_that("mvp.vm-apply", True, f"VM generation {request['generation']} succeeded")
 
     recorder.write_json("headscale-guest-nodes.json", mesh.wait_for_node(guest_node, timeout))
@@ -181,17 +270,36 @@ def mvp(config: HilConfig, controller: ControllerPort, mesh: MeshLabPort, record
     restore = settings.get("guestMeshRestoreCommand")
     if not isinstance(disable, str) or not disable or not isinstance(restore, str) or not restore:
         raise ConfigError("guest mesh disable and restore commands are required")
-    controller.guest_ssh(guest_target, disable, timeout)
-    time.sleep(float(settings.get("guestMeshDownSettleSeconds", 5)))
-    ordinary_failed = False
+    mesh_disabled = False
+    primary_failed = False
     try:
-        controller.guest_ssh(guest_target, check_command, min(timeout, 30))
-    except Exception:
-        ordinary_failed = True
-    recorder.assert_that("mvp.guest-mesh-disabled", ordinary_failed, "ordinary SSH failed with guest mesh down")
-    controller.recovery_ssh("default", recovery_user, check_command, timeout)
-    recorder.assert_that("mvp.recovery-ssh", True, "host-mediated recovery SSH succeeded")
-    controller.recovery_ssh("default", recovery_user, restore, timeout)
+        controller.guest_ssh(guest_target, disable, timeout)
+        mesh_disabled = True
+        time.sleep(float(settings.get("guestMeshDownSettleSeconds", 5)))
+        ordinary_failed = False
+        try:
+            controller.guest_ssh(guest_target, check_command, min(timeout, 30))
+        except Exception:
+            ordinary_failed = True
+        recorder.assert_that("mvp.guest-mesh-disabled", ordinary_failed, "ordinary SSH failed with guest mesh down")
+        controller.recovery_ssh("default", recovery_user, check_command, timeout)
+        recorder.assert_that("mvp.recovery-ssh", True, "host-mediated recovery SSH succeeded")
+    except BaseException:
+        primary_failed = True
+        raise
+    finally:
+        if mesh_disabled:
+            try:
+                controller.recovery_ssh("default", recovery_user, restore, timeout)
+                recorder.assertions.append(
+                    {"id": "mvp.cleanup-guest-mesh", "passed": True, "detail": "guest mesh restored"}
+                )
+            except Exception as cleanup_error:
+                recorder.assertions.append(
+                    {"id": "mvp.cleanup-guest-mesh", "passed": False, "detail": str(cleanup_error)}
+                )
+                if not primary_failed:
+                    raise RuntimeError("guest mesh cleanup failed") from cleanup_error
 
 
 def resilience(config: HilConfig, device: DevicePort, controller: ControllerPort, recorder: EvidenceRecorder) -> None:
@@ -228,6 +336,9 @@ def resilience(config: HilConfig, device: DevicePort, controller: ControllerPort
             )
         finally:
             controller.set_controller_reachable(True)
+            recorder.assertions.append(
+                {"id": "resilience.cleanup-controller", "passed": True, "detail": "controller path restored"}
+            )
         wait_for_controller_status(controller, min(timeout, 120))
         recorder.assert_that("resilience.controller-restored", True, "controller path recovered")
     else:
