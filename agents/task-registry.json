@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "cycle": "hardware-independent-1",
   "historicalCycle": "T00-T09 packets remain under agents/tasks for provenance but are not active.",
+  "statusSource": "docs/roadmap/hardware-independent.md",
+  "cycleStatus": {
+    "H01": "IN_PROGRESS",
+    "H02": "PLANNED",
+    "H03": "PLANNED",
+    "H04": "MERGED"
+  },
   "tasks": [
     {"id":"H01","name":"Authenticated resumable artifact upload","dependsOn":[],"packet":"agents/tasks/H01/task.md"},
     {"id":"H02","name":"Host-QEMU and Headscale guest E2E","dependsOn":[],"packet":"agents/tasks/H02/task.md"},
