@@ -11,7 +11,7 @@ val podroidRuntimeOutput = layout.buildDirectory.dir("generated/podroidRuntime")
 val podroidRuntimeApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
 val nodeHostProfilePackager = rootProject.file("../../tools/profiles/package-assets.py")
 
-extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
+extensions.configure(com.android.build.api.dsl.ApplicationExtension::class.java) {
     sourceSets.getByName("main") {
         // Static paths plus the explicit preBuild dependency avoid AGP's ambiguous Provider source semantics.
         jniLibs.directories.add(podroidRuntimeOutput.get().dir("jniLibs").asFile.absolutePath)
