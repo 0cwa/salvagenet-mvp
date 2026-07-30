@@ -22,12 +22,19 @@ class AndroidPackagedProfileCatalogTest {
 
     @Test fun allCanonicalProfilesLoadFromPackagedJson() {
         val summaries = catalog.summaries()
+        assertEquals(3, summaries.size)
         assertEquals(
             setOf("alpine-direct-qualification", "ubuntu-2404-arm64-uefi", "k3s-worker-lab"),
             summaries.map { it.id.value }.toSet(),
         )
         assertEquals(BootKind.DIRECT_KERNEL, summaries.single { it.id.value == "alpine-direct-qualification" }.bootKind)
         assertEquals(BootKind.UEFI, summaries.single { it.id.value == "ubuntu-2404-arm64-uefi" }.bootKind)
+    }
+
+    @Test fun alpineDirectKernelProfileResolvesArtifactsAndLegacyVendorData() {
+        val alpine = catalog.profile(VmProfileId("alpine-direct-qualification"), false, placeholderArtifact)
+        assertTrue(alpine.boot is BootSpec.DirectKernel)
+        assertTrue(catalog.vendorData(alpine.id).isNotEmpty())
     }
 
     @Test fun ubuntuRetainsEveryQualificationCheckFromCanonicalJson() {
@@ -47,5 +54,12 @@ class AndroidPackagedProfileCatalogTest {
         assertTrue(vendor.startsWith("#cloud-config\n"))
         assertFalse(vendor.contains("{{"))
         assertTrue(vendor.contains("nodehost-qualify-k3s"))
+    }
+
+    @Test fun vendorAssetPathsRejectTraversalSegments() {
+        requirePackagedVendorAssetPath("guest-init/ubuntu/vendor-data.yaml")
+        assertTrue(runCatching { requirePackagedVendorAssetPath("guest-init/../../etc/passwd") }.isFailure)
+        assertTrue(runCatching { requirePackagedVendorAssetPath("guest-init/ubuntu/../secret") }.isFailure)
+        assertTrue(runCatching { requirePackagedVendorAssetPath("guest-init//vendor-data.yaml") }.isFailure)
     }
 }
