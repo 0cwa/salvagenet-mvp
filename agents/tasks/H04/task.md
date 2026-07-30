@@ -31,4 +31,4 @@ tests/device/run-gate.sh --self-test
 
 ## Handoff
 
-Report commit SHA(s), exact tests and lab runs, evidence paths, checks unavailable in the current environment, concrete TODOs, and the smallest next blocker.
+Report commit SHA(s), exact tests and lab runs, evidence paths, checks unavailable in the current environment, concrete deferred items, and the smallest next blocker.
