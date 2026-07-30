@@ -51,6 +51,10 @@ def validate_run(gate: str, run: dict[str, Any], commit: str) -> set[str]:
     scenario, required = GATE_REQUIREMENTS[gate]
     if run.get("result") != "PASS":
         raise ValueError("only a PASS HIL run can be promoted")
+    if run.get("evidenceMode") != "candidate" or run.get("sourceDirty") is not False:
+        raise ValueError("only a clean candidate HIL run can be promoted")
+    if run.get("promotable") is not True:
+        raise ValueError("HIL run is explicitly non-promotable")
     if run.get("scenario") not in {scenario, "all"}:
         raise ValueError(f"{gate} requires scenario {scenario} or all")
     if run.get("sourceCommit") != commit:
@@ -95,18 +99,23 @@ def main() -> int:
         required = validate_run(gate, run, current_commit())
         run_directory = args.run_dir.resolve()
         artifacts = [run_directory / "run.json"]
-        for name in ("device-facts.json", "commands.jsonl"):
+        for name in (
+            "source-state.json", "device-facts.json", "commands.jsonl", "capabilities.json",
+            "profiles.json", "images.json", "desired-vm.json", "vms-before.json", "vms-after.json",
+            "artifact-set.json",
+        ):
             path = run_directory / name
             if path.is_file():
                 artifacts.append(path)
         environment = {
             "scenario": str(run.get("scenario")),
+            "evidenceMode": str(run.get("evidenceMode")),
             "apkSha256": str(run.get("apkSha256")),
             "deviceSerialHash": str(run.get("deviceSerialHash")),
             "requiredAssertions": ",".join(sorted(required)),
         }
         environment_path = run_directory / "promotion-environment.json"
-        command = args.command or f"python3 tests/hil/run.py {run.get('scenario')}"
+        command = args.command or f"python3 tests/hil/run.py {run.get('scenario')} --mode candidate"
         preview = {
             "gate": gate,
             "summary": args.summary,
