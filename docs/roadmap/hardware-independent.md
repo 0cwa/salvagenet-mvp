@@ -6,7 +6,7 @@ Physical Android evidence remains authoritative. Hardware-independent work exist
 
 | Task | State | Repository truth |
 |---|---|---|
-| F01 | **IN_PROGRESS** | The canonical profile/manifest foundation passed a complete baseline workflow at head `71a04acedd11221fbefe2c0fa43984141ec11ed4`, run `30543765626`. Valid PR #7 review fixes are committed and require full revalidation before merge-ready status returns. |
+| F01 | **MERGE_READY** | The canonical profile/manifest foundation and all actionable PR #7 fixes passed the full workflow at head `b0dae0581c9d72ae0f7481f7b602573931fbc3a2`, run `30548116488`. The final documentation head still requires the same workflow before merge. |
 | H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validated head run `30510377089` was fully green. |
 | H02 | **QUEUED_REVIEW** | Original broad guest QEMU/NoCloud/SSH/Headscale packet is superseded. Only guest boot qualification should be activated after F01 merges. |
 | H03 | **QUEUED_REVIEW** | Original broad emulator packet is superseded and remains queued behind an explicit phase-start review. |
@@ -30,11 +30,11 @@ Exit evidence:
 
 ### Phase 1 — canonical artifact/profile foundation
 
-**Task:** F01 — review-fix revalidation in progress.
+**Task:** F01 — merge ready.
 
 **Purpose:** ensure Linux labs, emulator tests, Android runtime behavior, and uploaded artifacts use the same profile and manifest semantics.
 
-Implemented result:
+Verified result:
 
 - Android production profile resolution loads strict, bounded packaged JSON rather than duplicated Kotlin definitions.
 - The APK contains byte-for-byte canonical profiles, schema, index, and required guest-init assets.
@@ -43,9 +43,10 @@ Implemented result:
 - Steady-state bare-file resolution is limited to the three pinned Podroid qualification artifacts.
 - A complete digest-verified pre-F01 Ubuntu/AAVMF bare bundle migrates once into active manifests; an isolated bare non-Podroid artifact fails closed.
 - Disk preparation reuses one verified source resolution per preparation, streams copies with a 1 MiB buffer, and verifies copied bytes against the expected digest.
-- The baseline implementation passed H01, HTTPS importer, QEMU, Android, guest, package, signature, 16 KiB alignment, and artifact checks at head `71a04acedd11221fbefe2c0fa43984141ec11ed4`, Actions run `30543765626`.
+- All actionable PR #7 findings are addressed.
+- The reviewed implementation head `b0dae0581c9d72ae0f7481f7b602573931fbc3a2` passed static, JVM, Android/lint, guest, package, signature, 16 KiB alignment, and artifact checks in Actions run `30548116488`.
 
-The phase closes only when the exact review-fix head passes the complete workflow, review threads are resolved, and that tested head is merged. No physical gate changes in this phase.
+The phase closes only when the final documentation head passes the same workflow, review threads are resolved, and the exact tested head is merged. No physical gate changes in this phase.
 
 ### Phase 2 — deterministic guest boot qualification
 
