@@ -38,12 +38,11 @@ node-store       runtime-qemu       mesh-tailscale       control-api
 
 ## Monolithic module roots
 
-Each module owns its implementation, tests, local README, and nearest `AGENTS.md`. Cross-module source directories are forbidden. New modules require a dependency-direction entry and a task packet.
+Each module owns its implementation, tests, local README, and nearest `AGENTS.md`. Cross-module source directories are forbidden. New modules require a dependency-direction entry and an active task packet.
 
 ## Podroid modification policy
 
-Prefer sibling modules and `android/podroid.integration.gradle.kts`. Permitted
-Podroid changes for the MVP:
+Prefer sibling modules and `android/podroid.integration.gradle.kts`. Permitted Podroid changes for the MVP:
 
 1. include sibling Gradle modules;
 2. apply the one external app integration script;
@@ -51,22 +50,23 @@ Podroid changes for the MVP:
 4. move or wrap QEMU classes only in the assigned extraction task;
 5. preserve exact upstream provenance and record copied/moved file origins.
 
-Every tracked subtree edit must be reproduced by
-`android/upstream/patches/series`; `make podroid-verify` enforces this against
-the locked upstream commit.
+Every tracked subtree edit must be reproduced by `android/upstream/patches/series`; `make podroid-verify` enforces this against the locked upstream commit.
 
 Do not scatter new node-host business logic throughout Podroid UI, DataStore repositories, or guest product code.
 
-## Non-Android roots
+## Repository root boundary
 
 ```text
-profiles/          profile definitions and trusted bootstrap assets
-control/           schemas and OpenAPI contract
-controller/mvp-cli temporary Python controller and ProxyCommand
-lab/               disposable Headscale/QEMU test environments
-hostd/             post-MVP Linux service placeholder
-usb-link/          MVP+ design and skeleton; blocked in base DAG
-agents/            scoped task packets and orchestration metadata
-tools/             deterministic bootstrap, CI, context, and provenance tools
-tests/             cross-module and physical-device harnesses
+android/       Android product and vendored composition
+agents/        scoped task packets and orchestration metadata
+control/       schemas and OpenAPI contracts
+controller/    controller implementations
+profiles/      profile definitions and trusted bootstrap assets
+lab/           disposable executable laboratories
+tests/         cross-module and physical-device harnesses
+tools/         deterministic bootstrap, CI, context, and provenance tools
+docs/          indexed architecture, decisions, research, and roadmaps
+evidence/      reviewed acceptance evidence
 ```
+
+Root directories are agent context. `tools/ci/check-root-layout.py` rejects unreviewed additions. Future Linux host services, USB/AOA components, registry providers, and other deferred implementations remain in roadmaps until an active packet creates code in an owning root; README-only placeholder roots are forbidden.
