@@ -87,6 +87,9 @@ internal class AndroidQemuProfileStorage(
             if (verify) require(sha256(file) == manifest.sha256) { "artifact digest mismatch: $id" }
             return ArtifactRef(id, manifest.sha256, manifest.sizeBytes)
         }
+        require(id in LEGACY_PODROID_ARTIFACT_IDS) {
+            "active artifact manifest is required: $id"
+        }
         val file = File(artifactRoot, id)
         require(file.isFile && file.length() in 1..MAX_ARTIFACT_BYTES) { "trusted artifact is missing or out of bounds: $id" }
         val digest = sha256(file)
@@ -96,10 +99,15 @@ internal class AndroidQemuProfileStorage(
 
     private fun artifactFile(id: String): File {
         val manifest = manifests.active(id)
-        return if (manifest == null) File(artifactRoot, id) else manifests.payload(manifest)
+        if (manifest != null) return manifests.payload(manifest)
+        require(id in LEGACY_PODROID_ARTIFACT_IDS) {
+            "active artifact manifest is required: $id"
+        }
+        return File(artifactRoot, id)
     }
 
     private fun expectedLegacyDigest(id: String): String {
+        require(id in LEGACY_PODROID_ARTIFACT_IDS) { "legacy digest metadata is not allowed for artifact: $id" }
         val expected = File(artifactRoot, "$id.sha256")
         require(expected.isFile && expected.length() <= 128) { "artifact digest metadata is missing: $id" }
         return expected.readText().trim()
@@ -151,6 +159,11 @@ internal class AndroidQemuProfileStorage(
     }
 
     private companion object {
+        val LEGACY_PODROID_ARTIFACT_IDS = setOf(
+            "podroid-kernel",
+            "podroid-initramfs",
+            "podroid-alpine-squashfs",
+        )
         const val COPY_BUFFER_BYTES = 1024 * 1024
         const val MAX_ARTIFACT_BYTES = ArtifactManifest.MAX_ARTIFACT_BYTES
         const val MAX_DELETE_ENTRIES = 4096
