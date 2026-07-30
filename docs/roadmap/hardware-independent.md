@@ -1,20 +1,23 @@
 # Foundation-first development roadmap
 
-Physical Android evidence remains authoritative. Hardware-independent work exists only to make physical sessions less ambiguous and must not become an open-ended substitute for the vertical slice.
+Physical Android evidence remains authoritative. Hardware-independent work exists only to reduce implementation or validation ambiguity and must not become an open-ended substitute for the Podroid-fork MVP vertical slice.
 
 ## Current repository state
 
 | Task | State | Repository truth |
 |---|---|---|
-| F01 | **MERGED** | Canonical packaged profiles and the strict active artifact-manifest contract landed at `246d551ca7e691a0319a4b30e29d6e4905cd9910`. Final head `31dcd75199928b7887132a1429392266388c0b60` passed Actions run `30549498423`. |
-| H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validated head run `30510377089` was fully green. |
+| F01 | **MERGED** | Canonical packaged profiles and the strict active artifact-manifest contract landed at `246d551ca7e691a0319a4b30e29d6e4905cd9910`; final workflow `30549498423` passed. |
+| H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validation run `30510377089` passed. |
 | H02 | **SUPERSEDED** | The combined guest boot and guest mesh packet mixed separate failure domains and was split into H02A and H02B. |
-| H02A | **ACTIVE** | Sole active task: canonical Ubuntu UEFI/QMP, NoCloud, loopback SSH, restart, and secret-hygiene qualification on host QEMU. |
+| H02A | **QUEUED_REVIEW** | Reviewed canonical Ubuntu guest-boot task, paused without implementation for the bounded WEB04 foundation. |
 | H02B | **QUEUED_REVIEW** | Guest Headscale identity, tailnet SSH, coordination interruption, and recovery. Requires H02A to pass. |
 | H03 | **QUEUED_REVIEW** | Emulator infrastructure and lifecycle scenarios remain queued for a later value/cost review. |
 | H04 | **MERGED** | HIL evidence hardening landed at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`. |
+| WEB04 | **PLANNED** | Sole active task: bootstrap the GitHub issue roadmap, last-known-good snapshot, compact agent index, and bounded context tooling. |
 
-Only H02A appears in `agents/task-dag.json`. Merged, superseded, and queued packets remain in the registry for provenance.
+PR #19 merged at `b42c35ac17793fb1621baf19905a0eacea9b3521` after Actions run `30578924509`. It accepted `docs/roadmap/podroid-mvp-alignment.md`, ADR-012, complete roadmap governance, and the human-aware task-management contract.
+
+Only WEB04 appears in `agents/task-dag.json`. H02A is not superseded and no H02A implementation is discarded.
 
 ## Layered path
 
@@ -22,92 +25,82 @@ Only H02A appears in `agents/task-dag.json`. Merged, superseded, and queued pack
 
 **Complete.**
 
-Exit evidence:
-
-- Completed work is absent from the active DAG.
-- Future tasks are queued rather than treated as pre-authorized parallel work.
-- Each active phase has explicit entry, acceptance, verification, and phase-end criteria.
-- The registry, roadmap, handoff, debt register, and agent goal agree on current authorization.
+Completed work is historical, future work is queued by default, phase transitions are reviewed, and unreleased-alpha compatibility requires explicit authorization rather than automatic migration code.
 
 ### Phase 1 — canonical artifact/profile foundation
 
 **Complete and merged.**
 
-F01 established:
+F01 established canonical packaged profiles, guest-init assets, a strict active-manifest contract, verified artifact copying, and static guards against duplicate profile/manifest sources.
 
-- strict, bounded packaged JSON as the production profile source;
-- byte-for-byte canonical profile, schema, index, and guest-init assets in the APK;
-- runtime rejection of vendor-data path traversal;
-- one strict active-manifest contract for artifact publication, listing, cleanup, installed checks, and runtime consumption;
-- manifest-only Ubuntu/AAVMF resolution, while the three pinned Podroid qualification assets retain their deliberate bare-file contract;
-- one verified source resolution per disk preparation, 1 MiB streaming copies, and copied-byte digest verification;
-- static guards against reintroducing complete Kotlin profile mirrors or duplicate manifest parsers.
+### Phase 2 — accepted product and public-surface governance
 
-Because the app has no deployed pre-F01 installations, the unused Ubuntu/AAVMF compatibility migration was removed rather than preserved as permanent complexity.
+**Complete and merged.**
 
-Final F01 evidence:
+W00/PR #19 established:
 
-```text
-mergeCommit: 246d551ca7e691a0319a4b30e29d6e4905cd9910
-validatedHead: 31dcd75199928b7887132a1429392266388c0b60
-workflowRun: 30549498423
-workflowArtifactId: 8762334271
-workflowArtifactDigest: sha256:6163f03ca995a366f6e2d47a53e9d70c33adce23eaf0dd80e76ea212351da868
-apkSha256: f423bd939f97be119250318ca1c871df0ff9bc25a67b0e5672cc75c6d668e7f9
-hardwareValidated: false
-```
+- an explicit mapping from the original Podroid-fork MVP to current implementation choices;
+- drift alarms protecting APK-native QEMU, separate host/guest identity, typed APIs, recovery, one VM, and USB deferral;
+- a static Astro website with one global token CSS system and System/Light/Dark theme control;
+- GitHub Issues as roadmap planning truth after bootstrap;
+- separate task authorization and acceptance authorities;
+- compact, freshness-aware agent context with human-visible replanning.
 
-### Phase 2 — deterministic guest boot qualification
+### Phase 3 — issue roadmap and human-aware agent foundation
 
-**Active task:** H02A.
+**Active task:** WEB04.
 
-The phase-start review fixed the boundary before implementation. H02A covers only:
+The user selected task-management infrastructure before website implementation. WEB04 is intentionally short and bounded:
 
-1. canonical Ubuntu profile and guest-init identity;
-2. pinned Ubuntu and AAVMF artifact identity;
-3. UEFI boot and real QMP `running` status;
-4. NoCloud completion;
-5. key-only SSH through loopback SLIRP;
-6. guest reboot and complete QEMU stop/start;
-7. guest disk/log/process/temp inspection for retained one-use credentials or callback capabilities;
-8. bounded machine-readable host-QEMU evidence explicitly marked non-Android.
+1. create and validate the complete stable-ID seed;
+2. materialize labels, milestones, issues, and real dependency links idempotently;
+3. generate a last-known-good public snapshot and compact agent index;
+4. add bounded status, freshness, sync, and per-issue context tools;
+5. report disagreement among issue, task, PR, and acceptance state instead of hiding it.
 
-This phase does not include Headscale or Tailscale guest enrollment. It first proves the guest image/bootstrap path independently of mesh behavior.
+This is an enabling reordering, not a product-direction change. It makes no Android, guest, physical, release, or website claim.
 
-### Phase 3 — queued preflight candidates
+### Phase 4 — deterministic guest boot and website foundation
 
-These tasks are not active merely because their predecessors existed:
+At WEB04 phase end, run a fresh review. The expected shape is:
 
-1. **H02B — guest mesh qualification:** one-use Headscale enrollment, separate guest identity, tailnet SSH, `tailscaled` restart, coordination interruption, and recovery. Requires successful H02A evidence and a fresh phase-start review.
-2. **Stateless emulator harness:** deterministic API 36 create/boot/install/execute/collect/destroy. Activate only if the remaining lifecycle ambiguity justifies its cost.
-3. **Emulator lifecycle scenarios:** Activity, Service, Room, enrollment, permission, and Host API behavior through real ports with release-surface exclusion. Requires a proven emulator harness.
+- **H02A reactivated:** canonical Ubuntu UEFI/QMP, NoCloud, key-only loopback SSH, restart, and secret-hygiene qualification;
+- **WEB01 optionally authorised in parallel:** Astro shell, global design tokens/CSS, layout components, theme control, and component gallery.
 
-At each boundary, re-evaluate whether queued work still reduces physical-debugging ambiguity. Split, narrow, reorder, or remove it rather than preserving stale scope.
+These tasks may run together only when their write paths are disjoint and the live roadmap/index is healthy. H02A remains the product critical path; WEB01 must not consume Android/QEMU/profile ownership.
 
-### Phase 4 — physical vertical slice
+### Phase 5 — queued preflight candidates
 
-Run through the existing `tests/hil/` implementation and bind every pass to an exact commit/APK.
+After H02A evidence, reconsider rather than auto-activate:
+
+1. **H02B:** one-use guest Headscale enrollment, distinct guest identity, tailnet SSH, `tailscaled` restart, interruption, and recovery.
+2. **Emulator harness/scenarios:** only if remaining Android lifecycle ambiguity justifies the cost.
+3. **Website content/status/enhancements:** WEB02–WEB06 follow the generated graph and design-system foundation; they do not alter product acceptance.
+
+### Phase 6 — physical vertical slice
+
+Run through `tests/hil/` and bind every pass to an exact commit/APK:
 
 1. **Device substrate:** B02, B08, B09 — APK-native QEMU boot, host Headscale, authenticated Host API.
-2. **Guest vertical slice:** B10–B13 — uploaded Ubuntu image, apply generation, guest identity, ordinary SSH, recovery SSH.
+2. **Guest vertical slice:** B10–B13 — controller-delivered Ubuntu, generation apply, guest identity, ordinary SSH, recovery SSH.
 3. **Durability:** B07, B16, B17 — Activity/service/process/reboot reconciliation and actual controller/network unavailability.
-4. **MVP seal:** re-run the required scenarios against one exact final candidate and promote reviewed evidence.
+4. **MVP seal:** rerun required scenarios against one exact final candidate and promote reviewed evidence.
 
-### Phase 5 — post-base hardening
+Agent-safe device-lab lease/authorization/evidence work may improve this runner when separately reviewed, but it cannot close a physical gate by itself.
 
-Only after the base vertical slice reveals real needs or all base gates pass:
+### Phase 7 — early access and post-base work
 
-- true qcow2 backing overlays or an honestly renamed copied-disk contract;
-- project-owned native/runtime source builds and provenance;
-- measured device resource admission;
-- node-shell and mesh internal extraction where it reduces proven debugging/review cost;
-- stronger controller authentication, durable controller implementation, and QEMU process isolation;
-- strategic UI/shared-core decisions, including Slint/Rust, through explicit ADRs rather than accidental MVP coupling.
+After the base MVP:
 
-### Phase 6 — MVP+
+- close release licensing/notices/corresponding-source requirements before public APK distribution;
+- publish verified downloads, device records, and tested guides;
+- qualify thermal, storage, network, OEM, and update behaviour;
+- consider stronger QEMU isolation, reviewed controller authentication, Rust/Slint controller, Linux hosts, guest-class/image-source separation, more profiles, and other platform expansion from evidence.
 
-AOA/USB link, TAP/NAT, second NIC, and fallback remain blocked until all B01–B20 gates are PASS.
+### MVP+
+
+AOA/USB control, stream NIC, TAP/NAT, fallback, and optional artifact transfer remain blocked until all B01–B20 gates are PASS.
 
 ## Simplicity rule
 
-Do not keep a multi-task wave active merely to maximize parallelism. Use the smallest phase that resolves the next uncertainty. At every boundary, delete compatibility code and task scope that have no real users, evidence need, or near-term product value.
+Use the smallest phase that resolves the next uncertainty. A bounded governance/tooling phase may temporarily pause a ready product task when it prevents duplicated roadmap state and enables safe parallel work, but it must record the pause and restore the product critical path at phase end. Delete compatibility code and task scope that have no real users, evidence need, or near-term product value.
