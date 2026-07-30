@@ -1,30 +1,31 @@
 # Documentation index
 
-The current acceptance state is generated in `STATUS.md`. Agents should read this index, `GOAL.md`, the active task or validation goal, and only the additional pages named by that work.
+The current acceptance state is generated in `STATUS.md`. Agents should read this index, `GOAL.md`, `agents/task-dag.json`, the sole active task packet, and only the additional pages named by that work.
 
 ## Current status
 
-- `STATUS.md` — generated MVP gate summary and next validation sequence.
+- `STATUS.md` — generated MVP gate summary and next physical validation sequence.
+- `../agents/hardware-independent-goal.md` — current phase-boundary protocol and active foundation.
 
 ## Architecture
 
-- `architecture/overview.md` — system shape and styles.
+- `architecture/overview.md` — system shape, styles, and current implementation caveats.
 - `architecture/classification.md` — core, adopted, MVP-hack, test-only, and MVP+ classification.
 - `architecture/module-map.md` — module ownership and dependency rules.
 - `architecture/layers-and-events.md` — onion layers, reconciliation, events, and side effects.
 - `architecture/qemu-command-knowledge.md` — preserved Podroid launch knowledge and typed compiler policy.
-- `architecture/vm-profiles.md` — profile model and qualified profiles.
+- `architecture/vm-profiles.md` — profile model, current source-of-truth gap, and qualified profiles.
 - `architecture/networking.md` — host mesh, guest mesh, recovery, and USB boundary.
-- `architecture/control-plane.md` — API versus SSH responsibilities.
+- `architecture/control-plane.md` — API, artifact-resource, and SSH responsibilities.
 - `architecture/security-boundaries.md` — trust boundaries and temporary MVP security.
 - `architecture/tool-radar.md` — dependency adoption status and reconsideration triggers.
-- `architecture/debt-register.md` — explicit technical debt, expiry triggers, and post-device-test refactors.
+- `architecture/debt-register.md` — open/resolved debt, expiry triggers, and foundation ordering.
 - `architecture/decisions/` — concise ADRs.
 
 ## Development
 
 - `development/environment.md` — toolchain and reproducibility.
-- `development/development-loop.md` — capability-aware checks, active task cycle, and packet generation.
+- `development/development-loop.md` — phase start, task loop, phase end, and packet generation.
 - `development/root-authorization-checklist.md` — user-run privileged setup.
 - `development/context-engineering.md` — scoped agent context model.
 - `development/git-cycle.md` — branches, worktrees, commits, integration.
@@ -44,12 +45,12 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 
 ## Roadmap
 
-- `roadmap/overview.md` — development and implementation roadmap.
-- `roadmap/hardware-independent.md` — active H01–H04 cycle and ordered follow-ons.
+- `roadmap/overview.md` — durable development and implementation tracks.
+- `roadmap/hardware-independent.md` — current foundation-first phases; F01 is active, H02/H03 queued for review.
 - `roadmap/overnight-plan.md` — historical one-agent-day implementation plan.
 - `roadmap/dependency-dag.md` — historical implementation task dependencies.
 - `roadmap/acceptance-ledger.md` — base MVP and MVP+ acceptance ledger.
-- `roadmap/device-validation.md` — active one-phone validation sequence.
+- `roadmap/device-validation.md` — one-phone physical validation sequence.
 - `roadmap/post-mvp.md` — deliberately deferred work.
 
 ## Research
