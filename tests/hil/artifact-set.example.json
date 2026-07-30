@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    {
+      "id": "ubuntu-2404-arm64-cloud",
+      "path": ".local/artifacts/ubuntu-2404-arm64-cloud.qcow2",
+      "sha256": "REPLACE_WITH_64_LOWERCASE_HEX",
+      "sizeBytes": 1
+    },
+    {
+      "id": "aavmf-code",
+      "path": ".local/artifacts/AAVMF_CODE.fd",
+      "sha256": "REPLACE_WITH_64_LOWERCASE_HEX",
+      "sizeBytes": 1
+    },
+    {
+      "id": "aavmf-vars",
+      "path": ".local/artifacts/AAVMF_VARS.fd",
+      "sha256": "REPLACE_WITH_64_LOWERCASE_HEX",
+      "sizeBytes": 1
+    }
+  ]
+}
