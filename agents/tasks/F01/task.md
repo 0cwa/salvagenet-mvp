@@ -2,7 +2,7 @@
 
 ## Status
 
-**IN PROGRESS — PR review fixes are under revalidation.** Implementation head `71a04acedd11221fbefe2c0fa43984141ec11ed4` passed Actions run `30543765626`, but valid PR #7 findings changed Gradle path resolution, vendor-path validation, manifest listing, large-artifact copy/verification, and regression coverage. That evidence is retained as the review baseline, not the final merge evidence.
+**MERGE READY.** Reviewed implementation head `b0dae0581c9d72ae0f7481f7b602573931fbc3a2` passed Actions run `30548116488`, including static/contracts, JVM/domain, Android tests and lint, guest/profile qualification, APK construction, exact canonical asset verification, Podroid runtime verification, signature, 16 KiB alignment, and candidate upload. The downloaded APK matched the evidence files exactly.
 
 ## Outcome
 
@@ -23,7 +23,7 @@ The repository said profile JSON was canonical, but `AndroidQemuProfileStorage` 
 
 - Profile loading and manifest unification remained one cohesive task because both were concentrated in the Android storage/resource boundary.
 - The Android runtime uses a strict packaged-profile parser; build-time JSON Schema validation remains authoritative and runtime parsing repeats security/correctness constraints without adding a JSON Schema runtime dependency.
-- The generated profile package contains the exact three JSON files, schema, index, and the required guest-init assets under a stable namespaced root.
+- The generated profile package contains the exact three JSON files, schema, index, and required guest-init assets under a stable namespaced root.
 - Manifest producers and consumers are inventoried in `docs/research/experiments/F01.md`.
 - Steady-state bare-file resolution is limited to `podroid-kernel`, `podroid-initramfs`, and `podroid-alpine-squashfs`. A complete digest-verified pre-F01 Ubuntu/AAVMF bare bundle may migrate once into strict active manifests; an isolated bare non-Podroid artifact remains rejected.
 - H02, H03, qcow2 semantic changes, native source builds, UI rewrites, controller replacement, process isolation, and USB remain out of scope.
@@ -41,13 +41,15 @@ See `allowed-paths.txt`. Phase status and roadmap updates are included only to r
 - [x] Artifact publication, image listing, cleanup, installed checks, and runtime consumption of active manifests use one strict versioned contract with exact fields, digest, size, immutable relative path, and root-containment checks.
 - [x] Steady-state legacy fallback is restricted to the three pinned Podroid qualification artifacts; a complete verified historical Ubuntu/AAVMF bundle is upgraded into active manifests, while an isolated bare non-Podroid artifact fails closed.
 - [x] Artifact preparation reuses one verified source resolution per preparation and uses a 1 MiB streaming copy buffer with copied-byte digest verification.
+- [x] Manifest listing ignores invalid stray filenames and a remove-after-list race, but continues to fail closed for malformed valid manifests and the explicit active-manifest count invariant.
 - [x] H01 upload behavior and the hardened public HTTPS importer retain their authentication, SSRF, idempotency, digest, size, recovery, cancellation, and atomic-publication invariants.
-- [ ] The exact review-fix head passes typed QEMU, profile, guest, Android, package, signature, and alignment checks.
+- [x] All actionable PR #7 review findings are addressed with regression coverage.
+- [x] Typed QEMU, profile, guest, Android, package, signature, and alignment checks are green.
 - [x] No result is represented as physical Android evidence, and no base-MVP gate changes status.
 
 ## Required checks
 
-The review baseline passed:
+The reviewed implementation head passed:
 
 ```sh
 make validate
@@ -57,17 +59,29 @@ make test-guest
 python3 tools/agents/verify-scope.py F01
 ```
 
-Actions run `30543765626` also passed APK packaging, canonical profile-asset verification, Podroid runtime verification, signature verification, 16 KiB alignment, and candidate-artifact upload. The exact review-fix head must repeat all checks before merge-ready status is restored.
+GitHub Actions run `30548116488` also passed APK packaging, canonical profile-asset verification, Podroid runtime verification, signature verification, 16 KiB alignment, and candidate-artifact upload.
+
+```text
+validatedHead: b0dae0581c9d72ae0f7481f7b602573931fbc3a2
+workflowRun: 30548116488
+workflowArtifactId: 8761969616
+workflowArtifactDigest: sha256:6394eaca75c0d50d9d8192f3c6922390425a312be2492b0b18a9390fe71b626b
+apkSha256: 1a3a03a9259a8e5a197e946861c14c54952045b874228288f802a63822a96ebb
+apkSizeBytes: 348568989
+signatureVerified: true
+alignment16KiBVerified: true
+hardwareValidated: false
+```
 
 ## Phase-end verification
 
-- [x] Every original acceptance criterion was checked against code, tests, and downloaded package evidence.
+- [x] Every acceptance criterion was checked against code, tests, review feedback, and downloaded package evidence.
 - [x] Production Kotlin contains no complete profile mirror and no direct active-manifest parser outside `ArtifactManifestStore`.
 - [x] An isolated non-Podroid bare file cannot satisfy Ubuntu/AAVMF resolution.
 - [x] A complete digest-verified pre-F01 Ubuntu/AAVMF bundle migrates to active manifests before use.
-- [ ] All valid PR #7 findings are resolved and the exact resulting head passes the complete applicable workflow.
+- [x] All valid PR #7 findings are addressed and the exact review-fix head passed the complete applicable workflow.
 - [x] H02/H03 were re-evaluated: activate only guest boot qualification after merge; guest mesh and both emulator tasks remain queued.
 
 ## Handoff
 
-Do not merge while review-fix revalidation is incomplete. After the exact final head passes the complete workflow, record its package evidence, restore `MERGE_READY`, resolve the addressed review threads, and merge only that SHA. After merge, record the merge SHA, archive F01 as merged, and activate one narrowly scoped guest-boot qualification task. No physical gate changes status.
+Merge only the exact final documentation head after it passes the complete workflow. Resolve the addressed review threads against that green head, then merge only that SHA. After merge, record the merge SHA, archive F01 as merged, and activate one narrowly scoped guest-boot qualification task. No physical gate changes status.
