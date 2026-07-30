@@ -14,6 +14,7 @@ ALLOWED_ROOT_DIRECTORIES = {
     "evidence",
     "lab",
     "profiles",
+    "provenance",
     "tests",
     "tools",
 }
