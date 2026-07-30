@@ -61,7 +61,7 @@ class AndroidQemuRuntimeBackendTest {
         assertTrue(backend.profile(VmProfileId("ubuntu-2404-arm64-uefi"), true).boot is BootSpec.Uefi)
         val k3s = backend.profile(VmProfileId("k3s-worker-lab"), true)
         assertTrue(k3s.boot is BootSpec.Uefi)
-        assertEquals(VmProfileId("ubuntu-2404-arm64-uefi"), k3s.extends)
+        assertEquals(VmProfileId("ubuntu-2404-arm64-uefi"), k3s.derivedFrom)
         assertTrue(k3s.requirements.qualificationChecks.contains("tailscale-reachability"))
     }
 
