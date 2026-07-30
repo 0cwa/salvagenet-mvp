@@ -1,12 +1,12 @@
 GOAL.md
-docs/architecture/overview.md
 docs/architecture/module-map.md
 docs/architecture/vm-profiles.md
-docs/architecture/security-boundaries.md
 docs/architecture/debt-register.md
 docs/research/experiments/H01.md
+schema/vm-profile.schema.json
 profiles/alpine-direct-qualification/profile.json
 profiles/ubuntu-2404-arm64-uefi/profile.json
 profiles/k3s-worker-lab/profile.json
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AndroidQemuProfileStorage.kt
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AndroidArtifactUploads.kt
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/ProductionHostApi.kt
