@@ -6,26 +6,27 @@ The physical Android gates remain authoritative, but useful development can cont
 
 | Task | State | Current repository truth |
 |---|---|---|
-| H01 | **IN PROGRESS** | A first authenticated resumable-upload implementation exists on `agent/H01-artifact-upload` at `1567b6694dd642a6606f62ec70965be4019cd88c`. Recovery, stale cleanup, HTTP conflict/not-found semantics, publication arbitration, regression coverage, and full CI remain before merge. |
+| H01 | **MERGE READY** | Authenticated resumable artifact upload is implemented and hardened in PR #5. GitHub Actions run `30509824017` passed static/contracts, controller tests, JVM, Android tests/lint, guest qualification, APK packaging, signature, 16 KiB alignment, and candidate upload. Status remains merge-ready until integration into `main`. |
 | H02 | **PLANNED** | Host-QEMU + Headscale guest E2E has not started. It remains the next hardware-independent way to isolate Ubuntu, NoCloud, SSH, Tailscale, and image failures from Android packaging. |
 | H03 | **PLANNED** | Managed-emulator Activity/Service/Room/API lifecycle coverage has not started. Emulator results will remain non-physical evidence. |
 | H04 | **MERGED** | HIL evidence hardening landed on `main` in merge commit `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`, including per-run SSH trust, exact Headscale identity matching, explicit controller-unavailable evidence, remote ADB seams, and validated evidence promotion. |
 
 The machine-readable cycle definition is `agents/task-dag.json`. `agents/task-registry.json` records current task state. T00–T09 remain historical packets.
 
-## H01 continuation boundary
+## H01 delivered boundary
 
-The upload protocol is selected and implemented; continuation work must harden it rather than replace it:
-
+- authenticated create/status/chunk/complete/cancel resources;
 - sequential chunks, maximum 1 MiB;
 - per-chunk and whole-file SHA-256;
-- exact replay idempotency;
-- app-private durable staging;
-- digest-addressed payload publication plus one active manifest;
-- controller resume from host-reported committed bytes;
-- public HTTPS import remains a separate SSRF-hardened path.
+- exact replay idempotency and typed `404`/`409` semantics;
+- app-private durable versioned staging;
+- recovery before stale collection, including moved-payload/absent-manifest recovery;
+- bounded cancelled/stale record reclamation;
+- digest-addressed immutable payload publication plus one exact active manifest;
+- serialized publication shared with the SSRF-hardened HTTPS importer;
+- controller local hashing, bounded streaming, resume from host progress, response verification, file-mutation detection, and redaction.
 
-The remaining H01 blockers are authoritative in `agents/tasks/H01/task.md` and the findings are recorded in `docs/research/experiments/H01.md`.
+The design and resolved findings are recorded in `docs/research/experiments/H01.md`.
 
 ## Follow-on cycle, created only after active results
 
