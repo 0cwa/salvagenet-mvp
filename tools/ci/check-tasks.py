@@ -15,6 +15,7 @@ ACTIVE_STATUSES = {"PLANNED", "IN_PROGRESS", "MERGE_READY"}
 REQUIRED_PACKET_HEADINGS = (
     "## Status",
     "## Phase-start review",
+    "## Compatibility policy",
     "## Acceptance criteria",
     "## Phase-end verification",
     "## Handoff",
