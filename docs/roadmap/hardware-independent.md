@@ -1,103 +1,62 @@
 # Foundation-first development roadmap
 
-Physical Android evidence remains authoritative. Hardware-independent work exists only to make physical sessions less ambiguous and must not become an open-ended substitute for the vertical slice.
+Physical Android evidence remains authoritative. Hardware-independent work exists only to make physical sessions safer and less ambiguous and must not become an open-ended substitute for the vertical slice.
 
 ## Current repository state
 
-| Task | State | Repository truth |
+| Task/change | State | Repository truth |
 |---|---|---|
-| F01 | **MERGE_READY** | The canonical profile/manifest foundation and all actionable PR #7 fixes passed the full workflow at head `b0dae0581c9d72ae0f7481f7b602573931fbc3a2`, run `30548116488`. The final documentation head still requires the same workflow before merge. |
-| H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validated head run `30510377089` was fully green. |
-| H02 | **QUEUED_REVIEW** | Original broad guest QEMU/NoCloud/SSH/Headscale packet is superseded. Only guest boot qualification should be activated after F01 merges. |
-| H03 | **QUEUED_REVIEW** | Original broad emulator packet is superseded and remains queued behind an explicit phase-start review. |
-| H04 | **MERGED** | HIL evidence hardening landed at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`. |
+| F01 | **MERGED** | Canonical packaged profiles and one strict artifact-manifest contract merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910`. |
+| Podroid vendoring hardening | **MERGED** | External composition hook and reproducible patch queue merged at `778feb4bf286d24774eadbf8a6ea0051c0f7a219`. |
+| F02 | **IN_PROGRESS** | Sole active task: safe deterministic HIL automation and repository/root truth. |
+| H02 | **QUEUED_REVIEW** | Broad predecessor remains queued; only deterministic Ubuntu guest boot qualification should be activated after F02. |
+| H03 | **QUEUED_REVIEW** | Emulator work remains queued until a phase-start review shows it reduces physical ambiguity. |
+| H01/H04 | **MERGED** | Authenticated resumable upload and HIL evidence foundations are present. |
 
-Only F01 appears in `agents/task-dag.json` until PR #7 merges. Queued and completed packets remain in the registry for provenance.
+Only F02 appears in `agents/task-dag.json`. Queued and completed packets remain in the registry for provenance.
 
-## Layered path
+## Phase 0 — repository truth and planning discipline
 
-### Phase 0 — repository truth and planning discipline
+Complete. Completed work is removed from the active DAG, queued work is not pre-authorized, and task packets define bounded scope.
 
-**Complete.**
+## Phase 1 — canonical artifact/profile foundation
 
-Exit evidence:
+Complete through F01. Android production loads strict packaged JSON, artifact producers/consumers share one manifest contract, and preparation verifies exact bytes.
 
-- H01 and H04 are recorded as merged with commit IDs.
-- Completed tasks are absent from the active DAG.
-- H02/H03 were queued for review rather than treated as pre-authorized parallel work.
-- One active foundational packet had explicit entry, acceptance, verification, and phase-end criteria.
-- The debt register, handoff, architecture docs, and development loop agreed on the current state.
+## Phase 2 — Podroid vendoring boundary
 
-### Phase 1 — canonical artifact/profile foundation
+Complete through PR #8. The upstream subtree is pinned and reproducible from an ordered patch queue; SalvageNet composition and packaging live outside the subtree.
 
-**Task:** F01 — merge ready.
+## Phase 3 — device-lab readiness
 
-**Purpose:** ensure Linux labs, emulator tests, Android runtime behavior, and uploaded artifacts use the same profile and manifest semantics.
+Active as F02. Prioritize high impact-to-effort safeguards:
 
-Verified result:
+1. serial-specific exclusive lease;
+2. expiring local scenario/action authorization;
+3. diagnostic versus clean candidate evidence;
+4. deterministic local artifact verification/upload;
+5. exact profile/image/desired-state evidence;
+6. cleanup guarantees;
+7. root-layout and phase-truth checks;
+8. durable guest/image decisions without implementation scope creep.
 
-- Android production profile resolution loads strict, bounded packaged JSON rather than duplicated Kotlin definitions.
-- The APK contains byte-for-byte canonical profiles, schema, index, and required guest-init assets.
-- Vendor-data paths reject traversal segments independently at runtime.
-- Artifact publication, listing, cleanup, installed checks, and runtime consumption use one strict manifest contract.
-- Steady-state bare-file resolution is limited to the three pinned Podroid qualification artifacts.
-- A complete digest-verified pre-F01 Ubuntu/AAVMF bare bundle migrates once into active manifests; an isolated bare non-Podroid artifact fails closed.
-- Disk preparation reuses one verified source resolution per preparation, streams copies with a 1 MiB buffer, and verifies copied bytes against the expected digest.
-- All actionable PR #7 findings are addressed.
-- The reviewed implementation head `b0dae0581c9d72ae0f7481f7b602573931fbc3a2` passed static, JVM, Android/lint, guest, package, signature, 16 KiB alignment, and artifact checks in Actions run `30548116488`.
+This phase may run diagnostic `hil-doctor`/`hil-smoke`, but it changes no acceptance gate by itself.
 
-The phase closes only when the final documentation head passes the same workflow, review threads are resolved, and the exact tested head is merged. No physical gate changes in this phase.
+## Phase 4 — deterministic guest boot qualification
 
-### Phase 2 — deterministic guest boot qualification
+Activate only after F02 merges and a new packet is reviewed. Cover canonical Ubuntu artifact identity, UEFI boot, real QMP status, NoCloud completion, key-only loopback SSH, clean stop/start/restart, and retained-secret inspection. Keep Headscale enrollment separate until boot/bootstrap is proven.
 
-Activate only after F01 merges and a new phase packet is reviewed against the merged result.
+## Phase 5 — physical vertical slice
 
-The sole first active task should cover:
+Run through `tests/hil/` and bind every pass to one clean candidate commit/APK:
 
-1. canonical Ubuntu profile and pinned artifact identity;
-2. UEFI boot and real QMP status;
-3. NoCloud completion;
-4. key-only SSH through loopback SLIRP;
-5. clean QEMU stop/start and guest restart;
-6. inspection of guest disk, cloud-init state, logs, and temporary metadata for retained one-use credentials or callback capabilities;
-7. bounded machine-readable host-QEMU evidence explicitly marked non-Android.
+1. device substrate: APK-native QEMU, host mesh, authenticated Host API;
+2. guest slice: uploaded Ubuntu image, desired generation, guest identity, ordinary SSH, recovery SSH;
+3. durability: Activity/service/process/reboot reconciliation and actual controller/network unavailability;
+4. final rerun against one exact candidate before promotion.
 
-This phase must not include Headscale enrollment. It first proves the guest image/bootstrap path independently of mesh behavior.
+## Phase 6 — post-base hardening and product expansion
 
-### Phase 3 — queued preflight candidates
+Only after base evidence reveals a need or all base gates pass: true qcow2 overlays, project-owned native builds, resource admission, runtime isolation, durable controller/UI decisions, guest-class/image binding, source providers, and representative distro adapters.
 
-These tasks are not active merely because their broad predecessors existed:
-
-1. **Guest mesh qualification** — one-use Headscale enrollment, separate guest identity, tailnet SSH, `tailscaled` restart, Headscale interruption, and recovery. Requires successful guest boot qualification.
-2. **Stateless emulator harness** — deterministic API 36 create/boot/install/execute/collect/destroy. Activate only when the remaining lifecycle ambiguity justifies its cost.
-3. **Emulator lifecycle scenarios** — Activity, Service, Room, enrollment, permission, and Host API behavior through real ports with release-surface exclusion. Requires a proven emulator harness.
-
-At each boundary, re-evaluate whether the queued work still reduces physical-debugging ambiguity. Split, narrow, reorder, or remove it rather than preserving stale scope.
-
-### Phase 4 — physical vertical slice
-
-Run through the existing `tests/hil/` implementation and bind every pass to an exact commit/APK.
-
-1. **Device substrate:** B02, B08, B09 — APK-native QEMU boot, host Headscale, authenticated Host API.
-2. **Guest vertical slice:** B10–B13 — uploaded Ubuntu image, apply generation, guest identity, ordinary SSH, recovery SSH.
-3. **Durability:** B07, B16, B17 — Activity/service/process/reboot reconciliation and actual controller/network unavailability.
-4. **MVP seal:** re-run the required scenarios against one exact final candidate and promote reviewed evidence.
-
-### Phase 5 — post-base hardening
-
-Only after the base vertical slice reveals real needs or all base gates pass:
-
-- true qcow2 backing overlays or an honestly renamed copied-disk contract;
-- project-owned native/runtime source builds and provenance;
-- measured device resource admission;
-- node-shell and mesh internal extraction where it reduces proven debugging/review cost;
-- stronger controller authentication, durable controller implementation, and QEMU process isolation;
-- strategic UI/shared-core decisions, including Slint/Rust, through explicit ADRs rather than accidental MVP coupling.
-
-### Phase 6 — MVP+
-
-AOA/USB link, TAP/NAT, second NIC, and fallback remain blocked until all B01–B20 gates are PASS.
-
-## Simplicity rule
-
-Do not keep a four-task wave active merely to maximize parallelism. Use the smallest active phase that resolves the next uncertainty. At each phase boundary, re-evaluate queued work and delete or rewrite plans whose assumptions are no longer true.
+USB/AOA remains MVP+ and has no placeholder implementation root until activated.
