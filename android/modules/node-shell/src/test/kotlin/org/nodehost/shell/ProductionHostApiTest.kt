@@ -76,9 +76,11 @@ class ProductionHostApiTest {
 
     @Test fun productionQueriesAdvertiseExactlyTheThreeBackedProfiles() = runBlocking {
         val queries = AndroidHostResourceQueries(context, database, operations, StoppedMesh, { 1L })
+        val ids = queries.profiles().map { it.id }
+        assertEquals(3, ids.size)
         assertEquals(
             setOf("alpine-direct-qualification", "ubuntu-2404-arm64-uefi", "k3s-worker-lab"),
-            queries.profiles().map { it.id }.toSet(),
+            ids.toSet(),
         )
     }
 
