@@ -20,7 +20,7 @@ class RoadmapSeedTest(unittest.TestCase):
         self.assertEqual(7, result.milestone_count)
         self.assertEqual(49, result.item_count)
         self.assertEqual(24, len(result.acceptance_coverage))
-        self.assertEqual(("H02A",), result.active_task_ids)
+        self.assertEqual(("GUEST-01",), result.seed_active_item_ids)
 
     def test_cycle_is_rejected(self) -> None:
         seed = copy.deepcopy(self.seed)
@@ -36,10 +36,10 @@ class RoadmapSeedTest(unittest.TestCase):
         with self.assertRaisesRegex(SeedError, "U04"):
             validate_seed(seed, ROOT)
 
-    def test_active_task_requires_exactly_one_roadmap_mapping(self) -> None:
+    def test_initial_active_item_requires_a_real_packet(self) -> None:
         seed = copy.deepcopy(self.seed)
         next(item for item in seed["items"] if item["id"] == "GUEST-01")["taskPacket"] = None
-        with self.assertRaisesRegex(SeedError, "active task H02A"):
+        with self.assertRaisesRegex(SeedError, "active.*no task packet"):
             validate_seed(seed, ROOT)
 
     def test_active_item_cannot_have_unfinished_blocker(self) -> None:
