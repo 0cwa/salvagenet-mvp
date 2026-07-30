@@ -33,6 +33,12 @@ Checked-in profile JSON, the packaged profile index, guest-init assets, and stri
 
 This is additional development discipline, not product-scope expansion. It prevents a host-QEMU test from proving a configuration different from the APK.
 
+### Agent-safe physical validation
+
+The current device-lab safety work adds a serial-specific lease, expiring scenario authorisation, diagnostic versus candidate evidence, clean-tree promotion rules, exact artifact/input records, bounded context, and reliable cleanup.
+
+These controls are aligned with the original one-phone test path. They let supervised agents help with destructive or stateful device operations while keeping a human-visible authorization boundary. They do not replace physical evidence, create a device farm, or change Android product behaviour.
+
 ### Bounded host-QEMU preflight before guest mesh and phone validation
 
 H02A qualifies the Ubuntu UEFI, QMP, NoCloud, key-only loopback SSH, restart, and secret-hygiene path independently of guest mesh. H02B remains a separate queued guest-mesh qualification. Physical Android evidence remains authoritative.
@@ -80,7 +86,7 @@ The base MVP remains:
 4. bind every B01–B20 result to one exact source commit and APK;
 5. start USB work only after all base gates pass.
 
-Roadmap tooling and the public website may proceed only through explicitly authorised, path-bounded tasks. They improve coordination and communication; they do not replace this product critical path.
+Roadmap tooling and the public website may proceed only through explicitly authorised, path-bounded tasks. Agent-safe device-lab preparation may merge when it remains non-overlapping and evidence-neutral, but it does not replace H02A or the physical critical path.
 
 ## Drift alarms
 
@@ -94,6 +100,7 @@ A phase or issue requires explicit realignment review if it would:
 - promise arbitrary images before QEMU isolation is addressed;
 - start multiple-VM, broad distro, polished controller, OCI-in-APK, AVF, Device Owner, or USB implementation while a base gate is red without a reviewed blocking reason;
 - let website status, issue closure, host-QEMU evidence, emulator evidence, or code review stand in for required physical evidence;
+- let test authorization or a device lease become a production runtime requirement;
 - preserve alpha compatibility code without a real deployed population, support window, tests, and deletion trigger.
 
 ## Review rule
