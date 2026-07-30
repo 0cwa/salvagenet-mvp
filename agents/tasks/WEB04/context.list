@@ -1,7 +1,7 @@
 GOAL.md
-AGENTS.md
 agents/task-dag.json
 agents/task-registry.json
+docs/architecture/decisions/ADR-012-static-site-and-roadmap-truth.md
 docs/roadmap/podroid-mvp-alignment.md
 docs/roadmap/public-roadmap-governance.md
 docs/development/roadmap-agent-workflow.md
