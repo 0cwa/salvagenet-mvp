@@ -13,7 +13,6 @@ android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Artifact*
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Manifest*
 android/podroid/app/build.gradle.kts
 profiles/**
-schema/**
 tools/profiles/**
 tools/ci/check-profiles.py
 docs/architecture/vm-profiles.md
