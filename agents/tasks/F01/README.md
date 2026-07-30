@@ -1,6 +1,6 @@
 # F01 — Canonical artifact and profile resolution
 
-Status: **IN PROGRESS** on `agent/F01-canonical-artifact-profile-resolution`.
+Status: **MERGE READY** on `agent/F01-canonical-artifact-profile-resolution`.
 
 Generate scoped context with:
 
@@ -8,4 +8,6 @@ Generate scoped context with:
 make context TASK=F01
 ```
 
-Phase-start review and implementation findings are recorded in `docs/research/experiments/F01.md`. The branch is not merge-ready until every task and phase exit criterion passes on the exact reviewed head. H02 and H03 remain queued hypotheses.
+The complete phase-start review, implementation findings, exact CI run, candidate APK identity, acceptance checklist, and next-phase decision are recorded in `docs/research/experiments/F01.md`.
+
+F01 must merge as the exact final tested documentation head before the next phase is activated. The original broad H02/H03 packets remain queued; the phase-end decision is to replace them with narrower guest-boot, guest-mesh, emulator-harness, and emulator-scenario tasks, activating only guest boot first.
