@@ -7,7 +7,7 @@
   ],
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
-    "F01": "MERGE_READY",
+    "F01": "IN_PROGRESS",
     "H01": "MERGED",
     "H02": "QUEUED_REVIEW",
     "H03": "QUEUED_REVIEW",
@@ -19,13 +19,11 @@
       "name": "Canonical artifact and profile resolution",
       "dependsOn": [],
       "packet": "agents/tasks/F01/task.md",
-      "status": "MERGE_READY",
+      "status": "IN_PROGRESS",
       "startedFrom": "9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7",
-      "validatedHead": "71a04acedd11221fbefe2c0fa43984141ec11ed4",
-      "validationRun": "30543765626",
-      "workflowArtifactId": "8760011060",
-      "workflowArtifactDigest": "sha256:6f2e873938f7e5dcf536862ec310e151d240bde4b1c363b377e972133aaf82c4",
-      "apkSha256": "9724c1ae58299f961c850749f3b14aa1b10a9cbc7f988d9b8b9243352da76da0"
+      "previousValidatedHead": "71a04acedd11221fbefe2c0fa43984141ec11ed4",
+      "previousValidationRun": "30543765626",
+      "revalidationReason": "addressing PR #7 review findings on path resolution, traversal rejection, manifest listing, artifact-copy hashing, and regression coverage"
     },
     {
       "id": "H01",
