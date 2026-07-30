@@ -100,9 +100,9 @@ def main() -> int:
         run_directory = args.run_dir.resolve()
         artifacts = [run_directory / "run.json"]
         for name in (
-            "source-state.json", "device-facts.json", "commands.jsonl", "capabilities.json",
-            "profiles.json", "images.json", "desired-vm.json", "vms-before.json", "vms-after.json",
-            "artifact-set.json",
+            "source-state.json", "source-state-after-build.json", "device-facts.json", "commands.jsonl",
+            "capabilities.json", "profiles.json", "images.json", "desired-vm.json", "vms-before.json",
+            "vms-after.json", "artifact-set.json",
         ):
             path = run_directory / name
             if path.is_file():
