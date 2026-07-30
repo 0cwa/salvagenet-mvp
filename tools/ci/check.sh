@@ -5,6 +5,7 @@ python3 tools/ci/check-agents.py
 python3 tools/ci/check-context-hygiene.py
 python3 tools/ci/check-tasks.py
 python3 tools/ci/check-references.py
+python3 tools/roadmap/validate_seed.py
 python3 tools/ci/check-schemas.py
 python3 tools/ci/check-evidence.py
 python3 tools/ci/check-status.py
