@@ -2,42 +2,40 @@
 
 ## Environments
 
-### E0 — scaffold-only
+### E0 — static and contract tests
 
 Python/schema/shell/task/context/provenance checks. Runs without Android SDK or Podroid.
 
-### E1 — imported JVM/Android unit tests
+### E1 — JVM/Android unit tests
 
 Gradle unit tests for domain, reconciler, command compiler, profile parser, Room adapters, and API handlers. No physical device.
 
 ### E2 — Android emulator
 
-Activity/service recreation, import UI, Room persistence, API lifecycle, and fake runtime/mesh. Use `lab/android-emulator/`; never use it to claim QEMU-native performance, Android VPN reliability, or OEM compatibility.
+Activity/service recreation, import UI, Room persistence, API lifecycle, and fake runtime/mesh. Use `lab/android-emulator/`; never use it to claim APK-native QEMU, Android VPN, thermal, or OEM behavior.
 
 ### E3 — Linux QEMU/profile lab
 
-Use `lab/qemu/` to boot the Ubuntu ARM64 UEFI profile under host QEMU and validate cloud-init plus key-only SSH independently of Android packaging. Extend the same lab for guest Tailscale and K3s qualification. A pass here does not satisfy APK-native QEMU gates.
+Use `lab/qemu/` to qualify Ubuntu/cloud-init/SSH independently of Android packaging. A pass here does not satisfy an APK-native QEMU gate.
 
-### E4 — physical Android
+### E4 — small physical HIL environment
 
-APK-native QEMU execution, foreground-service lifecycle, VPN permission, embedded libtailscale, native page size, thermal/resource behavior, and network transitions.
+Use `tests/hil/` with one configured ARM64 phone. The standard-library runner composes the real APK, Host API, controller CLI, Headscale lab, QEMU process, guest mesh, and SSH through three scenarios:
 
-### E5 — full Headscale end-to-end
+- `smoke`: APK-native QEMU and stop/restart;
+- `mvp`: host mesh/API, Ubuntu, guest mesh, ordinary/recovery SSH;
+- `resilience`: service/QEMU failure, a controller-silent continuity smoke, and optional reboot.
 
-Controller -> host mesh -> Host API -> QEMU guest -> guest mesh -> SSH/Ansible.
+The controller-silent smoke does not alone seal B17; actual controller/network-unavailable evidence and duration must match the gate claim. Persistent development mode may preserve enrollment and VPN consent between `adb install -r` runs. Clean first-run enrollment and secure-lock cold boot remain explicit release checks.
 
-## Test layers
+## Orthogonal test boundaries
 
-- pure state-machine and planner tests;
-- adapter contract tests using fakes;
-- QEMU argv golden/invariant tests;
-- schema and profile validation;
-- Room crash/recovery tests;
-- Host API contract tests against OpenAPI examples;
-- Headscale lab integration tests;
-- physical-device lifecycle scripts;
-- failure injection and soak tests.
+- scenarios express product behavior;
+- adapters own ADB, Headscale, controller, SSH, and subprocess commands;
+- evidence recording is independent of scenario decisions;
+- product modules do not import HIL code;
+- old device/E2E scripts delegate to the HIL runner.
 
 ## MVP rule
 
-A hardware-dependent gate may be `BLOCKED-HARDWARE`, never silently converted to passing. The acceptance ledger distinguishes automated, manual, and deferred evidence.
+A hardware-dependent gate may be `BLOCKED-HARDWARE`, never inferred as passing from a fake, emulator, host-QEMU run, or code review. A physical pass must reference the HIL run directory, source commit, exact APK SHA-256, device facts, commands, and assertions.

@@ -2,33 +2,9 @@
   "schemaVersion": 1,
   "integrationBranch": "integration/hardware-independent-1",
   "tasks": [
-    {
-      "id": "H01",
-      "slug": "artifact-upload",
-      "dependsOn": [],
-      "parallelGroup": 1,
-      "mvpPlus": false
-    },
-    {
-      "id": "H02",
-      "slug": "qemu-headscale-e2e",
-      "dependsOn": [],
-      "parallelGroup": 1,
-      "mvpPlus": false
-    },
-    {
-      "id": "H03",
-      "slug": "emulator-lifecycle",
-      "dependsOn": [],
-      "parallelGroup": 1,
-      "mvpPlus": false
-    },
-    {
-      "id": "H04",
-      "slug": "device-evidence-automation",
-      "dependsOn": [],
-      "parallelGroup": 1,
-      "mvpPlus": false
-    }
+    {"id":"H01","slug":"artifact-upload","dependsOn":[],"parallelGroup":1,"mvpPlus":false},
+    {"id":"H02","slug":"qemu-headscale-e2e","dependsOn":[],"parallelGroup":1,"mvpPlus":false},
+    {"id":"H03","slug":"emulator-lifecycle","dependsOn":[],"parallelGroup":1,"mvpPlus":false},
+    {"id":"H04","slug":"hil-evidence-hardening","dependsOn":[],"parallelGroup":1,"mvpPlus":false}
   ]
 }

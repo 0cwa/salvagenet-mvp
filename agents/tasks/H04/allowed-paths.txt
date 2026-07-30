@@ -1,3 +1,4 @@
+tests/hil/**
 tests/device/**
 tests/e2e/**
 tools/evidence/**

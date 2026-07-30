@@ -10,9 +10,9 @@ The active task graph is `agents/task-dag.json`:
 
 ```text
 H01  authenticated resumable artifact upload
-H02  Ubuntu/QEMU/Headscale guest E2E on a Linux host
+H02  Ubuntu/QEMU/NoCloud/Headscale guest E2E on a Linux host
 H03  managed-emulator Activity/Service/Room/API lifecycle suite
-H04  exact-APK physical evidence automation
+H04  harden the merged one-phone HIL evidence path
 ```
 
 All four tasks are intentionally path-disjoint and may run in parallel.
@@ -32,6 +32,7 @@ All four tasks are intentionally path-disjoint and may run in parallel.
 - Keep public APIs typed and preserve the host/guest identity split.
 - Never weaken artifact SSRF policy to make local testing convenient; H01 adds a bounded upload path instead.
 - Host-QEMU or emulator evidence is useful but cannot close B02, B07–B13, B16, or B17.
+- `tests/hil/` is already the sole physical runner; H04 may harden it but must not create a parallel implementation.
 - Do not start profile-registry, qcow2, source-native-build, or fuzzing follow-ons until the active cycle has landed or produced a focused blocker.
 - Do not begin USB/AOA work.
 

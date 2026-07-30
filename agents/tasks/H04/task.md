@@ -1,12 +1,12 @@
-# H04 — Physical evidence automation
+# H04 — HIL evidence hardening
 
 ## Outcome
 
-Prepare a non-secret, exact-APK gate runner that captures device facts, package identity, process/QMP/mesh/API observations, redacts logs, and emits schema-valid evidence records for later borrowed or streamed devices.
+Harden the already-merged `tests/hil/` runner so scarce borrowed or streamed device sessions produce exact, reviewable gate evidence without adding a second physical-test implementation.
 
 ## Prerequisites
 
-None; active-cycle base is current `main`.
+None; `tests/hil/` is present on the active-cycle base.
 
 ## Allowed paths
 
@@ -14,21 +14,21 @@ See `allowed-paths.txt`. Changes outside them require an orchestrator handoff.
 
 ## Acceptance
 
-- `tests/device/run-gate.sh Bxx` validates prerequisites and binds output to source commit and APK SHA-256.
-- Collectors are composable by gate and distinguish automatic assertions from manual observations.
-- Logcat, process, QMP, Tailscale, listener, operation, and guest identity output is bounded and redacted.
-- Interrupted runs retain a diagnostic bundle but never mark the gate PASS.
-- Evidence JSON validates before replacing a gate record.
-- The harness supports local ADB and documents a remote-device-streaming adapter seam.
+- SSH known-host state is isolated per run or explicitly tied to the configured device/guest identity.
+- Headscale node assertions use exact structured identity matching rather than broad substring matches.
+- Controller-silent smoke and actual controller/network-unavailable evidence are represented as distinct assertions; only the latter may support B17.
+- The runner has an explicit remote-device-streaming adapter seam while preserving exact serial selection and exit 77 behavior.
+- Interrupted runs retain bounded redacted diagnostics but cannot emit a PASS record.
+- Reviewed run output can be validated and promoted through the existing evidence schema/tooling without manual JSON edits.
 
 ## Required checks
 
 ```sh
 make validate
-python3 -m unittest discover -s tests/tools
-tests/device/run-gate.sh --self-test
+PYTHONPATH=. python3 -m unittest discover -s tests/hil -p 'test_*.py' -v
+tests/hil/run.py --help
 ```
 
 ## Handoff
 
-Report commit SHA(s), exact tests and lab runs, evidence paths, checks unavailable in the current environment, concrete deferred items, and the smallest next blocker.
+Report commit SHA(s), exact tests, checks unavailable without a device, evidence paths, concrete deferred items, and the smallest next blocker.

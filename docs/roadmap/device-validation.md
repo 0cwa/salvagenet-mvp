@@ -1,78 +1,51 @@
-# Device-validation development cycle
+# Small hardware-validation cycle
 
-The overnight T00–T08 cycle produced an integrated software candidate. The next cycle is evidence-driven and runs on the exact CI-built APK. Do not reuse `PASS` from unit/emulator tests as physical evidence.
+The software candidate is implemented. The fastest route to a validated MVP is one Linux workstation, one dedicated ARM64 phone, the existing Headscale lab, and the `tests/hil/` runner. Do not create a device farm or testing daemon before these scenarios demonstrate the need.
 
-## D00 — Repository and release truth
+## H0 — consolidated physical path
 
-- Generated `docs/STATUS.md` matches the acceptance ledger.
-- CI pins Java, Go, Android SDK/NDK and runs the complete automated build.
-- CI uploads the exact APK, SHA-256, size, signature/alignment result, source commit, and explicit `hardwareValidated: false` evidence.
-- Historical scaffold files are not presented as current status.
+Implemented by `tests/hil/`: one ignored configuration, explicit ADB serials, small Device/Controller/MeshLab ports, standard-library adapters, bounded redacted evidence, and compatibility wrappers for the old scripts.
 
-## D01 — APK-native QEMU boot
+```sh
+cp tests/hil/config.example.json .local/hil.json
+make lab-up
+make hil-doctor
+```
 
-Close B02.
+## H1 — QEMU smoke
 
-1. Record device facts and APK SHA-256.
-2. Install the exact CI artifact.
-3. Start the Alpine direct-kernel profile.
-4. Prove one QEMU process, launcher/nativeLibraryDir execution, real QMP greeting/capabilities/query-status, bounded diagnostics, and clean stop/restart.
-5. Attach redacted logcat, process list, QMP status, and gate record.
+```sh
+make hil-smoke HIL_BUILD=1
+```
 
-Stop and fix only the smallest demonstrated platform issue before proceeding.
+This closes the physical part of B02 only when the exact APK starts the Alpine qualification profile, reaches real QMP-backed runtime readiness, has exactly one QEMU process, stops it, and restarts exactly one process. Do not normalize more Podroid arguments until H1 passes.
 
-## D02 — Host mesh and Host API
+## H2 — useful MVP path
 
-Close B08 and B09.
+```sh
+make hil-mvp
+```
 
-1. Import enrollment and approve Android VPN once.
-2. Join the disposable Headscale deployment as the host identity.
-3. Test direct and relayed reachability to the authenticated HTTPS Host API.
-4. Restart the service and change Wi-Fi/cellular path where available.
-5. Record memory, wakeups, listener address, certificate identity, and key-erasure evidence.
+This exercises host Headscale identity, authenticated Host API, bounded image import or verified images, Ubuntu UEFI, distinct guest identity, ordinary key-only SSH, guest-mesh failure, and host-mediated recovery SSH. It is the evidence path for B08–B13.
 
-This task decides whether the current embedded-listener architecture is viable. Do not pre-emptively replace Ktor or libtailscale.
+## H3 — resilience
 
-## D03 — Ubuntu deployment and guest mesh
+```sh
+make hil-resilience
+```
 
-Close B10, B11, and B12.
+This exercises service restart, QEMU child death/reconciliation, and a controller-silent interval. Reboot is opt-in; a skipped reboot cannot close B16. The controller-silent smoke assertion demonstrates that desired state is not lease-driven, but B17 still requires evidence appropriate to the claimed duration and actual controller/network unavailability. H04 defines that distinction explicitly.
 
-1. Deliver the pinned Ubuntu and firmware artifacts through a bounded trusted path.
-2. Apply a desired generation remotely.
-3. Prove UEFI boot, QMP readiness, NoCloud retrieval, key-only SSH, separate guest Headscale identity, and ordinary SSH.
-4. Inspect cloud-init logs and guest disk for deleted one-use enrollment material.
-5. Run the K3s qualification profile without joining a cluster.
+## MVP seal
 
-## D04 — Recovery path
+After H1–H3 pass on one exact CI-built APK:
 
-Close B13.
+1. promote reviewed run evidence into `evidence/gates/`;
+2. regenerate status with `make mvp-status`;
+3. rerun automated suites;
+4. title the release **MVP** only when every B01–B20 item is `PASS`;
+5. only then allow USB/AOA MVP+ work.
 
-- Disable or break guest mesh after a successful boot.
-- Connect through the authenticated Host API recovery tunnel to the loopback-only QEMU SSH forward.
-- Verify session count, idle/byte/overall limits, cross-runtime denial, and recovery after tunnel interruption.
+## Deliberately deferred lab infrastructure
 
-## D05 — Lifecycle and offline reliability
-
-Close B07, B16, and B17.
-
-- destroy/rotate/swipe the Activity;
-- kill/restart the service and application process;
-- crash QEMU during an operation;
-- reboot, delay first unlock, then unlock;
-- keep the controller offline and confirm the VM continues;
-- reconnect and verify desired/observed generation and one-process invariants.
-
-Every result records device/OEM/API level, power policy, exact APK, source commit, and whether the check was automated or manually observed.
-
-## D06 — Bounded corrections
-
-Apply only findings demonstrated by D01–D05. Re-run the affected automated suite and all previously passing physical gates. Update the debt register rather than hiding unresolved findings in code comments.
-
-## D07 — MVP seal
-
-- Every B01–B20 gate is `PASS` with evidence.
-- A clean CI build from one source commit produces the tested APK.
-- APK SHA/signature/alignment match the release evidence.
-- README and `docs/STATUS.md` regenerate from the final ledger.
-- The release is titled **MVP** only after the physical evidence seal.
-- Only then may the MVP+ USB task enter executable scope.
+Add these only when repeated evidence requires them: Mobly, a lab daemon, leases, a second managed phone, UI Automator, controllable AP/network shaping, USB power switching, a remote self-hosted runner, or a device pool.
