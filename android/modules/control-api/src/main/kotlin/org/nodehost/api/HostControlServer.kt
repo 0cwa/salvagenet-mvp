@@ -129,8 +129,11 @@ class HostControlServer(
                 }
                 put("/v1/artifact-uploads/{id}/chunks/{offset}") {
                     authenticated {
-                        val mediaType = call.request.header("Content-Type")?.substringBefore(';')?.trim()?.lowercase()
-                        require(mediaType == "application/octet-stream") { "upload chunks require application/octet-stream" }
+                        val mediaType = call.request.header("Content-Type")
+                            ?.substringBefore(';')?.trim()?.lowercase()
+                        require(mediaType == "application/octet-stream") {
+                            "upload chunks require application/octet-stream"
+                        }
                         val digest = call.request.header("Content-SHA256")
                             ?: throw IllegalArgumentException("Content-SHA256 is required")
                         val offset = call.pathParameter("offset").toLongOrNull()
@@ -141,7 +144,7 @@ class HostControlServer(
                                 offset,
                                 digest,
                                 call.boundedBody(HostApiController.MAX_UPLOAD_CHUNK_BYTES),
-                            ),
+                            )
                         )
                     }
                 }
@@ -285,12 +288,16 @@ class HostControlServer(
             call.request.httpMethod.value,
             call.request.path(),
         )
-        if (principal == null) call.problem(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "authentication required")
-        else block(principal)
+        if (principal == null) {
+            call.problem(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "authentication required")
+        } else {
+            block(principal)
+        }
     }
 
-    private suspend fun io.ktor.server.routing.RoutingContext.authenticated(block: suspend () -> Unit) =
-        authenticatedPrincipal { block() }
+    private suspend fun io.ktor.server.routing.RoutingContext.authenticated(
+        block: suspend () -> Unit,
+    ) = authenticatedPrincipal { block() }
 
     companion object {
         const val RECOVERY_CHUNK_BYTES = 64 * 1024
@@ -362,7 +369,7 @@ internal suspend fun readBoundedBody(
 
     var channel: ByteReadChannel? = null
     try {
-        val body = withTimeoutOrNull(overallTimeoutMillis) {
+        val body: ByteArray = withTimeoutOrNull(overallTimeoutMillis) outer@ {
             channel = receive()
             val output = java.io.ByteArrayOutputStream(minOf(maximumBytes, BODY_CHUNK_BYTES))
             val buffer = ByteArray(BODY_CHUNK_BYTES)
@@ -375,14 +382,16 @@ internal suspend fun readBoundedBody(
                     } while (read == 0)
                     read
                 } ?: throw HostApiRequestTimeoutException()
-                if (count == -1) return@withTimeoutOrNull output.toByteArray()
+                if (count == -1) return@outer output.toByteArray()
                 require(output.size() <= maximumBytes - count) { "request body is too large" }
                 output.write(buffer, 0, count)
             }
         } ?: throw HostApiRequestTimeoutException()
         return body
     } catch (failure: Throwable) {
-        if (failure is CancellationException || channel?.isClosedForRead == false) channel?.cancel(failure)
+        if (failure is CancellationException || channel?.isClosedForRead == false) {
+            channel?.cancel(failure)
+        }
         throw failure
     }
 }
@@ -390,7 +399,11 @@ internal suspend fun readBoundedBody(
 private suspend fun ApplicationCall.json(value: Any?, status: HttpStatusCode = HttpStatusCode.OK) =
     respondText(HostApiJson.encode(value), ContentType.Application.Json, status)
 
-private suspend fun ApplicationCall.problem(status: HttpStatusCode, code: String, detail: String) = respondText(
+private suspend fun ApplicationCall.problem(
+    status: HttpStatusCode,
+    code: String,
+    detail: String,
+) = respondText(
     HostApiJson.encode(
         linkedMapOf(
             "type" to "urn:nodehost:problem:${code.lowercase()}",
@@ -405,9 +418,11 @@ private suspend fun ApplicationCall.problem(status: HttpStatusCode, code: String
 )
 
 private fun ApplicationCall.pathParameter(name: String): String =
-    parameters[name]?.takeIf { it.isNotBlank() } ?: throw IllegalArgumentException("missing path parameter: $name")
+    parameters[name]?.takeIf { it.isNotBlank() }
+        ?: throw IllegalArgumentException("missing path parameter: $name")
 
 private fun ApplicationCall.idempotencyKey(): String =
-    request.header("Idempotency-Key") ?: throw IllegalArgumentException("Idempotency-Key is required")
+    request.header("Idempotency-Key")
+        ?: throw IllegalArgumentException("Idempotency-Key is required")
 
 private const val BODY_CHUNK_BYTES = 16 * 1024
