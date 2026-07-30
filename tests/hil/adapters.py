@@ -90,6 +90,7 @@ class AdbDevice:
         return self.collect_facts()
 
     def install_apk(self, apk: Path) -> None:
+        self.config.require_action("allowApkInstall")
         if not apk.is_file():
             raise SetupBlocked(f"APK not found: {apk}")
         self._adb("install", "-r", str(apk), timeout=300)
@@ -119,6 +120,7 @@ class AdbDevice:
         return pids
 
     def kill_qemu(self) -> None:
+        self.config.require_action("allowProcessKill")
         pids = self._qemu_pids()
         if not pids:
             raise RuntimeError("no QEMU process found to kill")
@@ -148,6 +150,7 @@ class AdbDevice:
         return facts
 
     def reboot(self, timeout_seconds: float) -> None:
+        self.config.require_action("allowReboot")
         self._adb("reboot", timeout=20)
         self._adb("wait-for-device", timeout=timeout_seconds)
         deadline = time.monotonic() + timeout_seconds
@@ -200,6 +203,12 @@ class ControllerCli:
             raise RuntimeError("status response is not an object")
         return value
 
+    def capabilities(self) -> list[dict[str, Any]]:
+        value = self._json_command("capabilities", timeout=30)
+        if not isinstance(value, list):
+            raise RuntimeError("capabilities response is not an array")
+        return value
+
     def profiles(self) -> list[dict[str, Any]]:
         value = self._json_command("profiles", timeout=30)
         if not isinstance(value, list):
@@ -246,6 +255,16 @@ class ControllerCli:
         operation = self._json_command("import-image", str(request_path), timeout=30)
         return self._wait(operation, timeout_seconds)
 
+    def upload_image(
+        self, artifact_id: str, path: Path, sha256: str, timeout_seconds: float
+    ) -> dict[str, Any]:
+        value = self._json_command(
+            "upload-image", artifact_id, str(path), "--sha256", sha256, timeout=timeout_seconds
+        )
+        if not isinstance(value, dict):
+            raise RuntimeError("upload-image response is not an object")
+        return value
+
     def guest_ssh(self, target: str, command: str, timeout_seconds: float) -> None:
         argv = [
             "ssh",
@@ -283,6 +302,7 @@ class ControllerCli:
             raise ConfigError(
                 "resilience.controllerOfflineCommand and controllerOnlineCommand must be configured together"
             )
+        self.config.require_action("allowControllerIsolation")
         self.runner.run(online if reachable else offline, timeout=60)
         return True
 
@@ -329,4 +349,4 @@ class HeadscaleLab:
             if self._contains_name(last, name):
                 return last
             time.sleep(2)
-        raise TimeoutError(f"Headscale node did not appear within {timeout_seconds}s: {name}")
+        raise TimeoutError(f"Headscale node did not appear: {name}; last={last!r}")
