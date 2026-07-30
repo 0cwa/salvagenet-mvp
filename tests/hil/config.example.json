@@ -6,6 +6,14 @@
     "supervisorComponent": "com.excp.podroid.debug/org.nodehost.shell.NodeSupervisorService",
     "qemuProcessPattern": "libqemu-system-aarch64.so"
   },
+  "authorization": {
+    "expiresAt": "REPLACE_WITH_UTC_EXPIRY",
+    "allowedScenarios": ["smoke"],
+    "allowApkInstall": true,
+    "allowProcessKill": false,
+    "allowReboot": false,
+    "allowControllerIsolation": false
+  },
   "paths": {
     "apk": "android/podroid/app/build/outputs/apk/debug/app-debug.apk",
     "controller": "controller/mvp-cli/bin/phonectl-mvp",
@@ -36,6 +44,7 @@
   },
   "mvp": {
     "applyRequest": "tests/hil/requests/ubuntu-running.json",
+    "artifactSet": null,
     "timeoutSeconds": 1200,
     "hostNodeName": "salvagenet-phone-01-host",
     "guestNodeName": "salvagenet-phone-01-vm-default",
