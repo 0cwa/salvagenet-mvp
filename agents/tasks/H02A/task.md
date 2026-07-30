@@ -2,7 +2,7 @@
 
 ## Status
 
-**PLANNED — phase-start review complete.** Activate implementation only from `main` after the post-F01 transition PR merges.
+**ACTIVE — phase-start review complete; implementation not started.** Begin implementation only from current `main` after the post-F01 transition PR merges.
 
 ## Outcome
 
@@ -18,7 +18,7 @@ Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact iden
 - Host AAVMF firmware may come from the documented package search path, but its exact source path, digest, size, and package/tool facts must be recorded. Host evidence must not claim byte identity with an Android-uploaded AAVMF artifact unless that identity is explicitly established.
 - Guest boot and guest mesh are separate failure domains. Headscale, Tailscale enrollment, tailnet SSH, and coordination outage/recovery are deferred to H02B.
 - Emulator and physical-device behavior are out of scope; host-QEMU evidence cannot close Android gates.
-- The task may update only its packet, the host-QEMU laboratory, guest-side qualification tests, the exact Ubuntu image lock/pinning helper, its experiment record, and Makefile entry points needed to expose the reviewed flow.
+- The task may update only its packet, the specifically listed host-QEMU laboratory files, H02A-named helpers, guest-side qualification tests, the exact Ubuntu image lock/pinning helper, its experiment record, and Makefile entry points needed to expose the reviewed flow.
 
 ## Acceptance criteria
 
@@ -31,7 +31,7 @@ Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact iden
 - NoCloud uses the canonical rendered vendor-data plus an explicitly test-only user-data layer. `cloud-init status --wait` completes and no unresolved template markers remain.
 - Key-only loopback SSH succeeds; password authentication, keyboard-interactive authentication, and root login are disabled.
 - A clean guest reboot and a complete QEMU stop/start both return to QMP-running, cloud-init-complete, and key-only SSH readiness.
-- H02A introduces no guest auth key, bootstrap token, or callback capability. A bounded scan of seed inputs, cloud-init state, logs, process environment, and temporary metadata confirms no secret-shaped canary or forbidden bootstrap material is present. One-use redemption/erasure remains explicitly untested until H02B.
+- H02A introduces no NodeHost or guest-mesh authentication key, bootstrap token, or callback capability. An ephemeral SSH public key is permitted. A bounded scan of seed inputs, cloud-init state, logs, process environment, and temporary metadata confirms no secret-shaped canary or forbidden bootstrap material is present. One-use redemption/erasure remains explicitly untested until H02B.
 - Evidence is bounded under `.local/qemu-lab/`, names its evidence class as `host-qemu`, and states `androidHardwareValidated: false`, `physicalGateEligible: false`, and `guestMeshValidated: false`.
 - Cleanup stops QEMU and removes generated seed, key, socket, PID, and temporary files while retaining only the explicitly documented evidence and cached pinned base image.
 - Existing repository, profile, guest, Android, and package checks remain green.
