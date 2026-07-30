@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/roadmap"))
 
 import commands  # noqa: E402
+import live  # noqa: E402
 import roadmap  # noqa: E402
 import sync  # noqa: E402
 
@@ -41,6 +42,7 @@ class RoadmapTests(unittest.TestCase):
     def test_live_projection_keeps_authorization_and_acceptance_separate(self) -> None:
         graph = sync.enrich(roadmap.seed_graph(self.seed), self.seed)
         snapshot, index = roadmap.derive_snapshot(graph, fallback=True, generated_at="2026-07-31T00:00:00Z")
+        sync.project_pull_requests(snapshot, index, graph)
         active = {item["id"] for item in index["active"]}
         self.assertEqual({"WEB-04"}, active)
         guest = next(item for item in snapshot["items"] if item["id"] == "GUEST-01")
@@ -71,6 +73,58 @@ class RoadmapTests(unittest.TestCase):
         self.assertIn("<!-- roadmap-id: WEB-04 -->", body)
         self.assertIn("<!-- task-packet: agents/tasks/WEB04/task.md -->", body)
         self.assertIn("Closing this issue does not change the acceptance ledger", body)
+
+    def test_edited_visible_summary_is_live_truth(self) -> None:
+        issue = {
+            "number": 22,
+            "body": """<!-- roadmap-id: WEB-04 -->
+<!-- public-summary: stale hidden text -->
+<!-- task-packet: agents/tasks/WEB04/task.md -->
+
+## Public summary
+
+This edited visible summary is now the authoritative public wording.
+
+## Observable outcome
+
+Something useful happens.
+""",
+        }
+        item_id, task, summary, pulls = live.parse_issue_body(issue)
+        self.assertEqual("WEB-04", item_id)
+        self.assertEqual("agents/tasks/WEB04/task.md", task)
+        self.assertEqual("This edited visible summary is now the authoritative public wording.", summary)
+        self.assertEqual([], pulls)
+
+    def test_live_graph_requires_exact_metadata_and_no_cycles(self) -> None:
+        graph = sync.enrich(roadmap.seed_graph(self.seed), self.seed)
+        live.validate_graph(graph)
+
+        duplicate_area = copy.deepcopy(graph)
+        duplicate_area["items"]["WEB-04"]["labels"].append("area:testing")
+        with self.assertRaisesRegex(roadmap.RoadmapError, "exactly one area"):
+            live.validate_graph(duplicate_area)
+
+        cycle = copy.deepcopy(graph)
+        cycle["items"]["WEB-00"]["blockedBy"] = ["WEB-04"]
+        with self.assertRaisesRegex(roadmap.RoadmapError, "dependency cycle"):
+            live.validate_graph(cycle)
+
+    def test_pull_request_state_is_separate_from_work_state(self) -> None:
+        graph = sync.enrich(roadmap.seed_graph(self.seed), self.seed)
+        snapshot, index = roadmap.derive_snapshot(graph, fallback=True, generated_at="2026-07-31T00:00:00Z")
+        sync.project_pull_requests(snapshot, index, graph)
+        fnd06 = next(item for item in snapshot["items"] if item["id"] == "FND-06")
+        self.assertEqual("review", fnd06["workState"])
+        self.assertEqual([20], [value["number"] for value in fnd06["pullRequests"]])
+        self.assertEqual("unknown", fnd06["pullRequests"][0]["state"])
+
+    def test_structural_errors_are_not_transport_errors(self) -> None:
+        graph = sync.enrich(roadmap.seed_graph(self.seed), self.seed)
+        graph["items"].pop("WEB-04")
+        with self.assertRaises(roadmap.RoadmapError) as caught:
+            live.validate_graph(graph)
+        self.assertNotIsInstance(caught.exception, live.RoadmapTransportError)
 
 
 if __name__ == "__main__":
