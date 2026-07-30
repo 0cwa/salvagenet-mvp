@@ -3,7 +3,12 @@
 
 The seed is bootstrap input, not a permanent second roadmap. Before GitHub
 Issues become authoritative it must cover current acceptance and post-MVP
-directions, form a valid dependency graph, and map the current agent task.
+directions and form a complete acyclic dependency graph.
+
+The seed is deliberately *not* compared with the current active task DAG. After
+bootstrap it remains historical while task authorization continues to change.
+Steady-state roadmap tooling is responsible for reconciling live issues with the
+current DAG.
 """
 from __future__ import annotations
 
@@ -63,7 +68,7 @@ class ValidationResult:
     label_count: int
     item_count: int
     acceptance_coverage: frozenset[str]
-    active_task_ids: tuple[str, ...]
+    seed_active_item_ids: tuple[str, ...]
     missing_future_packets: tuple[str, ...]
 
 
@@ -139,7 +144,6 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
     milestone_ids: list[str] = []
     milestone_titles: list[str] = []
     milestone_orders: list[int] = []
-    milestone_states: dict[str, str] = {}
     milestone_order: dict[str, int] = {}
     for index, milestone in enumerate(milestones):
         if not isinstance(milestone, dict):
@@ -158,8 +162,6 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
             milestone_ids.append(mid)
             if isinstance(order, int):
                 milestone_order[mid] = order
-            if isinstance(state, str):
-                milestone_states[mid] = state
         if isinstance(title, str):
             milestone_titles.append(title)
         if isinstance(order, int):
@@ -193,6 +195,7 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
     item_ids: list[str] = []
     items_by_id: dict[str, dict[str, Any]] = {}
     coverage: set[str] = set()
+    seed_active_ids: list[str] = []
     missing_future_packets: list[str] = []
 
     for index, item in enumerate(items):
@@ -223,6 +226,8 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
         if isinstance(item_id, str):
             item_ids.append(item_id)
             items_by_id[item_id] = item
+            if state == "active":
+                seed_active_ids.append(item_id)
         if isinstance(gate_ids, list):
             coverage.update(value for value in gate_ids if isinstance(value, str) and GATE_RE.fullmatch(value))
         if isinstance(task_packet, str):
@@ -234,6 +239,8 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
                     missing_future_packets.append(task_packet)
                 else:
                     errors.append(f"{name}.taskPacket does not exist: {task_packet}")
+        elif state == "active":
+            errors.append(f"{name} is active in the bootstrap seed but has no task packet")
 
     _unique(item_ids, "roadmap item IDs", errors)
     actual_ids = set(item_ids)
@@ -245,6 +252,8 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
         errors.append("bootstrap seed has unreviewed extra items: " + ", ".join(sorted(extra_items)))
     if not REQUIRED_POST_MVP_IDS <= actual_ids:
         errors.append("bootstrap seed does not cover every accepted post-MVP direction")
+    if len(seed_active_ids) > 1:
+        errors.append("bootstrap seed may name at most one initially active roadmap item")
 
     for item_id, item in items_by_id.items():
         blockers = item.get("blockedBy", [])
@@ -262,8 +271,6 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
             unresolved = [blocker for blocker in blockers if items_by_id.get(blocker, {}).get("seedState") != "done"]
             if unresolved:
                 errors.append(f"{item_id} is {item.get('seedState')} but has unfinished seed blockers: {', '.join(unresolved)}")
-        if item.get("seedState") == "done" and milestone_states.get(item.get("milestone")) != "closed":
-            errors.append(f"done bootstrap item {item_id} must belong to a closed seed milestone")
 
     _detect_cycles(items_by_id, errors)
     missing_gates = REQUIRED_GATES - coverage
@@ -273,26 +280,6 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
     if unknown_gates:
         errors.append("unknown acceptance gates in roadmap seed: " + ", ".join(sorted(unknown_gates)))
 
-    try:
-        task_dag = json.loads((root / "agents/task-dag.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        errors.append(f"could not read active task DAG: {exc}")
-        task_dag = {"tasks": []}
-    active_task_ids: list[str] = []
-    tasks = task_dag.get("tasks", []) if isinstance(task_dag, dict) else []
-    for task in tasks if isinstance(tasks, list) else []:
-        if not isinstance(task, dict) or not isinstance(task.get("id"), str):
-            errors.append("active task DAG contains a malformed task")
-            continue
-        task_id = task["id"]
-        active_task_ids.append(task_id)
-        matches = [item_id for item_id, item in items_by_id.items()
-                   if item.get("taskPacket") == f"agents/tasks/{task_id}/task.md"]
-        if len(matches) != 1:
-            errors.append(f"active task {task_id} must map to exactly one roadmap item; found {len(matches)}")
-        elif items_by_id[matches[0]].get("seedState") not in {"ready", "active"}:
-            errors.append(f"active task {task_id} maps to {matches[0]} with incompatible seed state")
-
     if errors:
         raise SeedError("roadmap seed validation failed:\n- " + "\n- ".join(errors))
 
@@ -301,7 +288,7 @@ def validate_seed(seed: dict[str, Any], root: Path) -> ValidationResult:
         label_count=len(labels),
         item_count=len(items),
         acceptance_coverage=frozenset(coverage),
-        active_task_ids=tuple(active_task_ids),
+        seed_active_item_ids=tuple(seed_active_ids),
         missing_future_packets=tuple(sorted(set(missing_future_packets))),
     )
 
@@ -326,8 +313,8 @@ def main() -> None:
         f"({result.milestone_count} milestones, {result.label_count} labels, "
         f"{result.item_count} items, {len(result.acceptance_coverage)} acceptance gates)"
     )
-    if result.active_task_ids:
-        print("active task mapping: " + ", ".join(result.active_task_ids))
+    if result.seed_active_item_ids:
+        print("initial active seed item: " + ", ".join(result.seed_active_item_ids))
     if result.missing_future_packets:
         print("planned task packet paths not created yet: " + ", ".join(result.missing_future_packets))
 
