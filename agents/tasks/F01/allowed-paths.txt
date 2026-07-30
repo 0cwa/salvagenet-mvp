@@ -7,10 +7,13 @@ android/modules/node-shell/build.gradle.kts
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/*Profile*
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/*Artifact*
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/*Manifest*
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AndroidQemuRuntimeBackend.kt
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/ProductionHostApi.kt
 android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AGENTS.md
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Profile*
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Artifact*
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Manifest*
+android/modules/node-shell/src/test/kotlin/org/nodehost/shell/AndroidQemuRuntimeBackendTest.kt
 android/podroid/app/build.gradle.kts
 profiles/**
 tools/profiles/**
