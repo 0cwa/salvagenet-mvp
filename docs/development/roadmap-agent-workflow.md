@@ -47,15 +47,16 @@ make context TASK=WEB04
 The apply sequence is human-visible:
 
 1. merge the reviewed WEB04 implementation;
-2. open an issue titled `[Roadmap Apply] Bootstrap reviewed graph` with `expected-main: <exact-main-sha>` in its body;
-3. the `roadmap-bootstrap` workflow verifies exact main, validates the seed, and applies labels, milestones, issues, and real `blocked by` edges;
-4. it reruns in verification mode;
-5. it pushes generated bootstrap state and snapshots to an automation branch;
-6. review and merge those generated files through a normal PR.
+2. open an issue titled `[Roadmap Apply] Bootstrap reviewed graph`;
+3. add `/roadmap-apply <exact-main-sha>` as an explicit owner/member/collaborator comment;
+4. the `roadmap-bootstrap` workflow verifies exact main, validates the seed, and applies labels, milestones, issues, and real `blocked by` edges;
+5. it reruns in non-destructive verification mode;
+6. it pushes generated bootstrap state and snapshots to an automation branch;
+7. review and merge those generated files through a normal PR.
+
+The comment trigger avoids a workflow run for every roadmap issue created during bootstrap. A manual workflow dispatch supports the same dry-run/apply boundary.
 
 After the generated snapshot PR merges, live GitHub Issues are roadmap authority. The seed remains historical input and must not overwrite edited issue bodies, state, dependencies, or planning notes.
-
-A manual workflow dispatch also supports dry-run and explicit apply with the same exact-main check.
 
 ## Generated state
 
@@ -66,14 +67,14 @@ A manual workflow dispatch also supports dry-run and explicit apply with the sam
 - schema version and generation time;
 - repository, source hash, newest issue update, and fallback state;
 - milestone summaries;
-- stable ID, issue number, title, public summary, URL, area, kind, work state, dependency state, blockers, task authorization, and acceptance links;
+- stable ID, issue number, title, current visible public summary, URL, area, kind, work state, dependency state, blockers, task authorization, pull-request state, and acceptance links;
 - explicit disagreement messages.
 
 It excludes full issue bodies, comments, review threads, logs, attachments, credentials, and guest data.
 
 ### Compact agent index
 
-`agents/generated/roadmap.index.v1.json` contains only current milestone, active/ready/blocked summaries, stable IDs, issue numbers, dependencies, acceptance links, task paths, authorization state, source hash, and generation time.
+`agents/generated/roadmap.index.v1.json` contains only current milestone, active/ready/blocked summaries, stable IDs, issue numbers, dependencies, acceptance links, task paths, task authorization, linked pull-request state, source hash, and generation time.
 
 ### Local cache
 
@@ -85,17 +86,19 @@ The fetcher records `generatedAt`, newest issue update, source hash, and fallbac
 
 ```text
 Live fetch succeeds
-    publish validated live data
+    validate and publish complete live data
 
-Live fetch fails and the complete snapshot is <= 72 hours old
+Transient network, gateway, or rate-limit failure occurs and the complete snapshot is <= 72 hours old
     use the last-known-good snapshot and expose fallback age/reason
 
-Live fetch fails and the snapshot is older than 72 hours
+Transient failure occurs and the snapshot is older than 72 hours
     fail the new deployment and keep the previous site online
 
 Structural validation or partial dependency fetch fails
-    fail immediately; never publish an incomplete graph
+    fail immediately; never publish a fallback or incomplete graph
 ```
+
+Structural failures include duplicate or missing stable IDs, missing or duplicate area/kind/visibility labels, missing milestones, dependencies on non-roadmap issues, cycles, invalid task paths, and incomplete acceptance coverage.
 
 ## Work, dependency, PR, task, and acceptance state
 
@@ -104,10 +107,10 @@ These remain independent:
 - work state: planned, queued, ready, active, review, hold, or done;
 - dependency state: clear or blocked;
 - task authorization: present or absent in the active DAG;
-- pull-request state: separate implementation/review metadata;
+- pull-request state: open, draft, merged, or closed without merge;
 - acceptance state: ledger/evidence status only.
 
-The compact index reports disagreement instead of choosing one source silently.
+The compact index reports disagreement instead of choosing one source silently. A merged PR may complete implementation while the related physical acceptance gate remains open.
 
 ## Human awareness
 
@@ -117,13 +120,14 @@ Automation may calculate and propose state, but:
 - a phase-transition PR explains selection, reordering, deferral, split, merge, or removal;
 - direction changes, accepted-ADR changes, acceptance changes, evidence deletion, release publication, and premature MVP+ work require explicit human review;
 - an agent may refine issue wording and direct dependencies within its authorised phase but may not silently expand allowed paths or activate queued work;
+- the visible `Public summary` section in a live issue is publication truth; a hidden bootstrap marker cannot freeze stale copy;
 - comments are history, not canonical context. Important conclusions move into the issue body, packet, ADR, experiment, or evidence.
 
 ## Phase boundary
 
 Before activating the next issue:
 
-1. refresh roadmap, acceptance status, open debt, PR state, and current `main`;
+1. refresh roadmap, acceptance status, open debt, pull-request state, and current `main`;
 2. compare the proposal with `GOAL.md` and `docs/roadmap/podroid-mvp-alignment.md`;
 3. identify the smallest unresolved uncertainty;
 4. re-evaluate nearby queued issues;
