@@ -1,4 +1,12 @@
 agents/tasks/H01/allowed-paths.txt
+agents/tasks/H01/task.md
+agents/tasks/H01/context.list
+agents/tasks/H01/README.md
+agents/task-registry.json
+agents/hardware-independent-goal.md
+android/modules/control-api/AGENTS.md
+android/modules/node-shell/src/main/kotlin/org/nodehost/shell/AGENTS.md
+controller/mvp-cli/AGENTS.md
 control/openapi.yaml
 android/modules/control-api/src/main/**
 android/modules/control-api/src/test/**
@@ -7,4 +15,5 @@ android/modules/node-shell/src/main/kotlin/org/nodehost/shell/NodeHostGraph.kt
 android/modules/node-shell/src/test/kotlin/org/nodehost/shell/*Artifact*
 controller/mvp-cli/**
 tests/api/**
+docs/roadmap/hardware-independent.md
 docs/research/experiments/H01.md
