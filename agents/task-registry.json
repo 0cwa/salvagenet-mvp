@@ -4,7 +4,7 @@
   "historicalCycle": "T00-T09 packets remain under agents/tasks for provenance but are not active.",
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
-    "H01": "IN_PROGRESS",
+    "H01": "MERGE_READY",
     "H02": "PLANNED",
     "H03": "PLANNED",
     "H04": "MERGED"
