@@ -13,7 +13,10 @@ This package is the Android lifecycle and composition edge. It is not a general 
 - Publication moves data into a digest-addressed immutable payload and then atomically replaces an exact active manifest. Recovery must handle the payload-moved/manifest-not-written crash window.
 - Cancellation and stale collection reclaim staging state but never delete a payload referenced by an active valid manifest.
 - The HTTPS importer must preserve origin, redirect, DNS-rebinding, size, digest, cancellation, and atomic-publication invariants.
-- F01 may extract a narrow profile/manifest resolver boundary because it makes checked-in contracts authoritative. It must not become a broad node-shell refactor.
-- After F01, production profile resolution must consume packaged validated JSON; a complete Kotlin mirror is prohibited.
+- Production profile resolution consumes packaged validated JSON and the packaged registry index; a complete Kotlin mirror is prohibited.
+- `AndroidQemuProfileStorage` resolves only current canonical contracts and explicitly named current packaging adapters. It must not perform historical migrations or dual-format reads in its steady-state path.
+- If a real released population later requires migration, put it in a separate `*Migration.kt` or compatibility package, execute it at an explicit lifecycle boundary, and keep the canonical resolver unaware of the obsolete format.
+- Compatibility code requires an authorized task, identified deployed state, tests, a bounded support window, and a deletion trigger. Unused development builds and test fixtures do not qualify.
+- Name the current Podroid bare-artifact seam as a packaging adapter, not generic legacy support; it must remain restricted to the exact pinned Podroid artifacts.
 - Activity/task removal is never a runtime stop command. Stock mode reconciles after first unlock.
 - Further broad extraction waits for a demonstrated review/debugging blocker or physical result.
