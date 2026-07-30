@@ -13,7 +13,7 @@ Android NodeSupervisorService
         |
         +-- desired/observed reconciler + operation journal
         +-- embedded host Tailscale adapter
-        +-- artifact/profile registry
+        +-- artifact store + profile resolver
         +-- Podroid-derived QEMU adapter
         +-- recovery SSH tunnel
         |
@@ -53,9 +53,15 @@ The external Host API is resource-oriented request/response with durable operati
 - stable device identity and controller authorization;
 - typed profile and desired runtime generation;
 - durable operation lifecycle;
-- one or more replaceable runtime and mesh adapters;
+- replaceable runtime and mesh adapters;
 - recovery route independent from guest health;
 - normal SSH endpoint inside the guest.
+
+## Current implementation caveat
+
+The profile and artifact boundaries are not yet fully canonical in production: Android mirrors profile JSON in Kotlin, and manifest consumers interpret the publication format independently. F01 is the current foundation task that removes this drift before further E2E layers are activated.
+
+Kotlin, Compose, Hilt, Python `phonectl`, Ktor, Room, and libtailscale are current MVP implementations behind intended boundaries. They are not permission to couple domain contracts to those tools or to preclude later Slint/Rust/shared-controller decisions.
 
 ## MVP constraint
 
