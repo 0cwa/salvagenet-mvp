@@ -428,12 +428,22 @@ class VerticalIntegrationTest {
         val root = File(context.filesDir, "nodehost-artifacts").apply { deleteRecursively(); mkdirs() }
         listOf(
             "podroid-kernel", "podroid-initramfs", "podroid-alpine-squashfs",
-            "ubuntu-2404-arm64-cloud", "aavmf-code", "aavmf-vars",
         ).forEach { id ->
             val bytes = "vertical-fixture-$id".toByteArray()
             File(root, id).writeBytes(bytes)
             val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
             File(root, "$id.sha256").writeText("$digest\n")
+        }
+        val manifests = ArtifactManifestStore(root)
+        listOf(
+            "ubuntu-2404-arm64-cloud", "aavmf-code", "aavmf-vars",
+        ).forEach { id ->
+            val bytes = "vertical-fixture-$id".toByteArray()
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            val payload = manifests.versionPayload(id, digest)
+            payload.parentFile!!.mkdirs()
+            payload.writeBytes(bytes)
+            manifests.writeActive(ArtifactManifest(id, digest, bytes.size.toLong()), "vertical-test")
         }
     }
 
