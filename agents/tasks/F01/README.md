@@ -1,6 +1,6 @@
 # F01 — Canonical artifact and profile resolution
 
-Status: **IN PROGRESS — post-exit hardening** on `agent/F01-canonical-artifact-profile-resolution`.
+Status: **MERGE READY** on `agent/F01-canonical-artifact-profile-resolution`.
 
 Generate scoped context with:
 
@@ -8,6 +8,6 @@ Generate scoped context with:
 make context TASK=F01
 ```
 
-The initial implementation head passed the full workflow, but focused phase-end review found that bare-file legacy artifact fallback was not restricted to the three pinned Podroid qualification artifacts. The branch now requires active manifests for Ubuntu and AAVMF inputs and includes a regression test. This updated head must pass the full workflow before F01 returns to merge-ready.
+Implementation head `71a04acedd11221fbefe2c0fa43984141ec11ed4` passed the complete workflow in Actions run `30543765626`. The checked-in profile JSON and rendered guest-init assets are the packaged production source, active artifacts use one strict manifest contract, isolated non-Podroid bare artifacts fail closed, and a complete digest-verified pre-F01 Ubuntu/AAVMF bundle migrates once into the manifest layout.
 
-The original broad H02/H03 packets remain queued. The phase-end direction remains to split them into guest boot, guest mesh, emulator harness, and emulator scenarios, activating only guest boot first after F01 merges.
+The final documentation head must pass the same workflow before merge. After F01 merges, activate only the narrowed guest-boot qualification task; guest mesh and both emulator tasks remain queued for their own phase-start reviews.
