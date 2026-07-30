@@ -58,6 +58,8 @@ internal class AndroidArtifactUploadStore(
                 "canonical upload request is out of bounds"
             }
             ensureRoots()
+            // Publication recovery must run before age-based collection so a durable moved payload wins over staleness.
+            uploadDirectoriesLocked().forEach(::loadAndRecoverLocked)
             collectStaleLocked()
             val requestDigest = sha256(canonicalRequest)
             val existingRecords = uploadDirectoriesLocked().map(::loadAndRecoverLocked)
@@ -203,8 +205,8 @@ internal class AndroidArtifactUploadStore(
         lock.withLock {
             ensureRoots()
             cleanupInterruptedPublicationsLocked()
-            collectStaleLocked()
             uploadDirectoriesLocked().forEach(::loadAndRecoverLocked)
+            collectStaleLocked()
         }
     }
 
