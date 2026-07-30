@@ -15,8 +15,8 @@ on:
         description: Exact current main commit required for apply
         required: false
         type: string
-  issues:
-    types: [opened]
+  issue_comment:
+    types: [created]
 
 concurrency:
   group: roadmap-bootstrap
@@ -50,9 +50,10 @@ jobs:
   apply:
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.mode == 'apply') ||
-      (github.event_name == 'issues' &&
+      (github.event_name == 'issue_comment' &&
        github.event.issue.title == '[Roadmap Apply] Bootstrap reviewed graph' &&
-       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+       startsWith(github.event.comment.body, '/roadmap-apply ') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -71,16 +72,16 @@ jobs:
       - name: Verify explicit exact-main request
         env:
           DISPATCH_EXPECTED: ${{ inputs.expected_main || '' }}
-          ISSUE_BODY: ${{ github.event.issue.body || '' }}
+          APPLY_COMMENT: ${{ github.event.comment.body || '' }}
         run: |
           set -euo pipefail
           expected="$DISPATCH_EXPECTED"
           if [[ -z "$expected" ]]; then
-            expected="$(printf '%s\n' "$ISSUE_BODY" | sed -n 's/^expected-main:[[:space:]]*//p' | head -n1)"
+            expected="$(printf '%s\n' "$APPLY_COMMENT" | sed -n 's#^/roadmap-apply[[:space:]]\+##p' | head -n1)"
           fi
           actual="$(git rev-parse HEAD)"
           if [[ -z "$expected" || "$expected" != "$actual" ]]; then
-            echo "Roadmap apply requires expected-main: $actual; received: ${expected:-<empty>}" >&2
+            echo "Roadmap apply requires /roadmap-apply $actual; received: ${expected:-<empty>}" >&2
             exit 2
           fi
           echo "ROADMAP_SOURCE_COMMIT=$actual" >> "$GITHUB_ENV"
