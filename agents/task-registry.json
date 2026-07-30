@@ -1,20 +1,22 @@
 {
   "schemaVersion": 1,
-  "cycle": "guest-boot-1",
+  "cycle": "roadmap-foundation-1",
   "historicalCycles": [
     "T00-T09 initial implementation packets",
     "hardware-independent-1",
-    "foundation-1"
+    "foundation-1",
+    "guest-boot-1"
   ],
   "statusSource": "docs/roadmap/hardware-independent.md",
   "cycleStatus": {
     "F01": "MERGED",
     "H01": "MERGED",
     "H02": "SUPERSEDED",
-    "H02A": "PLANNED",
+    "H02A": "QUEUED_REVIEW",
     "H02B": "QUEUED_REVIEW",
     "H03": "QUEUED_REVIEW",
-    "H04": "MERGED"
+    "H04": "MERGED",
+    "WEB04": "PLANNED"
   },
   "tasks": [
     {
@@ -54,7 +56,8 @@
       "name": "Canonical Ubuntu guest boot qualification",
       "dependsOn": ["F01"],
       "packet": "agents/tasks/H02A/task.md",
-      "status": "PLANNED"
+      "status": "QUEUED_REVIEW",
+      "pauseReason": "Bounded roadmap/agent foundation selected before website implementation; reactivate after WEB04 phase-end review."
     },
     {
       "id": "H02B",
@@ -77,6 +80,13 @@
       "packet": "agents/tasks/H04/task.md",
       "status": "MERGED",
       "mergeCommit": "1f127ef8b5fcf04762a0cc4dd15f8313df23839e"
+    },
+    {
+      "id": "WEB04",
+      "name": "Issue roadmap and human-aware agent index",
+      "dependsOn": [],
+      "packet": "agents/tasks/WEB04/task.md",
+      "status": "PLANNED"
     }
   ]
 }
