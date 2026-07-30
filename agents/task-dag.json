@@ -1,27 +1,30 @@
 {
   "schemaVersion": 1,
-  "integrationBranch": "integration/foundation-1",
+  "integrationBranch": "integration/device-lab-0",
   "phase": {
-    "id": "foundation-1",
-    "objective": "Make checked-in profiles and artifact manifests the exact production source of truth before adding more integration layers.",
+    "id": "device-lab-0",
+    "objective": "Make the single-phone HIL path safe, deterministic, and honest for supervised agent automation before changing guest/runtime semantics.",
     "entryCriteria": [
-      "H01 and H04 are merged on main.",
-      "The exact H01 validated head passed the full static and Android/package workflow.",
-      "Checked-in profile JSON and schemas pass current repository validation.",
-      "The phase makes no physical-device acceptance claim."
+      "F01 merged at 246d551ca7e691a0319a4b30e29d6e4905cd9910.",
+      "Podroid vendoring hardening merged at 778feb4bf286d24774eadbf8a6ea0051c0f7a219.",
+      "The existing tests/hil runner remains the sole physical-device path.",
+      "No physical gate is promoted merely by implementing this phase."
     ],
     "exitCriteria": [
-      "Android production profile resolution loads validated packaged JSON rather than duplicating profile definitions in Kotlin.",
-      "Artifact publication, listing, and runtime consumption use one strict manifest contract.",
-      "Existing typed QEMU, profile, artifact-upload, guest, and Android tests remain green.",
-      "The phase packet, debt register, and next-phase candidates are re-evaluated from the implementation result."
+      "Concurrent agents cannot mutate the same configured phone.",
+      "Destructive HIL actions require explicit expiring local authorization.",
+      "Diagnostic evidence is permanently distinct from clean candidate evidence.",
+      "Local artifact sets can be verified and uploaded through the real Host API.",
+      "Candidate evidence records exact profile, image, desired-state, commit, and APK identities.",
+      "Repository root and active-phase metadata cannot silently drift.",
+      "The larger guest-class and OCI decisions are recorded without entering implementation scope."
     ]
   },
   "tasks": [
     {
-      "id": "F01",
-      "slug": "canonical-artifact-profile-resolution",
-      "dependsOn": [],
+      "id": "F02",
+      "slug": "device-lab-readiness",
+      "dependsOn": ["F01"],
       "parallelGroup": 1,
       "mvpPlus": false
     }
