@@ -1,6 +1,7 @@
 {
   "device": {
     "serial": "REPLACE_WITH_ADB_SERIAL",
+    "adbCommand": ["adb"],
     "packageName": "com.excp.podroid.debug",
     "supervisorComponent": "com.excp.podroid.debug/org.nodehost.shell.NodeSupervisorService",
     "qemuProcessPattern": "libqemu-system-aarch64.so"
@@ -54,6 +55,8 @@
   "resilience": {
     "timeoutSeconds": 600,
     "controllerOfflineSeconds": 15,
+    "controllerOfflineCommand": null,
+    "controllerOnlineCommand": null,
     "allowReboot": false,
     "rebootTimeoutSeconds": 240
   }

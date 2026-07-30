@@ -10,7 +10,7 @@ import tempfile
 import time
 from typing import Any
 
-from .config import HilConfig
+from .config import ConfigError, HilConfig
 from .evidence import EvidenceRecorder
 
 
@@ -69,15 +69,19 @@ class AdbDevice:
         self.runner = runner
 
     def _adb(self, *args: str, timeout: float = 120, check: bool = True) -> subprocess.CompletedProcess[str]:
-        return self.runner.run(["adb", "-s", self.config.device_serial, *args], timeout=timeout, check=check)
+        return self.runner.run(
+            [*self.config.adb_command, "-s", self.config.device_serial, *args],
+            timeout=timeout,
+            check=check,
+        )
 
     def _shell(self, command: str, *, timeout: float = 120, check: bool = True) -> subprocess.CompletedProcess[str]:
         return self._adb("shell", command, timeout=timeout, check=check)
 
     def doctor(self) -> dict[str, Any]:
-        if shutil.which("adb") is None:
-            raise SetupBlocked("adb is not installed")
-        devices = self.runner.run(["adb", "devices", "-l"], timeout=20).stdout
+        if shutil.which(self.config.adb_command[0]) is None:
+            raise SetupBlocked(f"ADB command is not installed: {self.config.adb_command[0]}")
+        devices = self.runner.run([*self.config.adb_command, "devices", "-l"], timeout=20).stdout
         matching = [line for line in devices.splitlines() if line.startswith(self.config.device_serial + "\t")]
         if not matching:
             raise SetupBlocked(f"configured device is not connected: {self.config.device_serial}")
@@ -99,10 +103,7 @@ class AdbDevice:
         )
 
     def stop_service(self) -> None:
-        self._shell(
-            f"am stopservice -n {shlex.quote(self.config.supervisor_component)}",
-            check=False,
-        )
+        self._shell(f"am stopservice -n {shlex.quote(self.config.supervisor_component)}", check=False)
 
     def _qemu_pids(self) -> list[str]:
         result = self._shell("ps -A -o PID,NAME,ARGS", check=False)
@@ -121,8 +122,7 @@ class AdbDevice:
         pids = self._qemu_pids()
         if not pids:
             raise RuntimeError("no QEMU process found to kill")
-        command = f"run-as {shlex.quote(self.config.package_name)} kill -9 {' '.join(pids)}"
-        self._shell(command)
+        self._shell(f"run-as {shlex.quote(self.config.package_name)} kill -9 {' '.join(pids)}")
 
     def count_qemu_processes(self) -> int:
         return len(self._qemu_pids())
@@ -138,9 +138,7 @@ class AdbDevice:
             "ro.boot.verifiedbootstate",
             "ro.boot.flash.locked",
         ]
-        facts: dict[str, Any] = {
-            "serialHash": hashlib.sha256(self.config.device_serial.encode()).hexdigest()
-        }
+        facts: dict[str, Any] = {"serialHash": hashlib.sha256(self.config.device_serial.encode()).hexdigest()}
         for name in properties:
             facts[name] = self._shell(f"getprop {shlex.quote(name)}", timeout=20).stdout.strip()
         facts["pageSize"] = self._shell("getconf PAGESIZE", timeout=20, check=False).stdout.strip()
@@ -151,14 +149,10 @@ class AdbDevice:
 
     def reboot(self, timeout_seconds: float) -> None:
         self._adb("reboot", timeout=20)
-        self.runner.run(["adb", "-s", self.config.device_serial, "wait-for-device"], timeout=timeout_seconds)
+        self._adb("wait-for-device", timeout=timeout_seconds)
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
-            state = self.runner.run(
-                ["adb", "-s", self.config.device_serial, "get-state"],
-                timeout=10,
-                check=False,
-            )
+            state = self._adb("get-state", timeout=10, check=False)
             if state.returncode == 0 and state.stdout.strip() == "device":
                 return
             time.sleep(2)
@@ -172,6 +166,12 @@ class ControllerCli:
     def __init__(self, config: HilConfig, runner: CommandRunner):
         self.config = config
         self.runner = runner
+
+    @property
+    def known_hosts_file(self) -> Path:
+        base = self.runner.evidence.directory if self.runner.evidence else self.config.root / ".local/hil-ssh"
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "known_hosts"
 
     def _run(self, *args: str, timeout: float = 120, check: bool = True) -> subprocess.CompletedProcess[str]:
         if not self.config.controller_path.is_file():
@@ -222,11 +222,7 @@ class ControllerCli:
         if not isinstance(operation, dict) or not isinstance(operation.get("id"), str):
             raise RuntimeError(f"operation response has no id: {operation!r}")
         value = self._json_command(
-            "wait",
-            operation["id"],
-            "--timeout",
-            str(timeout_seconds),
-            timeout=timeout_seconds + 30,
+            "wait", operation["id"], "--timeout", str(timeout_seconds), timeout=timeout_seconds + 30
         )
         if not isinstance(value, dict):
             raise RuntimeError("wait response is not an object")
@@ -251,63 +247,72 @@ class ControllerCli:
         return self._wait(operation, timeout_seconds)
 
     def guest_ssh(self, target: str, command: str, timeout_seconds: float) -> None:
-        known_hosts = self.config.root / ".local/hil-known-hosts"
         argv = [
             "ssh",
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "ConnectTimeout=15",
-            "-o",
-            "StrictHostKeyChecking=accept-new",
-            "-o",
-            f"UserKnownHostsFile={known_hosts}",
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=15",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", f"UserKnownHostsFile={self.known_hosts_file}",
             target,
             command,
         ]
         self.runner.run(argv, timeout=timeout_seconds)
 
     def recovery_ssh(self, vm_id: str, user: str, command: str, timeout_seconds: float) -> None:
-        known_hosts = self.config.root / ".local/hil-known-hosts"
         proxy = shlex.join(
-            [
-                str(self.config.controller_path),
-                "--config",
-                str(self.config.controller_config),
-                "proxy-ssh",
-                vm_id,
-            ]
+            [str(self.config.controller_path), "--config", str(self.config.controller_config), "proxy-ssh", vm_id]
         )
         argv = [
             "ssh",
-            "-o",
-            f"ProxyCommand={proxy}",
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "ConnectTimeout=15",
-            "-o",
-            "StrictHostKeyChecking=accept-new",
-            "-o",
-            f"UserKnownHostsFile={known_hosts}",
+            "-o", f"ProxyCommand={proxy}",
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=15",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", f"UserKnownHostsFile={self.known_hosts_file}",
             f"{user}@{vm_id}-recovery",
             command,
         ]
         self.runner.run(argv, timeout=timeout_seconds)
 
+    def set_controller_reachable(self, reachable: bool) -> bool:
+        offline = self.config.optional_command("resilience.controllerOfflineCommand")
+        online = self.config.optional_command("resilience.controllerOnlineCommand")
+        if offline is None and online is None:
+            return False
+        if offline is None or online is None:
+            raise ConfigError(
+                "resilience.controllerOfflineCommand and controllerOnlineCommand must be configured together"
+            )
+        self.runner.run(online if reachable else offline, timeout=60)
+        return True
+
 
 class HeadscaleLab:
+    NODE_NAME_KEYS = {"name", "hostname", "givenname", "given_name", "dnsname", "dns_name"}
+
     def __init__(self, config: HilConfig, runner: CommandRunner):
         self.config = config
         self.runner = runner
 
     @staticmethod
-    def _contains_name(value: Any, expected: str) -> bool:
+    def _matches_node_name(actual: str, expected: str) -> bool:
+        actual_normalized = actual.rstrip(".").casefold()
+        expected_normalized = expected.rstrip(".").casefold()
+        return actual_normalized == expected_normalized or actual_normalized.startswith(expected_normalized + ".")
+
+    @classmethod
+    def _contains_name(cls, value: Any, expected: str) -> bool:
         if isinstance(value, dict):
-            return any(HeadscaleLab._contains_name(item, expected) for item in value.values())
+            for key, item in value.items():
+                if key.casefold() in cls.NODE_NAME_KEYS and isinstance(item, str):
+                    if cls._matches_node_name(item, expected):
+                        return True
+                if isinstance(item, (dict, list)) and cls._contains_name(item, expected):
+                    return True
+            return False
         if isinstance(value, list):
-            return any(HeadscaleLab._contains_name(item, expected) for item in value)
-        return isinstance(value, str) and expected.casefold() in value.casefold()
+            return any(cls._contains_name(item, expected) for item in value)
+        return False
 
     def nodes(self) -> Any:
         result = self.runner.run(self.config.headscale_nodes_command, timeout=30)
@@ -324,6 +329,4 @@ class HeadscaleLab:
             if self._contains_name(last, name):
                 return last
             time.sleep(2)
-        raise TimeoutError(
-            f"Headscale node did not appear within {timeout_seconds}s: {name}; last={last!r}"
-        )
+        raise TimeoutError(f"Headscale node did not appear within {timeout_seconds}s: {name}")

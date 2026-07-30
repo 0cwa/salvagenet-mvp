@@ -63,6 +63,14 @@ def wait_for_controller_status(controller: ControllerPort, timeout_seconds: floa
     raise TimeoutError(f"Host API did not become ready: {last_error}")
 
 
+def controller_is_unavailable(controller: ControllerPort) -> bool:
+    try:
+        controller.status()
+    except Exception:
+        return True
+    return False
+
+
 def doctor(config: HilConfig, device: DevicePort, recorder: EvidenceRecorder) -> None:
     required = [config.apk_path, config.controller_path, config.controller_config]
     missing = [str(path) for path in required if not path.is_file()]
@@ -77,12 +85,7 @@ def doctor(config: HilConfig, device: DevicePort, recorder: EvidenceRecorder) ->
     recorder.assert_that("hil.device-authorized", True, "configured ADB device is connected and authorized")
 
 
-def smoke(
-    config: HilConfig,
-    device: DevicePort,
-    controller: ControllerPort,
-    recorder: EvidenceRecorder,
-) -> None:
+def smoke(config: HilConfig, device: DevicePort, controller: ControllerPort, recorder: EvidenceRecorder) -> None:
     timeout = _scenario_timeout(config, "smoke", 900)
     request_path = config.path("smoke.applyRequest")
     assert request_path is not None
@@ -106,46 +109,25 @@ def smoke(
     request["desiredState"] = "running"
     controller.apply_vm("default", request, timeout)
 
-    wait_until(
-        lambda: device.count_qemu_processes() == 1,
-        timeout_seconds=timeout,
-        description="exactly one QEMU process",
-    )
-    recorder.assert_that(
-        "smoke.one-qemu",
-        device.count_qemu_processes() == 1,
-        "one QEMU process after start",
-    )
+    wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="one QEMU process")
+    recorder.assert_that("smoke.one-qemu", device.count_qemu_processes() == 1, "one QEMU process after start")
 
     stopped = dict(request)
     stopped["generation"] = request["generation"] + 1
     stopped["desiredState"] = "stopped"
     controller.apply_vm("default", stopped, timeout)
-    wait_until(
-        lambda: device.count_qemu_processes() == 0,
-        timeout_seconds=120,
-        description="QEMU process exit after graceful stop",
-    )
+    wait_until(lambda: device.count_qemu_processes() == 0, timeout_seconds=120, description="QEMU exit")
     recorder.assert_that("smoke.graceful-stop", True, "QEMU process exited after stopped generation")
 
     restarted = dict(request)
     restarted["generation"] = request["generation"] + 2
     controller.apply_vm("default", restarted, timeout)
-    wait_until(
-        lambda: device.count_qemu_processes() == 1,
-        timeout_seconds=timeout,
-        description="one QEMU process after restart",
-    )
+    wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="QEMU restart")
     recorder.assert_that("smoke.restart-one-qemu", True, "one QEMU process after restart")
     recorder.write_json("host-status-after.json", controller.status())
 
 
-def mvp(
-    config: HilConfig,
-    controller: ControllerPort,
-    mesh: MeshLabPort,
-    recorder: EvidenceRecorder,
-) -> None:
+def mvp(config: HilConfig, controller: ControllerPort, mesh: MeshLabPort, recorder: EvidenceRecorder) -> None:
     timeout = _scenario_timeout(config, "mvp", 1200)
     settings = config.scenario("mvp")
     host_node = settings.get("hostNodeName")
@@ -154,7 +136,9 @@ def mvp(
         raise ConfigError("mvp.hostNodeName and mvp.guestNodeName are required")
 
     recorder.write_json("headscale-host-nodes.json", mesh.wait_for_node(host_node, timeout))
+    recorder.assert_that("mvp.host-mesh", True, f"exact host node observed: {host_node}")
     recorder.write_json("host-status.json", wait_for_controller_status(controller, min(timeout, 120)))
+    recorder.assert_that("mvp.host-api", True, "authenticated Host API returned status")
 
     image_imports = settings.get("imageImports", [])
     if not isinstance(image_imports, list) or not all(isinstance(item, str) for item in image_imports):
@@ -170,11 +154,7 @@ def mvp(
         raise ConfigError("mvp.requiredImageIds must be a list of strings")
     available = {item.get("id") for item in controller.images()}
     missing = [item for item in required_images if item not in available]
-    recorder.assert_that(
-        "mvp.images-present",
-        not missing,
-        f"missing={missing} available={sorted(str(item) for item in available)}",
-    )
+    recorder.assert_that("mvp.images-present", not missing, f"missing={missing}")
 
     request_path = config.path("mvp.applyRequest")
     assert request_path is not None
@@ -183,13 +163,11 @@ def mvp(
     request["generation"] = next_generation(controller.vms(), template)
     request["desiredState"] = "running"
     controller.apply_vm("default", request, timeout)
+    recorder.assert_that("mvp.vm-apply", True, f"VM generation {request['generation']} succeeded")
 
     recorder.write_json("headscale-guest-nodes.json", mesh.wait_for_node(guest_node, timeout))
-    recorder.assert_that(
-        "mvp.distinct-mesh-identities",
-        host_node != guest_node,
-        f"host={host_node} guest={guest_node}",
-    )
+    recorder.assert_that("mvp.guest-mesh", True, f"exact guest node observed: {guest_node}")
+    recorder.assert_that("mvp.distinct-mesh-identities", host_node != guest_node, "host and guest names differ")
 
     guest_target = settings.get("guestSshTarget")
     if not isinstance(guest_target, str):
@@ -201,10 +179,8 @@ def mvp(
     recovery_user = str(settings.get("recoveryUser", "nodeadmin"))
     disable = settings.get("guestMeshDisableCommand")
     restore = settings.get("guestMeshRestoreCommand")
-    if not isinstance(disable, str) or not disable:
-        raise ConfigError("mvp.guestMeshDisableCommand is required for recovery-path evidence")
-    if not isinstance(restore, str) or not restore:
-        raise ConfigError("mvp.guestMeshRestoreCommand is required for recovery-path cleanup")
+    if not isinstance(disable, str) or not disable or not isinstance(restore, str) or not restore:
+        raise ConfigError("guest mesh disable and restore commands are required")
     controller.guest_ssh(guest_target, disable, timeout)
     time.sleep(float(settings.get("guestMeshDownSettleSeconds", 5)))
     ordinary_failed = False
@@ -212,83 +188,70 @@ def mvp(
         controller.guest_ssh(guest_target, check_command, min(timeout, 30))
     except Exception:
         ordinary_failed = True
-    recorder.assert_that(
-        "mvp.guest-mesh-disabled",
-        ordinary_failed,
-        "ordinary guest-mesh SSH failed after disabling guest Tailscale",
-    )
-
+    recorder.assert_that("mvp.guest-mesh-disabled", ordinary_failed, "ordinary SSH failed with guest mesh down")
     controller.recovery_ssh("default", recovery_user, check_command, timeout)
     recorder.assert_that("mvp.recovery-ssh", True, "host-mediated recovery SSH succeeded")
     controller.recovery_ssh("default", recovery_user, restore, timeout)
 
 
-def resilience(
-    config: HilConfig,
-    device: DevicePort,
-    controller: ControllerPort,
-    recorder: EvidenceRecorder,
-) -> None:
+def resilience(config: HilConfig, device: DevicePort, controller: ControllerPort, recorder: EvidenceRecorder) -> None:
     timeout = _scenario_timeout(config, "resilience", 600)
     settings = config.scenario("resilience")
 
-    wait_until(
-        lambda: device.count_qemu_processes() == 1,
-        timeout_seconds=timeout,
-        description="running QEMU baseline",
-    )
+    wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="QEMU baseline")
     recorder.assert_that("resilience.baseline-one-qemu", True, "one QEMU process before disturbances")
 
     device.stop_service()
     device.start_supervisor()
-    wait_until(
-        lambda: device.count_qemu_processes() == 1,
-        timeout_seconds=timeout,
-        description="QEMU after service restart",
-    )
+    wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="QEMU after service restart")
     wait_for_controller_status(controller, min(timeout, 120))
-    recorder.assert_that(
-        "resilience.service-restart",
-        True,
-        "service restart preserved/reconciled one QEMU process",
-    )
+    recorder.assert_that("resilience.service-restart", True, "service restart reconciled one QEMU process")
 
     device.kill_qemu()
-    wait_until(
-        lambda: device.count_qemu_processes() == 1,
-        timeout_seconds=timeout,
-        description="QEMU reconciliation after child kill",
-    )
+    wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="QEMU recreation")
     recorder.assert_that("resilience.qemu-restart", True, "QEMU child was recreated exactly once")
 
     offline_seconds = float(settings.get("controllerOfflineSeconds", 15))
-    time.sleep(offline_seconds)
-    recorder.assert_that(
-        "resilience.controller-offline",
-        device.count_qemu_processes() == 1,
-        f"one QEMU process remained while controller made no requests for {offline_seconds}s",
-    )
-
-    allow_reboot = settings.get("allowReboot", False)
-    if allow_reboot is True:
-        device.reboot(float(settings.get("rebootTimeoutSeconds", 240)))
-        wait_until(
-            lambda: device.count_qemu_processes() == 1,
-            timeout_seconds=timeout,
-            description="QEMU after reboot",
-        )
+    isolated = controller.set_controller_reachable(False)
+    if isolated:
+        try:
+            wait_until(
+                lambda: controller_is_unavailable(controller),
+                timeout_seconds=min(60, timeout),
+                description="controller path to become unavailable",
+            )
+            time.sleep(offline_seconds)
+            recorder.assert_that(
+                "resilience.controller-unavailable",
+                device.count_qemu_processes() == 1,
+                f"one QEMU process remained during {offline_seconds}s of configured controller unavailability",
+            )
+        finally:
+            controller.set_controller_reachable(True)
         wait_for_controller_status(controller, min(timeout, 120))
-        recorder.assert_that(
-            "resilience.reboot",
-            True,
-            "host API and one QEMU process returned after reboot",
-        )
+        recorder.assert_that("resilience.controller-restored", True, "controller path recovered")
     else:
+        time.sleep(offline_seconds)
+        recorder.assert_that(
+            "resilience.controller-silent",
+            device.count_qemu_processes() == 1,
+            f"one QEMU process remained while no controller requests were made for {offline_seconds}s",
+        )
         recorder.assertions.append(
             {
-                "id": "resilience.reboot",
+                "id": "resilience.controller-unavailable",
                 "passed": False,
                 "skipped": True,
-                "detail": "resilience.allowReboot is false",
+                "detail": "controller isolation commands are not configured",
             }
+        )
+
+    if settings.get("allowReboot", False) is True:
+        device.reboot(float(settings.get("rebootTimeoutSeconds", 240)))
+        wait_until(lambda: device.count_qemu_processes() == 1, timeout_seconds=timeout, description="QEMU after reboot")
+        wait_for_controller_status(controller, min(timeout, 120))
+        recorder.assert_that("resilience.reboot", True, "Host API and one QEMU process returned after reboot")
+    else:
+        recorder.assertions.append(
+            {"id": "resilience.reboot", "passed": False, "skipped": True, "detail": "allowReboot is false"}
         )
