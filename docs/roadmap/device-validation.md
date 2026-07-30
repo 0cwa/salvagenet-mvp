@@ -7,11 +7,11 @@ The repository is a software-qualified device-lab candidate. The fastest physica
 Physical validation is not one final waterfall step:
 
 - run the smallest useful scenario during a phase when a device is available;
-- treat a run as diagnostic when later foundational/runtime work changes the tested APK semantics;
+- treat a run as diagnostic when later runtime work changes the tested APK semantics;
 - record unavailable checks honestly at phase end;
 - re-run the full gate-relevant sequence against one exact final candidate before the MVP seal.
 
-F01 changes production profile/artifact resolution, so an HIL run during F01 may expose a mismatch but must not be reused as the final B10–B12 evidence without a final-candidate rerun.
+F01 is merged, so packaged profile and active-manifest semantics are now stable. H02A qualifies the Ubuntu guest path on Linux host QEMU only; it cannot close Android gates. A phone run during H02A is still useful diagnostic evidence, but final B10–B12 evidence must be rerun against the eventual exact candidate.
 
 ## H0 — consolidated physical path
 
@@ -29,7 +29,7 @@ make hil-doctor
 make hil-smoke HIL_BUILD=1
 ```
 
-This supports B02 only when the exact APK starts the Alpine qualification profile, reaches real QMP-backed runtime readiness, has exactly one QEMU process, stops it, and restarts exactly one process. During a profile/runtime-changing phase, record the result as diagnostic and rerun on the final candidate.
+This supports B02 only when the exact APK starts the Alpine qualification profile, reaches real QMP-backed runtime readiness, has exactly one QEMU process, stops it, and restarts exactly one process. During a runtime-changing phase, record the result as diagnostic and rerun on the final candidate.
 
 ## H2 — useful guest vertical slice
 
@@ -39,7 +39,7 @@ make hil-mvp
 
 This exercises host Headscale identity, authenticated Host API, bounded artifact upload/import, Ubuntu UEFI, distinct guest identity, ordinary key-only SSH, guest-mesh failure, and host-mediated recovery SSH. It is the physical evidence path for B08–B13.
 
-Before promoting B10–B12, confirm the evidence identifies the exact packaged profile and artifact manifest/digest used by the APK rather than only a similarly named lab profile.
+Before promoting B10–B12, confirm the evidence identifies the exact packaged profile and artifact manifest/digest used by the APK rather than only a similarly named host-QEMU profile.
 
 ## H3 — durability and independence
 

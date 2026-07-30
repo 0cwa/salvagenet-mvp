@@ -32,7 +32,7 @@ These choices should not leak into the domain contracts. Adoption for the MVP is
 - Nebula as a second mesh provider.
 - OCI/ORAS artifact transport.
 
-Do not start a Kotlin-to-Rust, Compose-to-Slint, or controller rewrite during F01 or before the physical vertical slice identifies a concrete benefit. Such a transition requires an ADR and contract-preserving migration plan.
+Do not start a Kotlin-to-Rust, Compose-to-Slint, or controller rewrite during H02A or before the physical vertical slice identifies a concrete benefit. Such a transition requires an ADR and contract-preserving migration plan.
 
 ## Hold
 

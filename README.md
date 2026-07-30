@@ -4,19 +4,20 @@ NodeHost is an open-source Android host-enablement project built around a durabl
 
 > **Current maturity: device-lab candidate, not yet a validated MVP.**
 >
-> Automated software and packaging checks are substantially implemented. The current foundation phase removes remaining configuration drift before the live Android and network validation sequence.
+> Automated software and packaging checks are substantially implemented. The current phase qualifies the canonical Ubuntu guest path on Linux host QEMU before guest mesh and physical Android validation.
 
 <!-- MVP-STATUS-BEGIN -->
 **Acceptance:** 10/20 base gates passed; 10 are blocked on physical-device validation. USB networking remains deferred until every base gate passes.
 <!-- MVP-STATUS-END -->
 
-See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/roadmap/hardware-independent.md`](docs/roadmap/hardware-independent.md) for the active foundation-first plan, and [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) for the physical evidence path.
+See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/roadmap/hardware-independent.md`](docs/roadmap/hardware-independent.md) for the active phase, and [`docs/roadmap/device-validation.md`](docs/roadmap/device-validation.md) for the physical evidence path.
 
 ## Current implementation
 
 - Podroid-derived APK-packaged QEMU integration with typed command compilation and QMP lifecycle control.
 - Durable desired state and operation journal.
-- Qualified Alpine, Ubuntu, and K3s-readiness profiles.
+- Canonical packaged Alpine, Ubuntu, and K3s-readiness profiles.
+- One strict active-manifest contract for non-Podroid artifacts.
 - Typed authenticated Host API, controller client, guest bootstrap, and recovery path.
 - Embedded Android-aware host mesh plus a separate guest identity.
 - Authenticated resumable artifact delivery and a hardened public import path.
@@ -29,10 +30,12 @@ See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/
 make dev-plan
 make dev-check
 make status
-make context TASK=F01
+make context TASK=H02A
 ```
 
-F01 is the sole active task. It makes the checked-in profile JSON and one strict artifact-manifest contract the production source of truth. H01 and H04 are merged. H02 and H03 are queued for review after F01; they are not active work authorization.
+H02A is the sole active task. It qualifies the canonical Ubuntu profile and artifact identities, UEFI/QMP boot, NoCloud, key-only loopback SSH, restart, secret hygiene, and bounded host-QEMU evidence. H02B guest mesh work and H03 emulator work remain queued for separate phase-start reviews.
+
+F01, H01, and H04 are merged. Because there are no deployed pre-F01 installations, Ubuntu and AAVMF artifacts simply require active manifests; no compatibility migration code is retained.
 
 ## Base-MVP work still requiring live evidence
 
@@ -52,6 +55,7 @@ A physical run during an implementation phase is useful diagnostic evidence. All
 cat GOAL.md
 cat AGENTS.md
 cat agents/task-dag.json
+cat agents/tasks/H02A/task.md
 cat docs/STATUS.md
 make doctor
 make dev-plan
@@ -73,4 +77,4 @@ make validate
 
 ## Historical material
 
-The initial scaffold, overnight packets, and completed H01/H04 packets remain as provenance. They do not define current task authorization. The active phase metadata, acceptance ledger, generated status, and reviewed evidence are authoritative.
+The initial scaffold, overnight packets, completed F01/H01/H04 packets, and superseded H02 packet remain as provenance. They do not define current task authorization. The active phase metadata, acceptance ledger, generated status, and reviewed evidence are authoritative.

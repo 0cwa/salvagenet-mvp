@@ -5,7 +5,8 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 ## Current status
 
 - `STATUS.md` — generated MVP gate summary and next physical validation sequence.
-- `../agents/hardware-independent-goal.md` — current phase-boundary protocol and active foundation.
+- `../agents/hardware-independent-goal.md` — current phase-boundary protocol and active H02A goal.
+- `../agents/tasks/H02A/task.md` — sole active task, acceptance criteria, checks, and phase-end review.
 
 ## Architecture
 
@@ -14,12 +15,12 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 - `architecture/module-map.md` — module ownership and dependency rules.
 - `architecture/layers-and-events.md` — onion layers, reconciliation, events, and side effects.
 - `architecture/qemu-command-knowledge.md` — preserved Podroid launch knowledge and typed compiler policy.
-- `architecture/vm-profiles.md` — profile model, current source-of-truth gap, and qualified profiles.
+- `architecture/vm-profiles.md` — canonical packaged profile model and qualified profiles.
 - `architecture/networking.md` — host mesh, guest mesh, recovery, and USB boundary.
 - `architecture/control-plane.md` — API, artifact-resource, and SSH responsibilities.
 - `architecture/security-boundaries.md` — trust boundaries and temporary MVP security.
 - `architecture/tool-radar.md` — dependency adoption status and reconsideration triggers.
-- `architecture/debt-register.md` — open/resolved debt, expiry triggers, and foundation ordering.
+- `architecture/debt-register.md` — open/resolved debt and expiry triggers.
 - `architecture/decisions/` — concise ADRs.
 
 ## Development
@@ -36,9 +37,10 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 ## Testing
 
 - `testing/strategy.md` — test environments and the small physical HIL boundary.
+- `../lab/qemu/README.md` — Linux host-QEMU laboratory used by H02A.
 - `../tests/hil/README.md` — one-phone setup, scenarios, config, evidence, and exit codes.
 - `testing/qa-gates.md` — exact base-MVP gates.
-- `testing/headscale-lab.md` — local containerized control server.
+- `testing/headscale-lab.md` — local containerized control server for later H02B/physical work.
 - `testing/android-matrix.md` — later device/OS expansion matrix.
 - `testing/failure-injection.md` — lifecycle and storage failure cases.
 - `testing/security-checks.md` — minimum host/guest security checks.
@@ -46,7 +48,7 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 ## Roadmap
 
 - `roadmap/overview.md` — durable development and implementation tracks.
-- `roadmap/hardware-independent.md` — current foundation-first phases; F01 is active, H02/H03 queued for review.
+- `roadmap/hardware-independent.md` — F01 result, active H02A phase, and queued H02B/H03 work.
 - `roadmap/overnight-plan.md` — historical one-agent-day implementation plan.
 - `roadmap/dependency-dag.md` — historical implementation task dependencies.
 - `roadmap/acceptance-ledger.md` — base MVP and MVP+ acceptance ledger.
@@ -58,3 +60,5 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 - `research/source-register.md` — sources and pinning rationale.
 - `research/open-questions.md` — questions that require experiments.
 - `research/experiment-register.md` — experiment IDs, owners, and closure evidence.
+- `research/experiments/H02A.md` — active guest-boot qualification record.
+- `research/experiments/H02B.md` — queued guest-mesh qualification hypothesis.

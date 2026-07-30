@@ -57,9 +57,11 @@ The external Host API is resource-oriented request/response with durable operati
 - recovery route independent from guest health;
 - normal SSH endpoint inside the guest.
 
-## Current implementation caveat
+## Current implementation caveats
 
-The profile and artifact boundaries are not yet fully canonical in production: Android mirrors profile JSON in Kotlin, and manifest consumers interpret the publication format independently. F01 is the current foundation task that removes this drift before further E2E layers are activated.
+F01 closed the profile and artifact source-of-truth split: production loads canonical packaged JSON and all non-Podroid artifacts require strict active manifests. Only the three pinned Podroid qualification inputs retain their deliberate bare-file contract.
+
+The current active uncertainty is integration rather than architecture: H02A must prove that the canonical Ubuntu profile, rendered NoCloud vendor-data, selected cloud image, and recorded host firmware boot repeatably under Linux host QEMU before guest mesh behavior is added.
 
 Kotlin, Compose, Hilt, Python `phonectl`, Ktor, Room, and libtailscale are current MVP implementations behind intended boundaries. They are not permission to couple domain contracts to those tools or to preclude later Slint/Rust/shared-controller decisions.
 

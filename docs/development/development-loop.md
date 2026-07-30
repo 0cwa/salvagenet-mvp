@@ -19,7 +19,7 @@ When Gradle and the Android SDK are available, this adds JVM/domain and Android 
 
 ## Phase-start loop
 
-`agents/task-dag.json` contains only the active phase; merged and queued packets remain in `agents/task-registry.json`.
+`agents/task-dag.json` contains only the active phase; merged, superseded, and queued packets remain in `agents/task-registry.json`.
 
 Before implementation:
 
@@ -28,7 +28,7 @@ git pull --ff-only
 make dev-plan
 make validate
 make status
-make context TASK=F01
+make context TASK=H02A
 ```
 
 Then:
@@ -38,15 +38,15 @@ Then:
 3. revise or stop if prerequisites, scope, or acceptance criteria are no longer accurate;
 4. create only the active task worktree/branch.
 
-Completed or queued packets are not work authorization merely because they exist under `agents/tasks/`.
+Completed, superseded, or queued packets are not work authorization merely because they exist under `agents/tasks/`.
 
 ## Task loop
 
 ```sh
-make worktree TASK=F01
-make context TASK=F01
+make worktree TASK=H02A
+make context TASK=H02A
 # run the smallest relevant checks while implementing
-python3 tools/agents/verify-scope.py F01
+python3 tools/agents/verify-scope.py H02A
 ```
 
 Open a focused PR against `main`. Update the packet and experiment record in the same branch when implementation discovery changes the true remaining work.

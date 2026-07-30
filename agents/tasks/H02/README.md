@@ -1,5 +1,5 @@
 # H02 — host-QEMU and Headscale guest E2E
 
-Status: **QUEUED FOR PHASE-START REVIEW**.
+Status: **SUPERSEDED** after F01 merge.
 
-This is not an active packet and must not authorize implementation yet. After F01 merges, revise `task.md` and decide whether guest boot/SSH qualification and Headscale resilience should be separate sequential tasks.
+This combined packet is retained only for provenance. Use H02A for canonical guest boot/NoCloud/key-only loopback SSH/restart/secret-hygiene work. H02B covers guest Headscale/tailnet behavior only after H02A passes.
