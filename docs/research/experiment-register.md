@@ -4,7 +4,7 @@ Append concise results here; do not paste full logs. `SOFTWARE-PASS/HARDWARE-OPE
 
 | ID | Date | Source/evidence | Device/environment | Result | Decision impact |
 |---|---|---|---|---|---|
-| F00 | 2026-07-30 | `docs/research/experiments/F00.md`, PR #5, task/roadmap audit | Repository and GitHub CI | GOVERNANCE-PASS/CI-PENDING | Merge H01, archive completed tasks, queue H02/H03, activate only F01, and require phase-boundary acceptance review. |
+| F00 | 2026-07-30 | `docs/research/experiments/F00.md`, PR #6, Actions run `30524125036` | Repository and GitHub CI | PASS | Phase 0 passed: H01/H04 are archived as merged, H02/H03 are queued for review, F01 is the sole active foundation, and phase-boundary acceptance verification is enforced. |
 | E01 | 2026-07-29 | `evidence/gates/B01.json`, `evidence/T08/qa-summary.txt` | Fedora build host | SOFTWARE-PASS | Podroid import, app build, and pinned runtime packaging are usable for device validation; project-owned native rebuild remains debt. |
 | E02 | 2026-07-29 | `evidence/gates/B01.json`, Gradle module suites | Fedora build host | PASS | Keep sibling modular-monolith layout and narrow Podroid composition hook. |
 | E03 | 2026-07-29 | `evidence/gates/B09.json` | Unit/integration tests; no authorized phone | SOFTWARE-PASS/HARDWARE-OPEN | Retain Ktor behind `HostControlServer`; do not generalize or replace it before live host-API evidence. |
