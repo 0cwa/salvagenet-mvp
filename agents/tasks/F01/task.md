@@ -2,7 +2,7 @@
 
 ## Status
 
-**PLANNED — sole active task in phase `foundation-1`.**
+**IN PROGRESS — phase-start review passed on `main` at `9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7`.**
 
 ## Outcome
 
@@ -10,23 +10,23 @@ Make the checked-in VM profile JSON and the project artifact-manifest contract t
 
 ## Why this is foundational
 
-The repository says profile JSON is canonical, but `AndroidQemuProfileStorage` currently constructs the three production profiles in Kotlin and independently parses artifact manifests. A lab can therefore pass against checked-in profile data while the APK executes a different mirror. Adding more E2E layers before removing that split source of truth would increase debugging ambiguity.
+The repository says profile JSON is canonical, but `AndroidQemuProfileStorage` constructs the three production profiles in Kotlin and independently parses artifact manifests. The drift is concrete: Ubuntu JSON requires `virtio-block`, `virtio-net`, and `serial-console`, while the Kotlin mirror omits those qualification checks. A lab can therefore pass against checked-in profile data while the APK executes a different model.
 
 ## Prerequisites
 
 - H01 merged at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`.
 - H04 merged at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`.
-- Current profile schemas and examples pass `make validate`.
+- Phase 0 realignment merged at `9e497bd33ad8c8a05e2cda9d0ba2e9ffd7a673f7` after Actions run `30524765854` passed.
+- Current profile schemas and examples pass repository validation.
 
-## Phase-start review
+## Phase-start review result
 
-Before implementation:
-
-1. Run `make dev-plan` and `make validate` on current `main`.
-2. Compare every field in the three checked-in profile JSON files with the Kotlin production mirror and record all differences in `docs/research/experiments/F01.md`.
-3. Identify every producer and consumer of `nodehost-artifacts/*.manifest.json` and confirm the intended shared contract.
-4. Re-read this packet and narrow it if implementation discovery shows that profile loading and manifest unification cannot remain one cohesive change.
-5. Do not begin H02, H03, qcow2 semantic changes, native source builds, UI rewrites, or USB work in this task.
+- Profile loading and manifest unification remain one cohesive task because both are concentrated in the Android storage/resource boundary.
+- The Android runtime must use a strict packaged-profile parser; build-time JSON Schema validation remains authoritative and runtime parsing repeats the security/correctness constraints without adding a JSON Schema runtime dependency.
+- The profile package must contain the exact three JSON files and their checked-in guest-init sources under a stable namespaced asset root.
+- Manifest producers/consumers are inventoried in `docs/research/experiments/F01.md`.
+- Built-in Podroid assets may retain their existing bare-file plus `.sha256` storage form, but that legacy form must be isolated behind the selected artifact repository. Every versioned active manifest is parsed and written by one strict contract adapter.
+- H02, H03, qcow2 semantic changes, native source builds, UI rewrites, controller replacement, process isolation, and USB remain out of scope.
 
 ## Allowed paths
 
@@ -34,11 +34,12 @@ See `allowed-paths.txt`. Changes outside them require an orchestrator handoff an
 
 ## Acceptance criteria
 
-- Packaged, schema-validated JSON is the sole production source for `alpine-direct-qualification`, `ubuntu-2404-arm64-uefi`, and `k3s-worker-lab`.
+- Packaged, build-validated JSON is the sole production source for `alpine-direct-qualification`, `ubuntu-2404-arm64-uefi`, and `k3s-worker-lab`.
 - Android production code no longer duplicates complete profile definitions in a Kotlin `when` or equivalent mirror.
-- Profile loading is bounded, rejects unknown fields/unsupported versions, preserves typed domain values, and fails closed before any QEMU or filesystem side effect.
-- The APK/package test proves the exact profile JSON and trusted guest-init assets required by those profiles are present.
-- Artifact publication, image listing, and runtime consumption use one strict versioned manifest contract with exact fields, digest, size, immutable relative path, and root-containment checks.
+- Profile loading is bounded, rejects unknown fields/unsupported versions, validates fixed Android/QEMU compatibility fields, preserves typed domain values, and fails closed before any QEMU or mutable filesystem side effect.
+- The APK/package test proves the exact profile JSON and checked-in guest-init sources required by those profiles are present.
+- Artifact publication, image listing, and runtime consumption of active manifests use one strict versioned contract with exact fields, digest, size, immutable relative path, and root-containment checks.
+- Built-in legacy artifact fallback is isolated behind that artifact repository and cannot weaken active-manifest parsing.
 - H01 upload behavior and the hardened public HTTPS importer retain their existing authentication, SSRF, idempotency, digest, size, recovery, and atomic-publication invariants.
 - Existing typed QEMU command snapshots and profile/guest qualification tests remain green.
 - No result is represented as physical Android evidence, and no base-MVP gate changes status.
