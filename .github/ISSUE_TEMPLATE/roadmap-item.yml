@@ -1,0 +1,155 @@
+name: Roadmap item
+description: Propose or refine a tracked SalvageNet outcome. Creating an issue does not authorize implementation.
+title: "[Roadmap] "
+labels:
+  - roadmap
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Roadmap issues describe outcomes and dependencies. `agents/task-dag.json` and an active task packet remain the only implementation authorization.
+
+        A maintainer or phase-planning agent must assign one milestone, one `area:*` label, one `kind:*` label, one visibility label, and any applicable `agent:*` state before this issue enters the generated roadmap.
+
+  - type: input
+    id: roadmap-id
+    attributes:
+      label: Stable roadmap ID
+      description: A short durable identifier such as DEVICE-02 or WEB-04. Do not reuse retired IDs.
+      placeholder: WEB-04
+    validations:
+      required: true
+
+  - type: textarea
+    id: public-summary
+    attributes:
+      label: Public summary
+      description: One plain-language paragraph suitable for salvage.network. Describe the outcome without claiming unearned validation.
+      placeholder: Explain what users or the project will gain when this outcome is complete.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Observable outcome
+      description: What will be concretely true when this issue is complete?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why-now
+    attributes:
+      label: Why now?
+      description: Which uncertainty, blocker, safety concern, user need, or critical-path step does this resolve?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - android
+        - runtime
+        - guest
+        - network
+        - controller
+        - artifacts
+        - testing
+        - website
+        - community
+        - release
+        - security
+        - platform
+        - profiles
+        - documentation
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - foundation
+        - feature
+        - qualification
+        - research
+        - security
+        - release
+        - documentation
+        - governance
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A finite checklist of observable completion conditions.
+      placeholder: |
+        - [ ] One concrete result
+        - [ ] One required validation
+        - [ ] One evidence or documentation update
+    validations:
+      required: true
+
+  - type: input
+    id: acceptance-ids
+    attributes:
+      label: Acceptance gate IDs
+      description: Comma-separated B01–B20 or U01–U04 IDs, when this issue contributes to a product claim.
+      placeholder: B10, B11, B12
+
+  - type: textarea
+    id: blocked-by
+    attributes:
+      label: Blocked by
+      description: Link existing roadmap issues that must complete first. Use GitHub issue dependency links after creation.
+      placeholder: "#123, #124"
+
+  - type: input
+    id: task-packet
+    attributes:
+      label: Agent task packet
+      description: Repository path when a reviewed packet exists. Leave blank for unplanned or public-only outcomes.
+      placeholder: agents/tasks/H02A/task.md
+
+  - type: textarea
+    id: context-paths
+    attributes:
+      label: Context paths
+      description: The smallest repository paths an implementation agent should inspect.
+      placeholder: |
+        docs/architecture/networking.md
+        android/modules/mesh-tailscale/
+        tests/hil/
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: State nearby work that this issue will not absorb.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Required validation
+      description: List tests, package inspection, physical evidence, security review, accessibility checks, or other proof required.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: planning-contract
+    attributes:
+      label: Planning contract
+      options:
+        - label: I understand that this issue may be split, merged, reordered, deferred, or removed during a phase-boundary review.
+          required: true
+        - label: I understand that closing this issue does not automatically close an acceptance gate.
+          required: true
+        - label: I understand that this issue is not implementation authorization unless it is in the active task DAG with a reviewed packet.
+          required: true
