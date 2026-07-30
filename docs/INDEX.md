@@ -22,6 +22,7 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 - `architecture/tool-radar.md` — dependency adoption status and reconsideration triggers.
 - `architecture/debt-register.md` — open/resolved debt and expiry triggers.
 - `architecture/decisions/` — concise ADRs.
+- `architecture/decisions/ADR-012-static-site-and-roadmap-truth.md` — accepted static-site, design-system, theme, progressive-enhancement, and roadmap-truth decision.
 
 ## Development
 
@@ -29,6 +30,7 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 - `development/development-loop.md` — phase start, task loop, phase end, and packet generation.
 - `development/root-authorization-checklist.md` — user-run privileged setup.
 - `development/context-engineering.md` — scoped agent context model.
+- `development/roadmap-agent-workflow.md` — roadmap freshness, compact agent context, human-visible state, and phase-replanning workflow.
 - `development/git-cycle.md` — branches, worktrees, commits, integration.
 - `development/provenance.md` — model/run attribution without context bloat.
 - `development/overnight-operations.md` — historical initial implementation orchestration.
@@ -48,12 +50,19 @@ The current acceptance state is generated in `STATUS.md`. Agents should read thi
 ## Roadmap
 
 - `roadmap/overview.md` — durable development and implementation tracks.
+- `roadmap/podroid-mvp-alignment.md` — original Podroid-fork MVP mapping, deliberate refinements, current critical path, and drift alarms.
+- `roadmap/public-roadmap-governance.md` — complete initial issue inventory, truth boundaries, completeness rules, and dynamic phase replanning.
 - `roadmap/hardware-independent.md` — F01 result, active H02A phase, and queued H02B/H03 work.
 - `roadmap/overnight-plan.md` — historical one-agent-day implementation plan.
 - `roadmap/dependency-dag.md` — historical implementation task dependencies.
 - `roadmap/acceptance-ledger.md` — base MVP and MVP+ acceptance ledger.
 - `roadmap/device-validation.md` — one-phone physical validation sequence.
 - `roadmap/post-mvp.md` — deliberately deferred work.
+
+## Public website
+
+- `../website/README.md` — planned Astro static-site, global CSS, theme, component, data, and implementation structure.
+- `../website/AGENTS.md` — scoped public-claim, static-first, design-system, theme, accessibility, and generated-data rules.
 
 ## Research
 

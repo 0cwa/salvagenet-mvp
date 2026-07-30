@@ -2,6 +2,7 @@
 .local/
 .agent-state/
 .agent-context/
+.agent-cache/
 .worktrees/
 
 # Secrets and lab state
