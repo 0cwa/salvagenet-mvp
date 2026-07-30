@@ -1,0 +1,33 @@
+name: Experiment
+description: Close one architecture or platform uncertainty with bounded evidence.
+title: "[experiment] "
+labels: []
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What decision is blocked?
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: Method and controls
+      description: Exact environment, variables, and commands.
+    validations:
+      required: true
+  - type: textarea
+    id: closure
+    attributes:
+      label: Closure evidence
+      description: What result closes or narrows the question?
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Secrets and safety
+      description: Redaction, disposable credentials, cleanup, and limits.
+    validations:
+      required: true

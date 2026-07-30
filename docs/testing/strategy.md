@@ -24,9 +24,9 @@ Use `tests/hil/` with one configured ARM64 phone. The standard-library runner co
 
 - `smoke`: APK-native QEMU and stop/restart;
 - `mvp`: host mesh/API, Ubuntu, guest mesh, ordinary/recovery SSH;
-- `resilience`: service/QEMU failure, controller-offline continuity, and optional reboot.
+- `resilience`: service/QEMU failure, a controller-silent continuity smoke, and optional reboot.
 
-The persistent development mode preserves enrollment and VPN consent between `adb install -r` runs. Clean first-run enrollment and secure-lock cold boot remain explicit release checks until repeated use justifies UI automation.
+The controller-silent smoke does not alone seal B17; actual controller/network-unavailable evidence and duration must match the gate claim. Persistent development mode may preserve enrollment and VPN consent between `adb install -r` runs. Clean first-run enrollment and secure-lock cold boot remain explicit release checks.
 
 ## Orthogonal test boundaries
 

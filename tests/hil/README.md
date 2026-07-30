@@ -4,7 +4,6 @@ This directory is the single physical-device test path for the base MVP. It deli
 
 ```text
 scenario
-   |
    +-- DevicePort ------ AdbDevice
    +-- ControllerPort -- phonectl-mvp / OpenSSH
    +-- MeshLabPort ----- existing Headscale container scripts
@@ -17,46 +16,30 @@ Scenarios contain product behavior and assertions. Adapters contain environment 
 
 ```sh
 cp tests/hil/config.example.json .local/hil.json
-# Edit the device serial, node names, guest SSH target, and any image-import files.
-
+# Edit the device serial, node names, guest SSH target, and image-import files.
 make lab-up
 make lab-keys
 make hil-doctor
 ```
 
-The phone must already have accepted the ADB RSA prompt. The persistent development mode also assumes enrollment and Android VPN consent have been completed once. Clean first-run enrollment remains a separate release/onboarding check.
+The phone must already have accepted the ADB RSA prompt. Persistent development mode assumes enrollment and Android VPN consent were completed once. Clean first-run enrollment remains a separate release/onboarding check.
 
 ## Scenarios
 
 ```sh
 make hil-smoke       # APK install -> Alpine QEMU -> one process -> stop/restart
 make hil-mvp         # host mesh/API -> Ubuntu -> guest mesh -> SSH/recovery
-make hil-resilience  # service restart -> QEMU crash recovery -> offline -> optional reboot
-make hil-all         # run all three in order
+make hil-resilience  # service restart -> QEMU crash -> controller-silent smoke -> optional reboot
+make hil-all
 ```
 
-Set `HIL_BUILD=1` to build before the scenario:
+Set `HIL_BUILD=1` to build before a scenario. `hil-resilience` establishes a smoke baseline when no QEMU process is running. Reboot is opt-in through `resilience.allowReboot`.
 
-```sh
-make hil-smoke HIL_BUILD=1
-```
-
-`hil-resilience` establishes a smoke baseline automatically when no QEMU process is running. Reboot is opt-in through `resilience.allowReboot`; a skipped reboot does not close the reboot acceptance gate.
+The controller-silent assertion proves only that no request lease is required during the configured interval. It does not by itself close B17; H04 hardens actual controller/network-unavailable evidence separately.
 
 ## Evidence
 
-Each run creates an ignored directory under `.local/hil-runs/`:
-
-```text
-<run-id>/
-├── run.json
-├── device-facts.json
-├── commands.jsonl
-├── host/headscale snapshots when applicable
-└── logcat.txt                 only after failure
-```
-
-A `PASS` is bound to one source commit, one APK digest, one configured device, and the scenario assertions. Review the local evidence before promoting it into `evidence/gates/` with the existing evidence tooling.
+Each run creates an ignored directory under `.local/hil-runs/` containing `run.json`, device facts, command records, optional Headscale snapshots, and failure-only bounded logcat. A `PASS` is bound to one source commit, one APK digest, one configured device, and the scenario assertions. Review local evidence before promoting it through the existing evidence tooling.
 
 ## Exit codes
 
@@ -64,4 +47,4 @@ A `PASS` is bound to one source commit, one APK digest, one configured device, a
 - `1`: product assertion or exercised operation failed.
 - `77`: required hardware/setup is absent or unauthorized.
 
-The compatibility wrappers in `tests/e2e/` and `tests/device/` delegate here so the repository has only one physical-test implementation.
+Compatibility wrappers in `tests/e2e/` and `tests/device/` delegate here so the repository has only one physical-test implementation.

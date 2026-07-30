@@ -3,10 +3,11 @@
 ## Read order
 
 1. Read `GOAL.md`.
-2. For ordinary implementation, read the assigned task packet under `agents/tasks/<TASK>/task.md`.
-3. For physical validation, read `agents/device-validation-goal.md` and `tests/hil/AGENTS.md` instead of inventing another task runner.
-4. Run `python3 tools/agents/context-pack.py <TASK>` when working from a registered task packet; otherwise read only the files named by the validation goal and nearest nested `AGENTS.md` files.
-5. Do not recursively read `docs/`; use `docs/INDEX.md` when more context is necessary.
+2. For ordinary implementation, read the active task packet named by `agents/task-dag.json` under `agents/tasks/<TASK>/task.md`.
+3. For hardware-independent orchestration, read `agents/hardware-independent-goal.md`.
+4. For physical validation, read `agents/device-validation-goal.md` and `tests/hil/AGENTS.md`; do not invent another physical runner.
+5. Run `python3 tools/agents/context-pack.py <TASK>` for registered tasks and read only that pack plus applicable nested `AGENTS.md` files.
+6. Do not recursively read `docs/`; use `docs/INDEX.md` when more context is necessary.
 
 ## Development rules
 
@@ -17,7 +18,7 @@
 - Public configuration and APIs must use typed fields. Never expose raw QEMU arguments, raw kernel arguments, raw QMP, or arbitrary shell strings.
 - One VM is the MVP limit.
 - USB networking is `MVP+`; do not start it while any base-MVP gate is incomplete.
-- Keep code simple. Comment non-obvious constraints and add `TODO(MVP-HARDENING, Txx)` for specifically deferred refinements.
+- Keep code simple. Comment non-obvious constraints and add `TODO(MVP-HARDENING, <task-id>)` only for specific deferred refinements with an expiry trigger.
 
 ## Hardware-in-the-loop rules
 

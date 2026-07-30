@@ -1,0 +1,38 @@
+name: Development task
+description: Propose a scoped implementation task with measurable acceptance.
+title: "[task] "
+labels: []
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What observable result should exist?
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Architectural boundaries
+      description: Ports or modules that own the work, plus explicit non-goals.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Commands and measurable behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: evidence
+    attributes:
+      label: Evidence class
+      options:
+        - Static/unit
+        - Host-QEMU
+        - Emulator
+        - Physical Android
+        - Research only
+    validations:
+      required: true
