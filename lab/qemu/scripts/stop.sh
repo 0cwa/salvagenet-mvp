@@ -61,11 +61,21 @@ if [[ -e "$state/qemu.pid" ]]; then
     rm -f "$state/qemu.pid" "$state/qmp.sock"
   fi
 fi
+if [[ -f "$state/qemu.pid" && ! -L "$state/qemu.pid" ]]; then
+  final_pid=$(read_qemu_pid) || { echo "invalid final H02A QEMU pid file" >&2; exit 2; }
+  if kill -0 "$final_pid" 2>/dev/null; then
+    qemu_pid_matches "$final_pid" || {
+      echo "live process identity differs before cleanup" >&2
+      exit 2
+    }
+    echo "QEMU remains live after stop" >&2
+    exit 1
+  fi
+fi
 rm -f "$state/qemu.pid" "$state/qmp.sock"
-qemu_running && { echo "QEMU remains live after stop" >&2; exit 1; }
 
 if [[ $cleanup == true ]]; then
-  python3 - "$state" "$evidence_path" <<'PY'
+  python3 - "$root" "$state" "$evidence_path" <<'PY'
 from __future__ import annotations
 
 import json
@@ -73,8 +83,24 @@ from pathlib import Path
 import stat
 import sys
 
-state = Path(sys.argv[1]).resolve(strict=True)
-raw_evidence = Path(sys.argv[2]).expanduser()
+root = Path(sys.argv[1]).resolve(strict=True)
+local_root_path = root / '.local'
+if local_root_path.is_symlink():
+    raise SystemExit('repository .local directory must not be a symlink')
+local_root = local_root_path.resolve(strict=True)
+raw_state = Path(sys.argv[2]).expanduser()
+if not raw_state.is_absolute():
+    raw_state = Path.cwd() / raw_state
+if raw_state.is_symlink():
+    raise SystemExit('cleanup state directory must not be a symlink')
+state = raw_state.resolve(strict=True)
+try:
+    relative = state.relative_to(local_root)
+except ValueError:
+    raise SystemExit(f'refusing to clean a state directory outside {local_root}: {state}')
+if not relative.parts:
+    raise SystemExit('refusing to clean the repository .local root')
+raw_evidence = Path(sys.argv[3]).expanduser()
 if not raw_evidence.is_absolute():
     raw_evidence = Path.cwd() / raw_evidence
 if raw_evidence.is_symlink():

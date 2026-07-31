@@ -32,7 +32,12 @@ print(resolved)
 PY
 )
 
-if [[ ! $ssh_port =~ ^[0-9]+$ ]] || (( ssh_port < 1024 || ssh_port > 65535 )); then
+if [[ ! $ssh_port =~ ^[1-9][0-9]*$ ]]; then
+  echo "NODEHOST_QEMU_LAB_SSH_PORT must be one canonical decimal integer" >&2
+  exit 2
+fi
+ssh_port=$((10#$ssh_port))
+if (( ssh_port < 1024 || ssh_port > 65535 )); then
   echo "NODEHOST_QEMU_LAB_SSH_PORT must be in 1024..65535" >&2
   exit 2
 fi
@@ -118,6 +123,22 @@ wait_for_ssh_down() {
     sleep 1
   done
   echo "SSH did not become unavailable within ${timeout_seconds}s" >&2
+  return 1
+}
+
+wait_for_boot_id_change() {
+  local previous=$1 timeout_seconds=${2:-$ssh_wait_seconds}
+  local deadline=$((SECONDS + timeout_seconds)) current
+  while (( SECONDS < deadline )); do
+    current=$(ssh_nodeadmin 15 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null || true)
+    if [[ $current =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ && $current != "$previous" ]]; then
+      printf '%s
+' "$current"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "guest boot ID did not change within ${timeout_seconds}s" >&2
   return 1
 }
 

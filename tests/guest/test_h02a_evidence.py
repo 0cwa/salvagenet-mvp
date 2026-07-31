@@ -230,6 +230,12 @@ class H02AEvidenceTests(unittest.TestCase):
         self.assertTrue(value["cleanup"]["completed"])
         self.assertEqual(evidence.sha256_file(self.base), value["cleanup"]["baseImageSha256"])
 
+    def test_non_object_evidence_is_rejected_without_a_traceback(self) -> None:
+        path = self.create()
+        path.write_text("[]\n", encoding="utf-8")
+        with self.assertRaisesRegex(evidence.EvidenceError, "not an object"):
+            evidence.finalize_cleanup(self.state, path)
+
     def test_symlinked_evidence_path_is_rejected(self) -> None:
         path = self.create()
         link = self.state / "evidence-link.json"

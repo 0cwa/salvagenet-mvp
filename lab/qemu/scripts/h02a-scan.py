@@ -11,8 +11,13 @@ import shutil
 import sys
 from typing import Any, Iterable
 
-SCRIPT_PATH = Path(__file__).resolve()
-ROOT = SCRIPT_PATH.parents[3] if len(SCRIPT_PATH.parents) > 3 else Path.cwd()
+SOURCE_NAME = globals().get("__file__")
+SCRIPT_PATH = (
+    Path(SOURCE_NAME).resolve()
+    if isinstance(SOURCE_NAME, str) and SOURCE_NAME not in {"<stdin>", "-"}
+    else None
+)
+ROOT = SCRIPT_PATH.parents[3] if SCRIPT_PATH is not None and len(SCRIPT_PATH.parents) > 3 else Path.cwd()
 PATTERNS = (
     ("tailscale-key", re.compile(rb"tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}")),
     ("headscale-key", re.compile(rb"hskey-[A-Za-z0-9_-]{12,}")),
@@ -38,15 +43,15 @@ MAX_FILE_BYTES = 4 * 1024 * 1024
 MAX_TOTAL_BYTES = 32 * 1024 * 1024
 MAX_PROCESS_ENVIRON = 512
 MAX_FINDINGS = 4096
-REMOTE_SCANNED_PATHS = (
+REMOTE_WALKED_ROOTS = (
     "/var/lib/cloud",
     "/var/log/cloud-init.log",
     "/var/log/cloud-init-output.log",
     "/run",
     "/tmp",
-    "/proc/*/environ",
-    "/proc/*/comm",
 )
+REMOTE_PROCESS_SCOPES = ("/proc/*/environ", "/proc/*/comm")
+REMOTE_SCANNED_PATHS = REMOTE_WALKED_ROOTS + REMOTE_PROCESS_SCOPES
 
 
 class ScanError(RuntimeError):
@@ -102,7 +107,7 @@ def walk_roots(roots: Iterable[Path]) -> Iterable[Path]:
 
 
 def remote_scan() -> dict[str, Any]:
-    roots = [Path(value) for value in REMOTE_SCANNED_PATHS[:5]]
+    roots = [Path(value) for value in REMOTE_WALKED_ROOTS]
     findings, file_count, total_bytes = scan_regular_files(walk_roots(roots))
     if Path("/var/lib/nodehost/bootstrap.env").exists():
         findings.append(finding("/var/lib/nodehost/bootstrap.env", "bootstrap-environment-present"))

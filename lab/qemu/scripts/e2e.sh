@@ -24,18 +24,16 @@ trap 'exit 143' TERM
 "$(dirname "$0")/smoke.sh" initial
 initial_boot=$(cat "$state/boot-id-initial.txt")
 
-ssh_nodeadmin 15 'sudo -n systemctl reboot' >/dev/null 2>&1 || true
-wait_for_ssh_down 90
-wait_for_ssh "$ssh_wait_seconds"
+ssh_nodeadmin 15 'sudo -n systemctl --no-block reboot' >/dev/null
+guest_reboot=$(wait_for_boot_id_change "$initial_boot" "$ssh_wait_seconds")
 "$(dirname "$0")/smoke.sh" guest-reboot
-guest_reboot=$(cat "$state/boot-id-guest-reboot.txt")
-[[ $guest_reboot != "$initial_boot" ]] || {
-  echo "guest reboot did not change the boot ID" >&2
+recorded_guest_reboot=$(cat "$state/boot-id-guest-reboot.txt")
+[[ $recorded_guest_reboot == "$guest_reboot" ]] || {
+  echo "guest reboot boot ID changed during stage verification" >&2
   exit 1
 }
 
-ssh_nodeadmin 15 'sudo -n systemctl poweroff' >/dev/null 2>&1 || true
-wait_for_ssh_down 90 || true
+ssh_nodeadmin 15 'sudo -n systemctl --no-block poweroff' >/dev/null
 wait_for_qemu_exit 180
 "$(dirname "$0")/start.sh"
 "$(dirname "$0")/smoke.sh" qemu-restart

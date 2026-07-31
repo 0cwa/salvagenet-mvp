@@ -46,6 +46,23 @@ class H02AShellTests(unittest.TestCase):
         ):
             subprocess.run(["bash", "-n", str(path)], check=True)
 
+    def test_ssh_port_rejects_leading_zero_without_octal_arithmetic(self) -> None:
+        environment = self.environment.copy()
+        environment["NODEHOST_QEMU_LAB_SSH_PORT"] = "02222"
+        completed = subprocess.run(
+            ["bash", "-c", 'source "$1"', "bash", str(SCRIPTS / "common.sh")],
+            cwd=ROOT,
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=15,
+            check=False,
+        )
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("canonical decimal integer", completed.stderr)
+        self.assertNotIn("value too great for base", completed.stderr)
+
     def test_start_refuses_unrelated_live_pid(self) -> None:
         for name in (
             "preflight.json",
@@ -81,17 +98,23 @@ class H02AShellTests(unittest.TestCase):
         self.assertIn("passwordOnlyClientRejected", smoke)
         self.assertIn("keyboardInteractiveOnlyClientRejected", smoke)
         self.assertIn("qualificationSudoNoninteractive", smoke)
+        self.assertIn("record_check keyOnlyLoopbackSsh", smoke)
+        self.assertIn("H02A SSH checks were not recorded", smoke)
         self.assertIn("sudo -n true", smoke)
-        self.assertIn("sudo -n systemctl reboot", e2e)
-        self.assertIn("sudo -n systemctl poweroff", e2e)
+        self.assertIn("sudo -n systemctl --no-block reboot", e2e)
+        self.assertIn("wait_for_boot_id_change", e2e)
+        self.assertNotIn("wait_for_ssh_down 90", e2e)
+        self.assertIn("sudo -n systemctl --no-block poweroff", e2e)
         self.assertIn("sudo -n systemctl poweroff", stop)
+        self.assertLess(stop.index("QEMU remains live after stop"), stop.rindex('rm -f "$state/qemu.pid" "$state/qmp.sock"'))
+        self.assertIn("state.relative_to(local_root)", stop)
         self.assertNotIn("'sudo systemctl", smoke + e2e + stop)
         self.assertIn("StrictHostKeyChecking=accept-new", common)
         self.assertNotIn("StrictHostKeyChecking=no", common + smoke + e2e)
         self.assertIn("readonly ssh_wait_seconds=900", common)
         self.assertIn("readonly cloud_init_wait_seconds=1800", common)
         self.assertIn('wait_for_ssh "$ssh_wait_seconds"', smoke)
-        self.assertIn('wait_for_ssh "$ssh_wait_seconds"', e2e)
+        self.assertIn('wait_for_boot_id_change "$initial_boot" "$ssh_wait_seconds"', e2e)
         self.assertIn('ssh_nodeadmin "$cloud_init_wait_seconds" \'cloud-init status --wait --long\'', smoke)
         self.assertLess(smoke.index("cloud-init status --wait --long"), smoke.index("sudo -n true"))
         self.assertNotIn("sudo -n cloud-init status", smoke)

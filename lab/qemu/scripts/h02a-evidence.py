@@ -364,6 +364,8 @@ def finalize_cleanup(state_path: Path, evidence_path: Path) -> None:
     if evidence_path.name != "evidence.json":
         raise EvidenceError("evidence path is unsafe")
     evidence = read_json(evidence_path)
+    if not isinstance(evidence, dict):
+        raise EvidenceError("evidence document is not an object")
     preflight = validate_preflight(evidence.get("preflight"))
     retained_names = sorted(path.name for path in state.iterdir())
     expected = sorted([BASE_IMAGE, "evidence"])

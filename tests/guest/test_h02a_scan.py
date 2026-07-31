@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -56,6 +58,22 @@ class H02AScanTests(unittest.TestCase):
         serialized = json.dumps(findings)
         self.assertNotIn(bootstrap_value.decode(), serialized)
         self.assertNotIn(callback_value.decode(), serialized)
+
+    def test_remote_subcommand_runs_from_stdin_without_a_source_path(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, "-", "remote"],
+            input=HELPER.read_text(encoding="utf-8"),
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        value = json.loads(completed.stdout)
+        self.assertEqual(list(scan.REMOTE_SCANNED_PATHS), value["scannedPaths"])
+        self.assertEqual({"bytes", "files", "processes"}, set(value["stats"]))
 
     def test_combine_scans_exact_seed_sources_and_remote_result(self) -> None:
         local = ROOT / ".local"
