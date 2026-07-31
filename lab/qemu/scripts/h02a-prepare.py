@@ -132,9 +132,35 @@ def immutable_image_lock(path: Path = LOCK_PATH) -> dict[str, Any]:
     return {"url": url, "sha256": digest, "sizeBytes": size}
 
 
+def validate_state_directory(state: Path) -> Path:
+    local_root = ROOT / ".local"
+    local_root.mkdir(mode=0o700, exist_ok=True)
+    if local_root.is_symlink():
+        raise LabError("repository .local directory must not be a symlink")
+    candidate = state.expanduser()
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    if candidate.is_symlink():
+        raise LabError("H02A state directory must not be a symlink")
+    resolved_root = local_root.resolve(strict=True)
+    resolved = candidate.resolve(strict=False)
+    try:
+        relative = resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise LabError(f"H02A state directory must remain under {resolved_root}: {resolved}") from exc
+    if not relative.parts:
+        raise LabError("H02A state directory cannot be the repository .local root")
+    current = resolved_root
+    for segment in relative.parts:
+        current = current / segment
+        if current.exists() and current.is_symlink():
+            raise LabError(f"H02A state path contains a symlink: {current}")
+    return resolved
+
+
 def verify_image(path: Path, locked: dict[str, Any]) -> None:
-    if not path.is_file():
-        raise LabError(f"pinned Ubuntu image is missing: {path}")
+    if path.is_symlink() or not path.is_file():
+        raise LabError(f"pinned Ubuntu image is missing or unsafe: {path}")
     actual_size = path.stat().st_size
     if actual_size != locked["sizeBytes"]:
         raise LabError(f"Ubuntu image size mismatch: expected={locked['sizeBytes']} actual={actual_size}")
@@ -145,10 +171,14 @@ def verify_image(path: Path, locked: dict[str, Any]) -> None:
 
 def download_image(path: Path, locked: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        raise LabError(f"pinned Ubuntu image path must not be a symlink: {path}")
     if path.exists():
         verify_image(path, locked)
         return
     temporary = path.with_suffix(path.suffix + ".part")
+    if temporary.is_symlink():
+        raise LabError(f"partial Ubuntu image path must not be a symlink: {temporary}")
     command = [
         require_command("curl"),
         "--fail",
@@ -215,6 +245,8 @@ def ensure_text(path: Path, content: str, mode: int = 0o600) -> None:
     if not encoded or len(encoded) > MAX_TEXT_BYTES or b"\x00" in encoded:
         raise LabError(f"generated text is empty, oversized, or contains NUL: {path.name}")
     temporary = path.with_name(path.name + ".tmp")
+    if temporary.is_symlink() or path.is_symlink():
+        raise LabError(f"generated text path must not be a symlink: {path}")
     temporary.write_bytes(encoded)
     os.chmod(temporary, mode)
     temporary.replace(path)
@@ -236,23 +268,21 @@ def render_vendor_data(state: Path, profile: dict[str, Any]) -> Path:
     return destination
 
 
-def find_firmware(kind: str) -> Path:
-    candidates = {
-        "code": [
-            "/usr/share/AAVMF/AAVMF_CODE.fd",
-            "/usr/share/AAVMF/AAVMF_CODE.ms.fd",
-            "/usr/share/qemu-efi-aarch64/QEMU_EFI.fd",
-        ],
-        "vars": [
-            "/usr/share/AAVMF/AAVMF_VARS.fd",
-            "/usr/share/AAVMF/AAVMF_VARS.ms.fd",
-        ],
-    }
-    for value in candidates[kind]:
-        path = Path(value)
-        if path.is_file() and not path.is_symlink():
-            return path
-    raise LabError(f"AArch64 UEFI {kind} firmware not found")
+def find_firmware_pair() -> tuple[Path, Path]:
+    pairs = [
+        (
+            Path("/usr/share/AAVMF/AAVMF_CODE.fd"),
+            Path("/usr/share/AAVMF/AAVMF_VARS.fd"),
+        ),
+        (
+            Path("/usr/share/AAVMF/AAVMF_CODE.ms.fd"),
+            Path("/usr/share/AAVMF/AAVMF_VARS.ms.fd"),
+        ),
+    ]
+    for code, variables in pairs:
+        if all(path.is_file() and not path.is_symlink() for path in (code, variables)):
+            return code, variables
+    raise LabError("a matched AAVMF code/vars firmware pair was not found")
 
 
 def package_fact(path: Path) -> str | None:
@@ -286,6 +316,20 @@ def firmware_fact(path: Path) -> dict[str, Any]:
         "sizeBytes": path.stat().st_size,
         "package": package_fact(path),
     }
+
+
+def copy_verified(source: Path, destination: Path, expected_digest: str | None = None) -> str:
+    if source.is_symlink() or not source.is_file():
+        raise LabError(f"copy source is missing or unsafe: {source}")
+    if destination.is_symlink():
+        raise LabError(f"copy destination must not be a symlink: {destination}")
+    shutil.copyfile(source, destination)
+    actual = sha256_file(destination)
+    expected = expected_digest or sha256_file(source)
+    if actual != expected or destination.stat().st_size != source.stat().st_size:
+        destination.unlink(missing_ok=True)
+        raise LabError(f"copied file identity differs from source: {source.name}")
+    return actual
 
 
 def qemu_command(profile: dict[str, Any], state: Path, ssh_port: int) -> list[str]:
@@ -377,6 +421,7 @@ def reset_generated_state(state: Path) -> None:
 def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
     for name in ("qemu-system-aarch64", "qemu-img", "cloud-localds", "ssh-keygen", "curl", "cp"):
         require_command(name)
+    state = validate_state_directory(state)
     state.mkdir(parents=True, exist_ok=True)
     os.chmod(state, 0o700)
     reset_generated_state(state)
@@ -411,8 +456,9 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
         [require_command("cp"), "--reflink=auto", "--sparse=always", str(base), str(system)],
         check=True,
     )
-    if system.stat().st_size != lock["sizeBytes"]:
-        raise LabError("copied-writable system disk has the wrong size")
+    if system.stat().st_size != lock["sizeBytes"] or sha256_file(system) != lock["sha256"]:
+        system.unlink(missing_ok=True)
+        raise LabError("copied-writable system disk identity differs from the pinned base")
     info = json.loads(
         subprocess.run(
             [require_command("qemu-img"), "info", "--output=json", str(system)],
@@ -430,12 +476,11 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
     if data.stat().st_size != data_size:
         raise LabError("raw data disk has the wrong virtual size")
 
-    code_source = find_firmware("code")
-    vars_source = find_firmware("vars")
+    code_source, vars_source = find_firmware_pair()
     code = state / "AAVMF_CODE.fd"
     variables = state / "AAVMF_VARS.fd"
-    shutil.copyfile(code_source, code)
-    shutil.copyfile(vars_source, variables)
+    code_digest = copy_verified(code_source, code)
+    vars_digest = copy_verified(vars_source, variables)
 
     command = qemu_command(profile, state, ssh_port)
     plan = {
@@ -460,8 +505,8 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
         },
         "image": lock,
         "firmware": {
-            "code": firmware_fact(code_source),
-            "vars": firmware_fact(vars_source),
+            "code": {**firmware_fact(code_source), "copiedSha256": code_digest},
+            "vars": {**firmware_fact(vars_source), "copiedSha256": vars_digest},
         },
         "tools": {
             "qemu": tool_fact("qemu-system-aarch64", "--version"),
@@ -494,7 +539,7 @@ def main() -> int:
         if args.validate_only:
             print(json.dumps({"profileId": profile["metadata"]["id"], "image": lock}, indent=2, sort_keys=True))
         else:
-            print(json.dumps(prepare(args.state.resolve(), args.ssh_port), indent=2, sort_keys=True))
+            print(json.dumps(prepare(args.state, args.ssh_port), indent=2, sort_keys=True))
         return 0
     except (LabError, OSError, subprocess.CalledProcessError, json.JSONDecodeError) as exc:
         print(f"H02A preparation error: {exc}", file=sys.stderr)
