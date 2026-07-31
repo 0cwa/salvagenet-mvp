@@ -221,6 +221,11 @@ cat > /home/nodeadmin/.ssh/authorized_keys <<'NODEHOST_H02A_KEY'
 NODEHOST_H02A_KEY
 chown nodeadmin:nodeadmin /home/nodeadmin/.ssh/authorized_keys
 chmod 0600 /home/nodeadmin/.ssh/authorized_keys
+cat > /etc/sudoers.d/90-nodehost-h02a <<'NODEHOST_H02A_SUDO'
+nodeadmin ALL=(ALL) NOPASSWD:ALL
+NODEHOST_H02A_SUDO
+chmod 0440 /etc/sudoers.d/90-nodehost-h02a
+visudo -cf /etc/sudoers.d/90-nodehost-h02a
 cat > /etc/ssh/sshd_config.d/99-nodehost-h02a.conf <<'NODEHOST_H02A_SSHD'
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -502,6 +507,7 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
         "testUserData": {
             "format": "text/x-shellscript",
             "sha256": sha256_file(user),
+            "qualificationSudo": "nodeadmin-nopasswd-test-only",
         },
         "image": lock,
         "firmware": {
