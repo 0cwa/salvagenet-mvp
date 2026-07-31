@@ -81,19 +81,25 @@ This sequence is planned, not authorized.
 ### End
 
 1. Check every task and phase-exit criterion against actual outputs.
-2. Run required checks and complete applicable CI.
-3. Record implementation and real evidence separately.
-4. Merge the exact reviewed head and record its SHA.
-5. Replan the next phase; never auto-activate the next dependency-clear issue.
+2. Run the smallest relevant test first, then the packet-required checks and applicable CI.
+3. Report every required or relevant check that could not run and why.
+4. Verify the work is on the assigned `agent/<TASK>-<slug>` branch/worktree and that the worktree is clean.
+5. Before handoff, run `python3 tools/agents/verify-scope.py <TASK>` and resolve or report every scope violation.
+6. Record implementation state and real evidence separately.
+7. Record agent provenance through `tools/provenance/commit-agent.sh` for the commits being handed off.
+8. Merge only the exact reviewed head and record its SHA.
+9. Replan the next phase; never auto-activate the next dependency-clear issue.
 
 ## Rules
 
 - Keep public APIs typed and preserve separate host and guest identities.
 - `tests/hil/` remains the sole physical runner; host tooling and issue state cannot close physical gates.
 - Do not move cluster workload state into the Host API.
-- Do not begin Slint, Swarm, Nix/OpenTofu, patched Android, Linux/SBC/WSL, Zenoh, DDNS, community, or USB implementation unless the DAG explicitly authorizes it.
+- While H02A is active, Slint, Swarm, Nix/OpenTofu, patched Android, Linux/SBC/WSL, Zenoh, DDNS, QR/account enrollment, user-owned storage, and USB implementation remain unauthorized unless `agents/task-dag.json` explicitly changes through a reviewed phase transition.
 - USB/AOA remains blocked until every base gate is PASS.
 
 ## Completion report
 
-Report exact source, checks, evidence class, unresolved criteria, physical limitations, roadmap disagreements, and why the next phase shape is the smallest evidence-driven choice.
+Report the exact source commit, checks, evidence class, unresolved criteria, physical limitations, roadmap disagreements, and why the next phase shape is the smallest evidence-driven choice.
+
+Any report presented as physical evidence must also identify the exact APK digest, configured device facts, scenario, commands, and assertions. A report missing any of those fields is diagnostic context only and cannot qualify or close a physical gate.
