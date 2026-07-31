@@ -71,9 +71,10 @@ Agents should begin with the durable product direction, bounded milestone, activ
 
 - `../.github/roadmap/seed.v1.json` — immutable reviewed first-bootstrap provenance.
 - `../.github/roadmap/expansion.v1.json` — reviewed strategic expansion and updates to existing issue dependencies/context.
-- `../tools/roadmap/catalog.py` — composes catalog generations and keeps live validation cardinality derived from reviewed data.
+- `../.github/roadmap/milestone-updates.v1.json` — reviewed in-place milestone title/description migrations that preserve issue assignments.
+- `../tools/roadmap/catalog.py` — composes catalog generations, previews/applies milestone migrations, and keeps live validation cardinality derived from reviewed data.
 - GitHub issues and dependency links — live planned outcomes after apply.
-- `../agents/task-dag.json` — current authorization, checked against the active issue label.
+- `../agents/task-dag.json` — current authorization, checked against and projected into the active issue label.
 - `../website/data/roadmap.snapshot.v1.json` and `../agents/generated/roadmap.index.v1.json` — generated caches, never independent authorities.
 
 ## Public website
