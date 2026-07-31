@@ -68,12 +68,16 @@ A phone behind ordinary residential CGNAT is not eligible merely because it can 
 The controller creates:
 
 - a Headscale service identity;
-- a provider-scoped DDNS update credential or a one-use exchange reference;
+- a one-use DDNS enrollment/exchange reference by default, redeemable only for the intended record and node identity;
 - expected domain and certificate policy;
 - encrypted service backup material;
 - a signed bootstrap capsule limited to the coordination role.
 
-No permanent DNS provider administrator credential should be included in a QR code or guest image.
+The signed capsule must not contain a reusable plaintext DNS-provider credential. Signing authenticates the capsule but does not provide secrecy or replay resistance.
+
+Where fully offline setup makes a direct exchange impossible, any embedded DDNS credential must be encrypted to the intended node/device key and must include a narrow record/operation scope, explicit audience, short expiry, unique nonce, and one-use semantics. The credential must be rotated or revoked immediately after initial registration and remain independently revocable if the capsule is copied or lost.
+
+No permanent DNS provider administrator credential, reusable update credential, or community administrator secret should be included in a QR code, guest image, or generally readable capsule.
 
 ### 2. Probe reachability before installation
 
