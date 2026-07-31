@@ -1,0 +1,114 @@
+name: h02a-fix-cloud-final-deadlock-v3
+
+on:
+  push:
+    branches:
+      - automation/H02A-cloud-final-deadlock-v3
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: 953070de36e3f6d724ed2393327b0c7dfab2b511
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+  CONTROL_BRANCH: automation/H02A-cloud-final-deadlock-v3
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Apply reviewed fix with explicit path authorization
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-cloud-final-deadlock-v3.log"
+          set +e
+          (
+            set -euo pipefail
+            test "$(git -C source rev-parse HEAD)" = "$EXPECTED_HEAD"
+            python3 - control/.github/workflows/h02a-fix-cloud-final-deadlock-v2.yml source/patch.py <<'PY'
+          from pathlib import Path
+          import sys
+
+          workflow = Path(sys.argv[1]).read_text(encoding='utf-8').splitlines()
+          output = Path(sys.argv[2])
+          start = next(index for index, line in enumerate(workflow) if line.strip() == "python3 - <<'PY'") + 1
+          end = next(index for index in range(start, len(workflow)) if workflow[index].strip() == 'PY')
+          body = []
+          for line in workflow[start:end]:
+              if not line:
+                  body.append('')
+              elif line.startswith('          '):
+                  body.append(line[10:])
+              else:
+                  raise SystemExit(f'unexpected embedded patch indentation: {line!r}')
+          output.write_text('\n'.join(body) + '\n', encoding='utf-8')
+          PY
+            cd source
+            python3 patch.py
+            rm patch.py
+            printf '%s\n' 'profiles/guest-init/ubuntu/vendor-data.yaml' >> agents/tasks/H02A/allowed-paths.txt
+            python3 -m py_compile lab/qemu/scripts/h02a-prepare.py tests/guest/test_h02a_lab.py
+            make validate
+            make test-guest
+            python3 tools/agents/verify-scope.py H02A
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          new_head="$EXPECTED_HEAD"
+          if [[ $rc -eq 0 ]]; then
+            cd source
+            expected=(
+              agents/tasks/H02A/allowed-paths.txt
+              agents/tasks/H02A/task.md
+              docs/research/experiments/H02A.md
+              lab/qemu/README.md
+              lab/qemu/scripts/h02a-prepare.py
+              profiles/guest-init/ubuntu/vendor-data.yaml
+              tests/guest/test_h02a_lab.py
+            )
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'guest(H02A): avoid cloud-final bootstrap deadlock'
+            git push origin "HEAD:$TARGET_BRANCH"
+            new_head=$(git rev-parse HEAD)
+            cd ..
+          fi
+
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          result = {
+              'schemaVersion': 1,
+              'exitCode': int(sys.argv[2]),
+              'productHead': sys.argv[3],
+              'logTail': Path(sys.argv[1]).read_bytes()[-32768:].decode('utf-8', 'replace'),
+          }
+          target = Path('control/automation/h02a-cloud-final-deadlock-v3-result.json')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-cloud-final-deadlock-v3-result.json
+          git -C control commit -m 'automation: record H02A cloud-final fix v3 result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
