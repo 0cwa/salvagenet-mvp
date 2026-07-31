@@ -41,7 +41,7 @@ if [[ -e "$state/qemu.pid" ]]; then
       echo "refusing to signal pid $pid: process identity differs from H02A QEMU" >&2
       exit 2
     }
-    ssh_nodeadmin 15 'sudo systemctl poweroff' >/dev/null 2>&1 || true
+    ssh_nodeadmin 15 'sudo -n systemctl poweroff' >/dev/null 2>&1 || true
     if ! wait_for_qemu_exit 150; then
       pid=$(live_qemu_pid) || {
         echo "H02A QEMU identity was lost while stopping" >&2
