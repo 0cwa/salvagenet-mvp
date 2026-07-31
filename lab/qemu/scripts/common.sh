@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 root=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/../../.." && pwd))
 raw_state=${NODEHOST_QEMU_LAB_DIR:-$root/.local/qemu-lab}
@@ -66,6 +67,32 @@ ssh_root() {
   timeout "$timeout_seconds" ssh "${ssh_options[@]}" root@127.0.0.1 "$@"
 }
 
+ssh_single_method() {
+  local method=$1 timeout_seconds=$2
+  local password=no keyboard=no
+  case "$method" in
+    password) password=yes ;;
+    keyboard-interactive) keyboard=yes ;;
+    *) echo "unsupported SSH probe method: $method" >&2; return 2 ;;
+  esac
+  timeout "$timeout_seconds" ssh \
+    -F /dev/null \
+    -q \
+    -o BatchMode=yes \
+    -o IdentitiesOnly=yes \
+    -o PubkeyAuthentication=no \
+    -o PasswordAuthentication="$password" \
+    -o KbdInteractiveAuthentication="$keyboard" \
+    -o PreferredAuthentications="$method" \
+    -o StrictHostKeyChecking=yes \
+    -o UserKnownHostsFile="$known_hosts" \
+    -o GlobalKnownHostsFile=/dev/null \
+    -o ConnectTimeout=5 \
+    -o ConnectionAttempts=1 \
+    -p "$ssh_port" \
+    nodeadmin@127.0.0.1 true
+}
+
 wait_for_ssh() {
   local timeout_seconds=${1:-300}
   local deadline=$((SECONDS + timeout_seconds))
@@ -100,10 +127,46 @@ read_qemu_pid() {
   printf '%s\n' "$pid"
 }
 
-qemu_running() {
+qemu_pid_matches() {
+  local pid=$1
+  python3 - "$pid" "$state" <<'PY' >/dev/null 2>&1
+from pathlib import Path
+import sys
+pid = sys.argv[1]
+state = Path(sys.argv[2])
+try:
+    raw = Path(f'/proc/{pid}/cmdline').read_bytes()
+except OSError:
+    raise SystemExit(1)
+args = [value.decode('utf-8', 'surrogateescape') for value in raw.split(b'\0') if value]
+if not args or Path(args[0]).name != 'qemu-system-aarch64':
+    raise SystemExit(1)
+try:
+    name_index = args.index('-name')
+except ValueError:
+    raise SystemExit(1)
+if name_index + 1 >= len(args) or args[name_index + 1] != 'nodehost-h02a':
+    raise SystemExit(1)
+if not any(str(state / 'system.qcow2') in value for value in args):
+    raise SystemExit(1)
+if not any(str(state / 'qmp.sock') in value for value in args):
+    raise SystemExit(1)
+PY
+}
+
+live_qemu_pid() {
   local pid
   pid=$(read_qemu_pid) || return 1
-  kill -0 "$pid" 2>/dev/null
+  kill -0 "$pid" 2>/dev/null || return 1
+  if ! qemu_pid_matches "$pid"; then
+    echo "refusing to treat pid $pid as H02A QEMU: process identity differs" >&2
+    return 2
+  fi
+  printf '%s\n' "$pid"
+}
+
+qemu_running() {
+  live_qemu_pid >/dev/null 2>&1
 }
 
 wait_for_qemu_exit() {
@@ -114,8 +177,12 @@ wait_for_qemu_exit() {
     rm -f "$state/qemu.pid" "$state/qmp.sock"
     return 0
   }
+  if kill -0 "$pid" 2>/dev/null && ! qemu_pid_matches "$pid"; then
+    echo "refusing to wait on pid $pid: process identity differs from H02A QEMU" >&2
+    return 2
+  fi
   while (( SECONDS < deadline )); do
-    if ! kill -0 "$pid" 2>/dev/null; then
+    if ! kill -0 "$pid" 2>/dev/null || ! qemu_pid_matches "$pid"; then
       rm -f "$state/qemu.pid" "$state/qmp.sock"
       return 0
     fi
@@ -135,9 +202,11 @@ snapshot_qemu_logs() {
   for name in serial qemu.stdout qemu.stderr; do
     source="$state/$name.log"
     target="$state/$name-$stage.log"
-    if [[ -f $source && ! -L $source ]]; then
-      cp --reflink=auto --sparse=always "$source" "$target"
-      chmod 0600 "$target"
-    fi
+    [[ -f $source && ! -L $source ]] || {
+      echo "required QEMU log is missing or unsafe: $source" >&2
+      return 1
+    }
+    cp --reflink=auto --sparse=always "$source" "$target"
+    chmod 0600 "$target"
   done
 }
