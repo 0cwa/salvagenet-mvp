@@ -99,15 +99,19 @@ class H02AQmpTests(unittest.TestCase):
                     with qmp.QmpClient(path, timeout_seconds=2):
                         self.fail("invalid greeting unexpectedly admitted")
 
-    def test_atomic_output_rejects_symlink(self) -> None:
+    def test_atomic_output_is_private_and_rejects_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            output = root / "normal.json"
+            qmp.atomic_output(output, "{}\n")
+            self.assertEqual(0o600, output.stat().st_mode & 0o777)
+
             target = root / "target"
             target.write_text("do-not-touch", encoding="utf-8")
-            output = root / "output.json"
-            output.symlink_to(target)
+            symlink = root / "output.json"
+            symlink.symlink_to(target)
             with self.assertRaisesRegex(qmp.QmpError, "symlink"):
-                qmp.atomic_output(output, "{}\n")
+                qmp.atomic_output(symlink, "{}\n")
             self.assertEqual("do-not-touch", target.read_text(encoding="utf-8"))
 
 
