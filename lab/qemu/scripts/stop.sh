@@ -136,4 +136,8 @@ temporary.chmod(0o600)
 temporary.replace(path)
 PY
 fi
-printf 'host-QEMU lab stopped%s\n' "$( [[ $cleanup == true ]] && printf ' and cleaned' || true )"
+suffix=
+if [[ $cleanup == true ]]; then
+  suffix=' and cleaned'
+fi
+printf 'host-QEMU lab stopped%s\n' "$suffix"
