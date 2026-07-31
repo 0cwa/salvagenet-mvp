@@ -24,16 +24,24 @@ This register records sources used to choose the scaffold and strategic roadmap.
 ## Tailscale Android
 
 - Repository: `https://github.com/tailscale/tailscale-android`
-- Relevant areas: `libtailscale/interfaces.go`, Android `App.kt`, `IPNService.kt`, MDM/policy settings.
+- Selected product release: Android v1.98.2, published 2026-05-18.
+- Corresponding Tailscale core release: `tailscale/tailscale` v1.98.2 at commit `34c5306`.
+- Relevant Android areas: `libtailscale/interfaces.go`, Android `App.kt`, `IPNService.kt`, and MDM/policy settings.
 - Key learning: use Android-aware platform callbacks and `VpnService`, not generic desktop assumptions.
-- Selected MVP line: Android release v1.98.2; its Tailscale core module declares Go 1.26.3. The Android repository commit remains an explicit pinning gate.
+- Reproducibility status: the selected release and core revision are recorded, but this repository does not yet contain a reviewed lock that maps the Android v1.98.2 release to an exact `tailscale-android` source commit. Do not describe that source as pinned until a checked-in lock records and verifies the release/tag object, commit, Android source digest, and core module revision. That remains an explicit source-lock gate for E04/native rebuild work rather than a guessed SHA.
 
 ## Headscale
 
+- Stable release used by the lab: v0.28.0 at upstream commit `97fa117`.
 - Stable requirements: `https://headscale.net/stable/setup/requirements/`
 - Getting started: `https://headscale.net/stable/usage/getting-started/`
 - Reverse proxy caveats: `https://headscale.net/stable/ref/integration/reverse-proxy/`
-- Current lab pin: see the lab configuration and lock files.
+- Checked-in lab version/configuration paths:
+  - `lab/headscale/compose.yaml` — default `HEADSCALE_VERSION=0.28.0` container selection;
+  - `lab/headscale/config/` — reviewed source/templates and generated-config boundary;
+  - `lab/headscale/scripts/` — setup, health, key-minting, and lifecycle helpers;
+  - `docs/testing/headscale-lab.md` — supported laboratory contract.
+- Runtime-generated `lab/headscale/config/generated/`, `lab/headscale/data/`, secrets, and local environment files are ignored evidence/runtime state, not source locks.
 - Pre-authentication keys are used for noninteractive host/guest registration; administrative API keys stay on the controller.
 - Key first-node research constraint: Headscale expects public reachability and HTTPS on TCP 443. Dynamic DNS maintains a name for an address but does not traverse CGNAT or blocked inbound ports.
 
@@ -123,5 +131,13 @@ This register records sources used to choose the scaffold and strategic roadmap.
 
 ## Agent workflow
 
-- OpenAI Codex/AGENTS guidance: official OpenAI Codex documentation and product guidance.
-- The repository itself defines exact task packets, tests, provenance, roadmap authority, and bounded context requirements.
+- OpenAI, “Introducing Codex,” published 2025-05-16 and updated 2025-06-03: `https://openai.com/index/introducing-codex/`. The article defines repository-scoped `AGENTS.md` guidance and emphasizes configured environments, reliable tests, verifiable logs, and human review.
+- OpenAI, “Harness engineering: leveraging Codex in an agent-first world,” published 2026: `https://openai.com/index/harness-engineering/`. The relevant design principle is to give agents a compact map into a structured repository knowledge base rather than one monolithic instruction manual.
+- Repository implementation references:
+  - `AGENTS.md` and nested `AGENTS.md` files — scoped operating constraints;
+  - `agents/task-dag.json` — sole current authorization;
+  - `agents/tasks/*/task.md` — task execution and acceptance packets;
+  - `tools/agents/context-pack.py` — deterministic bounded task context;
+  - `docs/development/context-engineering.md` — local context architecture;
+  - `tools/provenance/commit-agent.sh` — commit provenance.
+- These repository files, tests, and reviewed snapshots define the exact current workflow; the external articles explain the upstream agent-operating principles and are recorded by title/date rather than treated as a versioned local specification.
