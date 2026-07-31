@@ -26,8 +26,6 @@ import live  # noqa: E402
 
 configure_live(live, roadmap)
 
-from live import PR_REFERENCE_RE, RoadmapTransportError, StrictGitHubClient, fetch_validated_live_graph  # noqa: E402
-
 
 def enrich(graph: dict, seed: dict) -> dict:
     reviewed = {item["id"]: item for item in seed["items"]}
@@ -42,7 +40,10 @@ def enrich(graph: dict, seed: dict) -> dict:
         if "pullRequestNumbers" not in item:
             source_text = json.dumps(source, sort_keys=True)
             item["pullRequestNumbers"] = sorted(
-                {int(match.group("number")) for match in PR_REFERENCE_RE.finditer(source_text)}
+                {
+                    int(match.group("number"))
+                    for match in live.PR_REFERENCE_RE.finditer(source_text)
+                }
             )
         if "pullRequests" not in item:
             item["pullRequests"] = [
@@ -69,14 +70,21 @@ def project_pull_requests(snapshot: dict, index: dict, graph: dict) -> None:
         pulls = copy.deepcopy(graph_items[item_id].get("pullRequests", []))
         item["pullRequests"] = pulls
         if item["workState"] in {"active", "review"} and pulls:
-            if all(pull.get("merged") or pull.get("state") == "closed" for pull in pulls):
+            if all(
+                pull.get("merged") or pull.get("state") == "closed"
+                for pull in pulls
+            ):
                 disagreements.append(
-                    f"{item_id} is {item['workState']} but all linked pull requests are closed or merged"
+                    f"{item_id} is {item['workState']} but all linked pull "
+                    "requests are closed or merged"
                 )
         if item["workState"] == "done" and any(
-            pull.get("state") == "open" and not pull.get("merged") for pull in pulls
+            pull.get("state") == "open" and not pull.get("merged")
+            for pull in pulls
         ):
-            disagreements.append(f"{item_id} is done while a linked pull request remains open")
+            disagreements.append(
+                f"{item_id} is done while a linked pull request remains open"
+            )
 
     normalized = {
         "repository": snapshot["source"]["repository"],
@@ -96,9 +104,14 @@ def project_pull_requests(snapshot: dict, index: dict, graph: dict) -> None:
     index["disagreements"] = list(snapshot["disagreements"])
 
 
-def recent_committed_fallback(reason: str, max_age_hours: int) -> tuple[dict, dict]:
+def recent_committed_fallback(
+    reason: str, max_age_hours: int
+) -> tuple[dict, dict]:
     if not roadmap.SNAPSHOT_PATH.is_file() or not roadmap.INDEX_PATH.is_file():
-        raise roadmap.RoadmapError(f"no committed last-known-good snapshot is available; live failure: {reason}")
+        raise roadmap.RoadmapError(
+            "no committed last-known-good snapshot is available; "
+            f"live failure: {reason}"
+        )
     snapshot = roadmap.read_json(roadmap.SNAPSHOT_PATH)
     index = roadmap.read_json(roadmap.INDEX_PATH)
     generated = snapshot.get("generatedAt")
@@ -106,7 +119,10 @@ def recent_committed_fallback(reason: str, max_age_hours: int) -> tuple[dict, di
         raise roadmap.RoadmapError("fallback snapshot has no generatedAt")
     age = dt.datetime.now(dt.timezone.utc) - roadmap.parse_time(generated)
     if age > dt.timedelta(hours=max_age_hours):
-        raise roadmap.RoadmapError(f"fallback snapshot is older than {max_age_hours} hours ({age}); live failure: {reason}")
+        raise roadmap.RoadmapError(
+            f"fallback snapshot is older than {max_age_hours} hours ({age}); "
+            f"live failure: {reason}"
+        )
     snapshot = copy.deepcopy(snapshot)
     snapshot.setdefault("source", {})["fallback"] = True
     snapshot["source"]["fallbackReason"] = reason[:500]
@@ -115,7 +131,9 @@ def recent_committed_fallback(reason: str, max_age_hours: int) -> tuple[dict, di
 
 
 def live_projection(seed: dict, token: str) -> tuple[dict, dict]:
-    graph = fetch_validated_live_graph(StrictGitHubClient(seed["repository"], token))
+    graph = live.fetch_validated_live_graph(
+        live.StrictGitHubClient(seed["repository"], token)
+    )
     graph = enrich(graph, seed)
     snapshot, index = roadmap.derive_snapshot(graph, fallback=False)
     project_pull_requests(snapshot, index, graph)
@@ -126,7 +144,9 @@ def seed_projection(seed: dict) -> tuple[dict, dict]:
     graph = enrich(roadmap.seed_graph(seed), seed)
     snapshot, index = roadmap.derive_snapshot(graph, fallback=True)
     project_pull_requests(snapshot, index, graph)
-    snapshot["source"]["fallbackReason"] = "reviewed pre-bootstrap catalog projection"
+    snapshot["source"]["fallbackReason"] = (
+        "reviewed pre-bootstrap catalog projection"
+    )
     return snapshot, index
 
 
@@ -140,7 +160,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.seed_only and args.check:
-        raise roadmap.RoadmapError("--check requires the live graph; it cannot be combined with --seed-only")
+        raise roadmap.RoadmapError(
+            "--check requires the live graph; it cannot be combined with --seed-only"
+        )
 
     seed = roadmap.load_seed()
     roadmap.validate_seed(seed)
@@ -151,15 +173,20 @@ def main() -> int:
     elif token:
         try:
             snapshot, index = live_projection(seed, token)
-        except RoadmapTransportError as exc:
+        except live.RoadmapTransportError as exc:
             if args.strict_live or args.check:
                 raise roadmap.RoadmapError(str(exc)) from exc
-            snapshot, index = recent_committed_fallback(str(exc), args.max_age_hours)
+            snapshot, index = recent_committed_fallback(
+                str(exc), args.max_age_hours
+            )
     elif args.strict_live or args.check:
-        raise roadmap.RoadmapError("GH_TOKEN or GITHUB_TOKEN is required for strict live generation")
+        raise roadmap.RoadmapError(
+            "GH_TOKEN or GITHUB_TOKEN is required for strict live generation"
+        )
     elif roadmap.SNAPSHOT_PATH.is_file() and roadmap.INDEX_PATH.is_file():
         snapshot, index = recent_committed_fallback(
-            "live fetch not requested because no token is available", args.max_age_hours
+            "live fetch not requested because no token is available",
+            args.max_age_hours,
         )
     else:
         snapshot, index = seed_projection(seed)
@@ -169,13 +196,21 @@ def main() -> int:
         committed_hash = committed.get("source", {}).get("sourceHash")
         live_hash = snapshot.get("source", {}).get("sourceHash")
         if committed_hash != live_hash:
-            raise roadmap.RoadmapError(f"roadmap snapshot is stale: committed={committed_hash} live={live_hash}")
+            raise roadmap.RoadmapError(
+                "roadmap snapshot is stale: "
+                f"committed={committed_hash} live={live_hash}"
+            )
         generated = committed.get("generatedAt")
         if not isinstance(generated, str):
-            raise roadmap.RoadmapError("committed roadmap snapshot has no generatedAt")
+            raise roadmap.RoadmapError(
+                "committed roadmap snapshot has no generatedAt"
+            )
         age = dt.datetime.now(dt.timezone.utc) - roadmap.parse_time(generated)
         if age > dt.timedelta(hours=args.max_age_hours):
-            raise roadmap.RoadmapError(f"committed roadmap snapshot is older than {args.max_age_hours} hours")
+            raise roadmap.RoadmapError(
+                "committed roadmap snapshot is older than "
+                f"{args.max_age_hours} hours"
+            )
         print("roadmap snapshot is current")
         return 0
 
