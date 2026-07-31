@@ -3,15 +3,16 @@
     {
       "acceptance": [],
       "blockedBy": [
-        "WEB-00"
+        "FND-01",
+        "FND-02"
       ],
       "dependencyState": "clear",
-      "id": "WEB-04",
-      "number": 31,
+      "id": "GUEST-01",
+      "number": 37,
       "pullRequests": [],
       "taskAuthorized": true,
-      "taskPacket": "agents/tasks/WEB04/task.md",
-      "title": "Generate the GitHub issue roadmap and compact agent index",
+      "taskPacket": "agents/tasks/H02A/task.md",
+      "title": "Qualify deterministic Ubuntu ARM64 guest boot",
       "workState": "active"
     }
   ],
@@ -729,21 +730,6 @@
     {
       "acceptance": [],
       "blockedBy": [
-        "WEB-00",
-        "WEB-04"
-      ],
-      "dependencyState": "blocked",
-      "id": "WEB-01",
-      "number": 32,
-      "pullRequests": [],
-      "taskAuthorized": false,
-      "taskPacket": null,
-      "title": "Build the Astro design-system foundation",
-      "workState": "queued"
-    },
-    {
-      "acceptance": [],
-      "blockedBy": [
         "WEB-01"
       ],
       "dependencyState": "blocked",
@@ -884,10 +870,10 @@
       "workState": "queued"
     }
   ],
-  "currentMilestone": "M0.5 — Public project surface",
+  "currentMilestone": "M1 — Validated MVP",
   "disagreements": [],
-  "generatedAt": "2026-07-31T02:02:10Z",
+  "generatedAt": "2026-07-31T02:30:51Z",
   "ready": [],
   "schemaVersion": 1,
-  "sourceHash": "sha256:58ea35f122c38db558b533d194147230549bea3b40d1b8ee871dc11bb8daf96e"
+  "sourceHash": "sha256:6e2b3db39b309212bea00dcb8dcd3cb61a28ca161b2632de4504c7e56ec0480c"
 }
