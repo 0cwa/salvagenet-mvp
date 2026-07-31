@@ -1,8 +1,8 @@
 # Documentation index
 
-The current acceptance state is generated in `STATUS.md`. Current implementation authorization is always read from `../agents/task-dag.json` and the active packet; prose documents must not be treated as a competing active-task registry.
+The current acceptance state is generated in `STATUS.md`. `../agents/task-dag.json` is the sole source of current implementation authorization. The active packet supplies execution constraints and acceptance details only; it cannot authorize work that is absent from the DAG. Prose documents must not be treated as a competing active-task registry.
 
-Agents should begin with the durable product direction, bounded milestone, active DAG, active packet, and only the additional pages named by that work.
+Agents should begin with the compact durable product direction, bounded milestone, active DAG, active packet, and only the additional pages named by that work. This keeps product alignment present without loading the complete roadmap or recursively crawling documentation.
 
 ## Product and current status
 
@@ -12,7 +12,7 @@ Agents should begin with the durable product direction, bounded milestone, activ
 - `roadmap/strategic-priorities.md` — evidence-driven order from current H02A/physical testing to the turnkey cluster MVP and later platforms.
 - `roadmap/podroid-mvp-alignment.md` — original Podroid-fork milestone mapping and drift alarms; interpret milestone exclusions through the north star.
 - `../agents/task-dag.json` — sole active phase/task authorization.
-- `../agents/tasks/H02A/task.md` — active packet while H02A remains in the DAG.
+- `../agents/tasks/H02A/task.md` — active packet while H02A remains in the DAG; execution guidance, not independent authorization.
 
 ## Architecture
 
@@ -93,13 +93,14 @@ Agents should begin with the durable product direction, bounded milestone, activ
 
 ## Reading discipline
 
-Do not recursively load all documentation into normal implementation context. Read:
+Do not recursively load all documentation into normal implementation context. Read this compact baseline in order:
 
-1. `product/north-star.md`;
-2. `../GOAL.md`;
-3. `../agents/task-dag.json`;
-4. the active task packet;
-5. the bounded context generated for that task;
-6. only the pages linked by the packet, relevant issue, or a discovered decision gap.
+1. `docs/INDEX.md`;
+2. `product/north-star.md` as the durable product-boundary anchor;
+3. `../GOAL.md` as the bounded current-milestone anchor;
+4. `../agents/task-dag.json` as the sole authorization source;
+5. the active task packet as execution guidance for the DAG-authorized task;
+6. the bounded context generated for that task;
+7. only the additional pages linked by the packet, relevant issue, or a discovered decision gap.
 
-Queued strategic issues are context, not authorization.
+The north star and current milestone are deliberately small, stable context anchors. The full issue roadmap, queued issue bodies, comments, and unrelated architecture pages are not standard task context. Queued strategic issues are context, not authorization.
