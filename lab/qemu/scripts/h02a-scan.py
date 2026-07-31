@@ -16,15 +16,37 @@ ROOT = SCRIPT_PATH.parents[3] if len(SCRIPT_PATH.parents) > 3 else Path.cwd()
 PATTERNS = (
     ("tailscale-key", re.compile(rb"tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}")),
     ("headscale-key", re.compile(rb"hskey-[A-Za-z0-9_-]{12,}")),
-    ("bootstrap-token", re.compile(rb"(?:NODEHOST_)?BOOTSTRAP_TOKEN=[A-Za-z0-9_-]{16,}")),
+    (
+        "bootstrap-token",
+        re.compile(
+            rb"(?:NODEHOST_)?BOOTSTRAP[_-]?TOKEN[\"']?\s*[=:]\s*[\"']?[A-Za-z0-9_-]{16,}",
+            re.IGNORECASE,
+        ),
+    ),
     ("metadata-base", re.compile(rb"NODEHOST_METADATA_BASE=https?://[^\x00\s]{4,}")),
-    ("callback-capability", re.compile(rb"(?:NODEHOST_)?CALLBACK_CAPABILITY=[A-Za-z0-9._-]{16,}")),
+    (
+        "callback-capability",
+        re.compile(
+            rb"(?:NODEHOST_)?CALLBACK[_-]?CAPABILITY[\"']?\s*[=:]\s*[\"']?[A-Za-z0-9._-]{16,}",
+            re.IGNORECASE,
+        ),
+    ),
 )
 MAX_JSON_BYTES = 256 * 1024
 MAX_FILES = 512
 MAX_FILE_BYTES = 4 * 1024 * 1024
 MAX_TOTAL_BYTES = 32 * 1024 * 1024
 MAX_PROCESS_ENVIRON = 512
+MAX_FINDINGS = 4096
+REMOTE_SCANNED_PATHS = (
+    "/var/lib/cloud",
+    "/var/log/cloud-init.log",
+    "/var/log/cloud-init-output.log",
+    "/run",
+    "/tmp",
+    "/proc/*/environ",
+    "/proc/*/comm",
+)
 
 
 class ScanError(RuntimeError):
@@ -80,13 +102,7 @@ def walk_roots(roots: Iterable[Path]) -> Iterable[Path]:
 
 
 def remote_scan() -> dict[str, Any]:
-    roots = [
-        Path("/var/lib/cloud"),
-        Path("/var/log/cloud-init.log"),
-        Path("/var/log/cloud-init-output.log"),
-        Path("/run"),
-        Path("/tmp"),
-    ]
+    roots = [Path(value) for value in REMOTE_SCANNED_PATHS[:5]]
     findings, file_count, total_bytes = scan_regular_files(walk_roots(roots))
     if Path("/var/lib/nodehost/bootstrap.env").exists():
         findings.append(finding("/var/lib/nodehost/bootstrap.env", "bootstrap-environment-present"))
@@ -117,7 +133,7 @@ def remote_scan() -> dict[str, Any]:
     return {
         "passed": not findings,
         "findings": findings,
-        "scannedPaths": [str(path) for path in roots] + ["/proc/*/environ", "/proc/*/comm"],
+        "scannedPaths": list(REMOTE_SCANNED_PATHS),
         "stats": {"files": file_count, "bytes": total_bytes, "processes": process_count},
     }
 
@@ -139,6 +155,28 @@ def validate_state_directory(state: Path) -> Path:
     return resolved
 
 
+def validate_findings(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list) or len(value) > MAX_FINDINGS:
+        raise ScanError("remote scan findings are invalid or unbounded")
+    normalized: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {"path", "category"}:
+            raise ScanError("remote scan finding schema is invalid")
+        path = item["path"]
+        category = item["category"]
+        if (
+            not isinstance(path, str)
+            or not path
+            or len(path) > 512
+            or not isinstance(category, str)
+            or not category
+            or len(category) > 128
+        ):
+            raise ScanError("remote scan finding values are invalid")
+        normalized.append({"path": path, "category": category})
+    return normalized
+
+
 def read_remote(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file() or path.stat().st_size not in range(1, MAX_JSON_BYTES + 1):
         raise ScanError("remote scan result is missing, oversized, or unsafe")
@@ -148,17 +186,39 @@ def read_remote(path: Path) -> dict[str, Any]:
         raise ScanError(f"cannot read remote scan result: {exc}") from exc
     if not isinstance(value, dict) or set(value) != {"findings", "passed", "scannedPaths", "stats"}:
         raise ScanError("remote scan result has an invalid schema")
-    if not isinstance(value["findings"], list) or not isinstance(value["scannedPaths"], list):
-        raise ScanError("remote scan result has invalid collections")
-    return value
+    findings = validate_findings(value["findings"])
+    passed = value["passed"]
+    if not isinstance(passed, bool) or passed is not (not findings):
+        raise ScanError("remote scan pass flag disagrees with its findings")
+    if value["scannedPaths"] != list(REMOTE_SCANNED_PATHS):
+        raise ScanError("remote scan scope differs from the closed H02A scope")
+    stats = value["stats"]
+    if not isinstance(stats, dict) or set(stats) != {"files", "bytes", "processes"}:
+        raise ScanError("remote scan statistics schema is invalid")
+    bounds = {
+        "files": MAX_FILES,
+        "bytes": MAX_TOTAL_BYTES,
+        "processes": MAX_PROCESS_ENVIRON,
+    }
+    for name, maximum in bounds.items():
+        observed = stats[name]
+        if not isinstance(observed, int) or isinstance(observed, bool) or not 0 <= observed <= maximum:
+            raise ScanError(f"remote scan statistic is invalid: {name}")
+    return {
+        "passed": passed,
+        "findings": findings,
+        "scannedPaths": list(REMOTE_SCANNED_PATHS),
+        "stats": stats,
+    }
 
 
 def atomic_json(path: Path, value: Any) -> None:
     encoded = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
     if len(encoded) > MAX_JSON_BYTES:
         raise ScanError("combined scan result exceeds the byte bound")
-    if path.is_symlink():
-        raise ScanError("combined scan path must not be a symlink")
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if path.parent.is_symlink() or path.is_symlink():
+        raise ScanError("combined scan path must not traverse a symlink")
     temporary = path.with_name(path.name + ".tmp")
     if temporary.is_symlink():
         raise ScanError("combined scan temporary path must not be a symlink")
