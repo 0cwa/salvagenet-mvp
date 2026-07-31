@@ -150,6 +150,7 @@ def stage_result(state: Path, stage: str) -> dict[str, Any]:
         "passwordAuthenticationDisabled": True,
         "keyboardInteractiveDisabled": True,
         "rootLoginDisabled": True,
+        "qualificationSudoNoninteractive": True,
     }
     require_exact_boolean_map(auth, expected_auth, f"stage {stage} SSH authentication")
     expected_sshd = {
@@ -210,8 +211,12 @@ def validate_preflight(preflight: Any) -> dict[str, Any]:
         raise EvidenceError("preflight has no rendered vendor-data identity")
     require_sha(vendor.get("renderedSha256"), "vendor-data")
     user = preflight.get("testUserData")
-    if not isinstance(user, dict) or user.get("format") != "text/x-shellscript":
-        raise EvidenceError("preflight test user-data format is invalid")
+    if (
+        not isinstance(user, dict)
+        or user.get("format") != "text/x-shellscript"
+        or user.get("qualificationSudo") != "nodeadmin-nopasswd-test-only"
+    ):
+        raise EvidenceError("preflight test user-data contract is invalid")
     require_sha(user.get("sha256"), "test user-data")
     image = preflight.get("image")
     if not isinstance(image, dict):
