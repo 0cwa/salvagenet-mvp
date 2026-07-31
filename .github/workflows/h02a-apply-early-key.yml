@@ -1,0 +1,390 @@
+name: h02a-apply-early-key
+
+on:
+  push:
+    branches:
+      - automation/H02A-early-ssh-key
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: 55f6a3119d32656c7ee0f5c53bc46b4f6564b216
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact product branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+      - name: Verify exact source head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Apply closed H02A early-key patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def load(path: str) -> str:
+              return Path(path).read_text(encoding='utf-8')
+
+          def save(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding='utf-8')
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          def replace_between(text: str, start: str, end: str, replacement: str, label: str) -> str:
+              first = text.find(start)
+              if first < 0:
+                  raise SystemExit(f'{label}: start marker missing')
+              second = text.find(end, first)
+              if second < 0:
+                  raise SystemExit(f'{label}: end marker missing')
+              return text[:first] + replacement + text[second:]
+
+          # Preparation: install the ephemeral key during config stage, retain
+          # qualification-only hardening/readiness in the final shell stage.
+          path = 'lab/qemu/scripts/h02a-prepare.py'
+          text = load(path)
+          text = replace_once(
+              text,
+              'PROFILE_ID = "ubuntu-2404-arm64-uefi"\n',
+              'PROFILE_ID = "ubuntu-2404-arm64-uefi"\nMIME_BOUNDARY = "===============nodehost-h02a=="\n',
+              'MIME boundary constant',
+          )
+          new_user_data = r'''def test_user_data(public_key: str) -> str:
+              """Return deterministic multipart data without overriding vendor work lists."""
+              key = validate_public_key(public_key)
+              cloud_config = f"""#cloud-config
+          users:
+            - name: nodeadmin
+              groups: [sudo]
+              shell: /bin/bash
+              lock_passwd: true
+              ssh_authorized_keys:
+                - {key}
+          """
+              final_script = """#!/bin/sh
+          set -eu
+          cat > /etc/sudoers.d/90-nodehost-h02a <<'NODEHOST_H02A_SUDO'
+          nodeadmin ALL=(ALL) NOPASSWD:ALL
+          NODEHOST_H02A_SUDO
+          chmod 0440 /etc/sudoers.d/90-nodehost-h02a
+          visudo -cf /etc/sudoers.d/90-nodehost-h02a
+          cat > /etc/ssh/sshd_config.d/99-nodehost-h02a.conf <<'NODEHOST_H02A_SSHD'
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin no
+          NODEHOST_H02A_SSHD
+          chmod 0644 /etc/ssh/sshd_config.d/99-nodehost-h02a.conf
+          systemctl restart ssh
+          install -d -m 0755 /var/lib/nodehost
+          printf 'h02a-ready\\n' > /var/lib/nodehost/h02a-ready
+          """
+              return (
+                  "MIME-Version: 1.0\n"
+                  f'Content-Type: multipart/mixed; boundary="{MIME_BOUNDARY}"\n'
+                  "\n"
+                  f"--{MIME_BOUNDARY}\n"
+                  'Content-Type: text/cloud-config; charset="us-ascii"\n'
+                  "Content-Transfer-Encoding: 7bit\n"
+                  "\n"
+                  f"{cloud_config}"
+                  f"--{MIME_BOUNDARY}\n"
+                  'Content-Type: text/x-shellscript; charset="us-ascii"\n'
+                  "Content-Transfer-Encoding: 7bit\n"
+                  "\n"
+                  f"{final_script}"
+                  f"--{MIME_BOUNDARY}--\n"
+              )
+
+
+          '''
+          text = replace_between(text, 'def test_user_data(', 'def meta_data(', new_user_data, 'test user-data function')
+          old_render = '''    if "/var/lib/nodehost/bootstrap.env" not in text:
+              raise LabError("canonical vendor-data lost its inert bootstrap condition")
+              return destination
+          '''
+          new_render = '''    if "/var/lib/nodehost/bootstrap.env" not in text:
+              raise LabError("canonical vendor-data lost its inert bootstrap condition")
+              canonical_user = """users:
+            - name: nodeadmin
+              groups: [sudo]
+              shell: /bin/bash
+              lock_passwd: true
+          """
+              if canonical_user not in text or "ssh_authorized_keys:" in text:
+                  raise LabError("canonical vendor-data nodeadmin contract changed")
+              return destination
+          '''
+          text = replace_once(text, old_render, new_render, 'vendor nodeadmin validation')
+          old_preflight = '''        "testUserData": {
+                      "format": "text/x-shellscript",
+                      "sha256": sha256_file(user),
+                      "qualificationSudo": "nodeadmin-nopasswd-test-only",
+                  },
+          '''
+          new_preflight = '''        "testUserData": {
+                      "format": "multipart/mixed",
+                      "parts": ["text/cloud-config", "text/x-shellscript"],
+                      "earlySshKey": True,
+                      "sha256": sha256_file(user),
+                      "qualificationSudo": "nodeadmin-nopasswd-test-only",
+                  },
+          '''
+          text = replace_once(text, old_preflight, new_preflight, 'test user-data preflight')
+          save(path, text)
+
+          # Runtime: authenticate after config-stage key installation, then wait
+          # explicitly and independently for cloud-init final completion.
+          path = 'lab/qemu/scripts/common.sh'
+          text = load(path)
+          text = replace_once(
+              text,
+              'readonly ssh_wait_seconds=900\n',
+              'readonly ssh_wait_seconds=900\nreadonly cloud_init_wait_seconds=1800\n',
+              'cloud-init wait constant',
+          )
+          save(path, text)
+
+          path = 'lab/qemu/scripts/smoke.sh'
+          text = load(path)
+          old = '''wait_for_ssh "$ssh_wait_seconds"
+          ssh_nodeadmin 15 'sudo -n true'
+
+          ssh_nodeadmin 360 'sudo -n cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
+          '''
+          new = '''wait_for_ssh "$ssh_wait_seconds"
+          ssh_nodeadmin "$cloud_init_wait_seconds" 'cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
+          ssh_nodeadmin 15 'sudo -n true'
+
+          '''
+          text = replace_once(text, old, new, 'cloud-init observation order')
+          save(path, text)
+
+          # Evidence must prove the two-part early-key contract rather than
+          # accepting the superseded final-only shell format.
+          path = 'lab/qemu/scripts/h02a-evidence.py'
+          text = load(path)
+          old = '''    if (
+                  not isinstance(user, dict)
+                  or user.get("format") != "text/x-shellscript"
+                  or user.get("qualificationSudo") != "nodeadmin-nopasswd-test-only"
+              ):
+                  raise EvidenceError("preflight test user-data contract is invalid")
+          '''
+          new = '''    if (
+                  not isinstance(user, dict)
+                  or user.get("format") != "multipart/mixed"
+                  or user.get("parts") != ["text/cloud-config", "text/x-shellscript"]
+                  or user.get("earlySshKey") is not True
+                  or user.get("qualificationSudo") != "nodeadmin-nopasswd-test-only"
+              ):
+                  raise EvidenceError("preflight test user-data contract is invalid")
+          '''
+          text = replace_once(text, old, new, 'evidence multipart preflight')
+          save(path, text)
+
+          # Preparation tests parse the MIME payload and prove the cloud-config
+          # overrides only the canonical users list.
+          path = 'tests/guest/test_h02a_lab.py'
+          text = load(path)
+          text = replace_once(
+              text,
+              'from __future__ import annotations\n\n',
+              'from __future__ import annotations\n\nfrom email import policy\nfrom email.parser import BytesParser\n',
+              'email parser imports',
+          )
+          new_test = r'''    def test_test_only_user_data_is_multipart_with_an_early_key(self) -> None:
+              key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
+              rendered = h02a.test_user_data(key)
+              message = BytesParser(policy=policy.default).parsebytes(rendered.encode("utf-8"))
+              self.assertTrue(message.is_multipart())
+              self.assertEqual("multipart/mixed", message.get_content_type())
+              parts = list(message.iter_parts())
+              self.assertEqual(
+                  ["text/cloud-config", "text/x-shellscript"],
+                  [part.get_content_type() for part in parts],
+              )
+              cloud_config = parts[0].get_content()
+              final_script = parts[1].get_content()
+              self.assertTrue(cloud_config.startswith("#cloud-config\nusers:\n"))
+              for expected in (
+                  "name: nodeadmin",
+                  "groups: [sudo]",
+                  "shell: /bin/bash",
+                  "lock_passwd: true",
+                  "ssh_authorized_keys:",
+                  key,
+              ):
+                  self.assertIn(expected, cloud_config)
+              for forbidden in (
+                  "packages:",
+                  "write_files:",
+                  "runcmd:",
+                  "bootstrap.env",
+                  "BOOTSTRAP_TOKEN",
+                  "METADATA_BASE",
+                  "tailscale",
+                  "headscale",
+                  "tskey-",
+              ):
+                  self.assertNotIn(forbidden, cloud_config)
+              self.assertTrue(final_script.startswith("#!/bin/sh\nset -eu\n"))
+              self.assertNotIn("authorized_keys", final_script)
+              self.assertIn("/etc/sudoers.d/90-nodehost-h02a", final_script)
+              self.assertIn("nodeadmin ALL=(ALL) NOPASSWD:ALL", final_script)
+              self.assertIn("visudo -cf /etc/sudoers.d/90-nodehost-h02a", final_script)
+              self.assertIn("PasswordAuthentication no", final_script)
+              self.assertIn("KbdInteractiveAuthentication no", final_script)
+              self.assertIn("PermitRootLogin no", final_script)
+              self.assertIn("/var/lib/nodehost/h02a-ready", final_script)
+              self.assertEqual(2, rendered.count(f"--{h02a.MIME_BOUNDARY}\n"))
+              self.assertTrue(rendered.endswith(f"--{h02a.MIME_BOUNDARY}--\n"))
+
+          '''
+          text = replace_between(
+              text,
+              '    def test_test_only_user_data_',
+              '    def test_qemu_plan_',
+              new_test,
+              'multipart user-data test',
+          )
+          text = replace_once(
+              text,
+              '        self.assertIn(\'"qualificationSudo": "nodeadmin-nopasswd-test-only"\', helper)\n',
+              '        self.assertIn(\'"format": "multipart/mixed"\', helper)\n        self.assertIn(\'"earlySshKey": True\', helper)\n        self.assertIn(\'"qualificationSudo": "nodeadmin-nopasswd-test-only"\', helper)\n',
+              'preflight source assertions',
+          )
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_evidence.py'
+          text = load(path)
+          old = '''            "testUserData": {
+                          "format": "text/x-shellscript",
+                          "sha256": "3" * 64,
+                          "qualificationSudo": "nodeadmin-nopasswd-test-only",
+                      },
+          '''
+          new = '''            "testUserData": {
+                          "format": "multipart/mixed",
+                          "parts": ["text/cloud-config", "text/x-shellscript"],
+                          "earlySshKey": True,
+                          "sha256": "3" * 64,
+                          "qualificationSudo": "nodeadmin-nopasswd-test-only",
+                      },
+          '''
+          text = replace_once(text, old, new, 'evidence fixture user-data')
+          marker = '''    def test_finalize_requires_exact_cleanup_and_verified_base(self) -> None:
+          '''
+          inserted = '''    def test_final_only_ssh_key_contract_is_rejected(self) -> None:
+                  value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
+                  value["testUserData"].pop("earlySshKey")
+                  (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
+                  with self.assertRaisesRegex(evidence.EvidenceError, "user-data contract"):
+                      evidence.create_evidence(self.state)
+
+              def test_finalize_requires_exact_cleanup_and_verified_base(self) -> None:
+          '''
+          text = replace_once(text, marker, inserted, 'early-key evidence rejection')
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_shell.py'
+          text = load(path)
+          old = '''        self.assertIn("readonly ssh_wait_seconds=900", common)
+                  self.assertIn('wait_for_ssh "$ssh_wait_seconds"', smoke)
+                  self.assertIn('wait_for_ssh "$ssh_wait_seconds"', e2e)
+                  self.assertNotIn("wait_for_ssh 360", smoke + e2e)
+          '''
+          new = '''        self.assertIn("readonly ssh_wait_seconds=900", common)
+                  self.assertIn("readonly cloud_init_wait_seconds=1800", common)
+                  self.assertIn('wait_for_ssh "$ssh_wait_seconds"', smoke)
+                  self.assertIn('wait_for_ssh "$ssh_wait_seconds"', e2e)
+                  self.assertIn('ssh_nodeadmin "$cloud_init_wait_seconds" \'cloud-init status --wait --long\'', smoke)
+                  self.assertLess(smoke.index("cloud-init status --wait --long"), smoke.index("sudo -n true"))
+                  self.assertNotIn("sudo -n cloud-init status", smoke)
+                  self.assertNotIn("wait_for_ssh 360", smoke + e2e)
+          '''
+          text = replace_once(text, old, new, 'shell timing assertions')
+          save(path, text)
+
+          # Keep the task/research contract aligned before final evidence is run.
+          path = 'lab/qemu/README.md'
+          text = load(path)
+          text = replace_once(
+              text,
+              '- adds only an ephemeral SSH public key, strict SSH policy, and mesh-independent readiness marker through test-only shell user-data;\n',
+              '- adds the ephemeral SSH public key through a `users`-only test cloud-config part during the config stage, then applies qualification-only sudo, strict SSH policy, and the mesh-independent readiness marker through a final test shell part;\n',
+              'lab README user-data contract',
+          )
+          save(path, text)
+
+          path = 'docs/research/experiments/H02A.md'
+          text = load(path)
+          text = replace_once(
+              text,
+              '- shell-form test-only user-data that cannot override vendor cloud-config lists;\n',
+              '- deterministic two-part test MIME data: a `users`-only cloud-config part mirrors canonical `nodeadmin` and installs the ephemeral key during the config stage, while a final shell part adds qualification-only sudo, SSH hardening, and readiness without overriding vendor package, `write_files`, or `runcmd` lists;\n',
+              'experiment user-data result',
+          )
+          text = replace_once(
+              text,
+              'H02A uses canonical vendor-data plus a clearly test-only shell user-data layer for the ephemeral SSH key and readiness marker. It does not create the bootstrap environment that activates the canonical mesh/bootstrap service.\n',
+              'H02A uses canonical vendor-data plus deterministic two-part test MIME data. Its `users`-only cloud-config part mirrors canonical `nodeadmin` and installs the ephemeral SSH key early enough for the host to observe cloud-init; its final shell part adds qualification-only sudo, SSH hardening, and readiness. It does not create the bootstrap environment that activates the canonical mesh/bootstrap service.\n',
+              'experiment boundary decision',
+          )
+          save(path, text)
+
+          path = 'agents/tasks/H02A/task.md'
+          text = load(path)
+          anchor = '- The runtime branch must prove three complete stages: initial boot, clean guest reboot, and complete QEMU stop/start. Each stage requires independent QMP, NoCloud, SSH, host-key, guest-tool, scan, and log records.\n'
+          addition = anchor + '- The explicitly test-only user-data is deterministic multipart MIME: a `users`-only cloud-config part mirrors canonical `nodeadmin` and installs the ephemeral key during the config stage, while a final shell part adds qualification-only sudo, SSH hardening, and readiness. It must not override canonical vendor package, `write_files`, or `runcmd` work.\n'
+          text = replace_once(text, anchor, addition, 'task early-key phase review')
+          text = replace_once(
+              text,
+              '- NoCloud uses the canonical rendered vendor-data plus an explicitly test-only user-data layer. `cloud-init status --wait` completes and no unresolved template markers remain.\n',
+              '- NoCloud uses canonical rendered vendor-data plus explicitly test-only two-part MIME data. The `users`-only cloud-config part installs the ephemeral SSH key during the config stage without replacing vendor package, `write_files`, or `runcmd` work; the final shell part applies qualification-only hardening/readiness. `cloud-init status --wait` completes and no unresolved template markers remain.\n',
+              'task NoCloud acceptance',
+          )
+          save(path, text)
+          PY
+      - name: Validate focused candidate
+        run: |
+          make validate
+          make test-guest
+          python3 tools/agents/verify-scope.py H02A
+      - name: Commit and push product branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=(
+            agents/tasks/H02A/task.md
+            docs/research/experiments/H02A.md
+            lab/qemu/README.md
+            lab/qemu/scripts/common.sh
+            lab/qemu/scripts/h02a-evidence.py
+            lab/qemu/scripts/h02a-prepare.py
+            lab/qemu/scripts/smoke.sh
+            tests/guest/test_h02a_evidence.py
+            tests/guest/test_h02a_lab.py
+            tests/guest/test_h02a_shell.py
+          )
+          mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+          mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+          diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${expected[@]}"
+          git commit -m 'lab(H02A): install qualification SSH key before cloud final'
+          git push origin "HEAD:$TARGET_BRANCH"
