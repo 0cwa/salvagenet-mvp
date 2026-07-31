@@ -2,76 +2,98 @@
 
 ## Objective
 
-Build the minimum coordination foundation needed for agent-native development and the static website without replacing the Podroid-fork MVP critical path. Work proceeds one reviewed phase at a time; future packets and issues are hypotheses until explicitly authorised.
+Use bounded host-side work to reduce implementation or physical-debugging ambiguity without replacing the stock-Android physical critical path. Future roadmap items are context and hypotheses until a reviewed phase transition adds a packet to `agents/task-dag.json`.
 
-## Repository truth
+Read the durable direction in `docs/product/north-star.md`, the bounded current milestone in `GOAL.md`, and the evidence-driven order in `docs/roadmap/strategic-priorities.md`.
+
+## Current repository truth
+
+Current authorization must be read from `agents/task-dag.json`, not copied from this prose. At the time of this document update:
 
 ```text
 F01    MERGED         canonical artifact and production profile resolution
 H01    MERGED         authenticated resumable artifact upload
 H02    SUPERSEDED     former combined guest boot and mesh packet
-H02A   QUEUED_REVIEW  canonical Ubuntu guest boot qualification; reactivate after WEB04
+H02A   ACTIVE         canonical Ubuntu guest boot qualification
 H02B   QUEUED_REVIEW  guest mesh identity and recovery qualification
 H03    QUEUED_REVIEW  managed-emulator lifecycle coverage
 H04    MERGED         hardened one-phone HIL evidence path
-WEB04  PLANNED        issue roadmap and human-aware agent index
+WEB04  MERGED         GitHub roadmap and compact agent index foundation
 ```
 
-PR #19 merged at `b42c35ac17793fb1621baf19905a0eacea9b3521` after full CI and accepted the Podroid-MVP alignment, roadmap truth, static-site/theme architecture, and human-aware planning contracts.
+The strategic roadmap catalog adds queued product and platform outcomes. It does not authorize them and does not change acceptance status.
 
-H02A remains the next product-critical task. It is paused, not superseded, for one bounded roadmap-foundation phase selected before website implementation. No H02A implementation or evidence is discarded.
+## Active phase: derive from `agents/task-dag.json`
 
-## Active phase: `roadmap-foundation-1`
+H02A is currently the sole active task. Its bounded purpose is to prove the canonical Ubuntu profile, exact boot inputs, QMP-running state, NoCloud completion, key-only loopback SSH, guest reboot, complete QEMU stop/start, secret hygiene, evidence, and cleanup on Linux host QEMU.
 
-The sole active task is WEB04. It must:
+The phase makes no Android, physical-device, guest-mesh, orchestrator, release, or acceptance claim.
 
-1. create and validate the complete stable-ID roadmap seed;
-2. bootstrap GitHub labels, milestones, issues, and real dependency links idempotently;
-3. generate a last-known-good public snapshot and compact agent index;
-4. expose bounded status, freshness, sync, and per-issue context entry points;
-5. keep issue state, task authorisation, pull-request state, and acceptance evidence separate;
-6. make replanning visible to humans without loading the full issue history into agent context.
+## Stop condition
 
-The phase adds planning infrastructure only. It cannot claim Android, guest, host-QEMU, physical-device, release, website, or acceptance progress.
+H02A is complete when its reviewed packet and real host-QEMU evidence pass. Do not extend it into a general VM laboratory, runtime supervisor, mesh testbed, cross-platform abstraction, or product release framework.
 
-## Why this ordering is aligned
+Further host-QEMU work requires either:
 
-The user selected the task-management foundation before the website. The website must consume the same live roadmap graph used by agents rather than inventing another plan. This is a short enabling reordering, not a change to the MVP.
+- a failure found in the imminent phone path that the host lab can isolate;
+- a direct security/correctness defect;
+- a mismatch where preflight and APK use different production contracts.
 
-After WEB04, normally reactivate H02A. WEB01 may then run as a path-disjoint website task only if the live graph/index is healthy and the phase-start review confirms no ownership conflict.
+## Next product-critical work
+
+After H02A:
+
+1. review whether H02B still removes the next highest-value uncertainty;
+2. execute the existing `tests/hil/` physical sequence using the development VM and exact target phone;
+3. close the stock node substrate against one exact APK;
+4. only then consider activating the smallest turnkey-cluster roadmap item justified by evidence.
+
+The strategic expected path after the stock substrate is:
+
+```text
+MVP-01 signed provisioning capsule
+  → MVP-02 real Docker Swarm worker proof
+  → MVP-03 thin Slint controller
+  → MVP-04 Nix/OpenTofu composition
+  → MVP-05 unattended safety floor
+```
+
+This sequence is planned, not authorized.
 
 ## Phase-boundary protocol
 
 ### Start
 
 1. Update from current `main`; run `make dev-plan` and `make validate`.
-2. Refresh roadmap, pull-request, acceptance, and debt state.
-3. Compare proposed work with `GOAL.md` and `docs/roadmap/podroid-mvp-alignment.md`.
-4. Re-evaluate necessity, order, dependencies, allowed paths, compatibility policy, and evidence limits.
-5. Activate only the smallest task or path-disjoint set justified by current evidence.
+2. Refresh roadmap, pull-request, acceptance, debt, and evidence state.
+3. Compare proposed work with the north star, `GOAL.md`, strategic priorities, and active issue dependencies.
+4. Re-evaluate necessity, order, allowed paths, compatibility policy, and evidence limits.
+5. Activate only the smallest task or genuinely path-disjoint set justified by current evidence.
 
 ### During
 
 - Keep only current-phase tasks in `agents/task-dag.json`.
+- Keep the active GitHub issue label synchronized with the DAG.
 - Update the packet and experiment record when discovery changes the real problem.
-- Keep state changes visible in issues and the phase PR; issue labels do not grant work permission.
 - Distinguish planned, active, review, merge-ready, merged, and evidence-qualified states.
+- Do not use idle agent capacity as justification for speculative work.
 
 ### End
 
 1. Check every task and phase-exit criterion against actual outputs.
 2. Run required checks and complete applicable CI.
-3. Record live bootstrap/apply and snapshot results separately from source implementation.
+3. Record implementation and real evidence separately.
 4. Merge the exact reviewed head and record its SHA.
-5. Replan the next phase; do not auto-activate the next dependency-clear issue.
+5. Replan the next phase; never auto-activate the next dependency-clear issue.
 
 ## Rules
 
 - Keep public APIs typed and preserve separate host and guest identities.
-- `tests/hil/` remains the sole physical runner; issue state or host tooling cannot close physical gates.
-- H02A, H02B, H03, website pages, controller rewrites, runtime isolation, broader guest classes, and USB are out of WEB04 implementation scope.
+- `tests/hil/` remains the sole physical runner; host tooling and issue state cannot close physical gates.
+- Do not move cluster workload state into the Host API.
+- Do not begin Slint, Swarm, Nix/OpenTofu, patched Android, Linux/SBC/WSL, Zenoh, DDNS, community, or USB implementation unless the DAG explicitly authorizes it.
 - USB/AOA remains blocked until every base gate is PASS.
 
 ## Completion report
 
-Report the phase entry review, exact seed/live graph counts, source hash, snapshots, context bounds, GitHub workflow/apply results, checks, drift findings, unresolved blockers, and the reason for the next phase shape.
+Report exact source, checks, evidence class, unresolved criteria, physical limitations, roadmap disagreements, and why the next phase shape is the smallest evidence-driven choice.
