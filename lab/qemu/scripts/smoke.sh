@@ -14,7 +14,7 @@ for file in id_ed25519 preflight.json qemu-command.json; do
     exit 2
   }
 done
-qemu_running || { echo "QEMU is not running" >&2; exit 1; }
+qemu_running || { echo "QEMU is not running as the recorded H02A process" >&2; exit 1; }
 
 python3 "$root/lab/qemu/scripts/h02a-qmp.py" \
   --socket "$state/qmp.sock" \
@@ -28,12 +28,27 @@ ssh_nodeadmin 30 'cat /proc/sys/kernel/random/boot_id' > "$state/boot-id-$stage.
 ssh_nodeadmin 30 \
   "sudo sshd -T | awk '\$1 == \"passwordauthentication\" || \$1 == \"kbdinteractiveauthentication\" || \$1 == \"permitrootlogin\" {print \$1, \$2}'" \
   > "$state/sshd-$stage.txt"
+ssh_nodeadmin 30 \
+  "printf 'cloud-init: '; cloud-init --version 2>&1; printf 'openssh-client: '; ssh -V 2>&1; printf 'kernel: '; uname -srmo" \
+  > "$state/guest-tools-$stage.txt"
 
 if ssh_root 12 true >/dev/null 2>&1; then
   echo "root key login unexpectedly succeeded" >&2
   exit 1
 fi
-ssh-keygen -lf "$known_hosts" -E sha256 | head -n 1 > "$state/host-key-$stage.txt"
+if ssh_single_method password 12 >/dev/null 2>&1; then
+  echo "password-only SSH unexpectedly succeeded" >&2
+  exit 1
+fi
+if ssh_single_method keyboard-interactive 12 >/dev/null 2>&1; then
+  echo "keyboard-interactive-only SSH unexpectedly succeeded" >&2
+  exit 1
+fi
+ssh-keygen -lf "$known_hosts" -E sha256 > "$state/host-key-$stage.txt"
+[[ $(wc -l < "$state/host-key-$stage.txt") -eq 1 ]] || {
+  echo "expected exactly one persisted H02A SSH host key" >&2
+  exit 1
+}
 
 python3 - "$state/sshd-$stage.txt" "$state/ssh-auth-$stage.json" <<'PY'
 from pathlib import Path
@@ -54,6 +69,8 @@ if policy != expected:
 result = {
     'keyOnlyLoopbackSsh': True,
     'rootKeyLoginRejected': True,
+    'passwordOnlyClientRejected': True,
+    'keyboardInteractiveOnlyClientRejected': True,
     'passwordAuthenticationDisabled': True,
     'keyboardInteractiveDisabled': True,
     'rootLoginDisabled': True,
@@ -76,11 +93,16 @@ python3 "$root/lab/qemu/scripts/h02a-scan.py" combine \
 rm -f "$remote_scan"
 
 for file in \
+  "$state/qmp-$stage.json" \
   "$state/cloud-init-$stage.txt" \
   "$state/readiness-$stage.txt" \
   "$state/boot-id-$stage.txt" \
   "$state/sshd-$stage.txt" \
-  "$state/host-key-$stage.txt"; do
+  "$state/guest-tools-$stage.txt" \
+  "$state/host-key-$stage.txt" \
+  "$state/ssh-auth-$stage.json" \
+  "$state/secret-scan-$stage.json"; do
+  [[ -f $file && ! -L $file ]] || { echo "missing stage evidence: $file" >&2; exit 1; }
   chmod 0600 "$file"
 done
 snapshot_qemu_logs "$stage"
