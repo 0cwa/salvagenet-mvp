@@ -52,17 +52,21 @@ class H02ALabTests(unittest.TestCase):
             with self.assertRaises(h02a.LabError):
                 h02a.immutable_image_lock(path)
 
-    def test_test_only_user_data_adds_only_ephemeral_access_and_readiness(self) -> None:
+    def test_test_only_user_data_is_a_non_merging_final_stage_script(self) -> None:
         key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
         rendered = h02a.test_user_data(key)
-        self.assertTrue(rendered.startswith("#cloud-config\n"))
+        self.assertTrue(rendered.startswith("#!/bin/sh\nset -eu\n"))
+        self.assertIn("NODEHOST_H02A_KEY", rendered)
         self.assertIn("/var/lib/nodehost/h02a-ready", rendered)
         self.assertIn("PasswordAuthentication no", rendered)
         self.assertIn("KbdInteractiveAuthentication no", rendered)
         self.assertIn("PermitRootLogin no", rendered)
         for forbidden in (
+            "#cloud-config",
             "users:",
             "packages:",
+            "write_files:",
+            "runcmd:",
             "bootstrap.env",
             "BOOTSTRAP_TOKEN",
             "METADATA_BASE",
