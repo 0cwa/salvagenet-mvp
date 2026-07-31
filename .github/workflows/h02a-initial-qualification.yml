@@ -1,0 +1,97 @@
+name: h02a-initial-qualification
+
+on:
+  push:
+    branches:
+      - research/H02A-initial-qualification-cfd1d8c0
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_SHA: cfd1d8c062918a58187e208a6443d643ee7d95b2
+  CONTROL_BRANCH: research/H02A-initial-qualification-cfd1d8c0
+
+jobs:
+  qualify-initial:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+          path: source
+      - name: Qualify initial boot and record result
+        shell: bash
+        run: |
+          set -uo pipefail
+          result_dir="$GITHUB_WORKSPACE/control/research/h02a-initial-result/$SOURCE_SHA"
+          mkdir -p "$result_dir"
+          log="$RUNNER_TEMP/h02a-initial.log"
+          set +e
+          (
+            set -euo pipefail
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              cloud-image-utils curl jq openssh-client qemu-efi-aarch64 qemu-system-arm qemu-utils
+            cd "$GITHUB_WORKSPACE/source"
+            trap 'bash lab/qemu/scripts/stop.sh >/dev/null 2>&1 || true' EXIT
+            make qemu-lab-prepare
+            make qemu-lab-start
+            bash lab/qemu/scripts/smoke.sh initial
+            trap - EXIT
+            bash lab/qemu/scripts/stop.sh
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          python3 - "$GITHUB_WORKSPACE/source" "$result_dir" "$log" "$SOURCE_SHA" "$GITHUB_RUN_ID" "$rc" <<'PY'
+          from __future__ import annotations
+          import hashlib, json, re, sys
+          from pathlib import Path
+          source, result_dir, log = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+          source_sha, run_id, exit_code = sys.argv[4], sys.argv[5], int(sys.argv[6])
+          state = source / '.local/qemu-lab'
+          secret = re.compile(
+              r'(?:tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}|hskey-[A-Za-z0-9_-]{12,}|'
+              r'(?i:bootstrap[_-]?token)[=:][A-Za-z0-9._-]{8,}|'
+              r'(?i:callback[_-]?capability)[=:][A-Za-z0-9._-]{8,})'
+          )
+          def capture(path: Path, maximum: int) -> dict[str, object]:
+              if path.is_symlink() or not path.is_file(): return {'present': False}
+              data = path.read_bytes()
+              return {
+                  'present': True, 'sizeBytes': len(data),
+                  'sha256': hashlib.sha256(data).hexdigest(),
+                  'truncatedToTail': len(data) > maximum,
+                  'tail': secret.sub('[REDACTED]', data[-maximum:].decode('utf-8', 'replace')),
+              }
+          result: dict[str, object] = {
+              'schemaVersion': 1, 'status': 'PASS' if exit_code == 0 else 'FAIL',
+              'sourceCommit': source_sha, 'workflowRunId': run_id,
+              'qualificationExitCode': exit_code, 'evidenceClass': 'host-qemu-initial-diagnostic',
+              'androidHardwareValidated': False, 'physicalGateEligible': False, 'guestMeshValidated': False,
+              'qualificationLog': capture(log, 32768), 'serial': capture(state / 'serial.log', 131072),
+          }
+          for name in (
+              'qmp-initial.json','cloud-init-initial.txt','readiness-initial.txt','boot-id-initial.txt',
+              'sshd-initial.txt','host-key-initial.txt','ssh-auth-initial.json','secret-scan-initial.json',
+          ):
+              result[name] = capture(state / name, 65536)
+          temporary = result_dir / 'result.json.tmp'
+          temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          temporary.chmod(0o600); temporary.replace(result_dir / 'result.json')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add "research/h02a-initial-result/$SOURCE_SHA"
+          git -C control commit -m "research: record H02A initial qualification $SOURCE_SHA"
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
