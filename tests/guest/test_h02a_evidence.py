@@ -61,8 +61,24 @@ class H02AEvidenceTests(unittest.TestCase):
                 "sizeBytes": self.base.stat().st_size,
             },
             "firmware": {
-                "code": {"sourcePath": "/usr/share/AAVMF/AAVMF_CODE.fd", "sha256": "4" * 64, "sizeBytes": 4096},
-                "vars": {"sourcePath": "/usr/share/AAVMF/AAVMF_VARS.fd", "sha256": "5" * 64, "sizeBytes": 4096},
+                "code": {
+                    "sourcePath": "/usr/share/AAVMF/AAVMF_CODE.fd",
+                    "resolvedPath": "/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd",
+                    "sourcePathSymlink": True,
+                    "sha256": "4" * 64,
+                    "copiedSha256": "4" * 64,
+                    "sizeBytes": 4096,
+                    "package": "qemu-efi-aarch64=1.0",
+                },
+                "vars": {
+                    "sourcePath": "/usr/share/AAVMF/AAVMF_VARS.fd",
+                    "resolvedPath": "/usr/share/AAVMF/AAVMF_VARS.fd",
+                    "sourcePathSymlink": False,
+                    "sha256": "5" * 64,
+                    "copiedSha256": "5" * 64,
+                    "sizeBytes": 4096,
+                    "package": "qemu-efi-aarch64=1.0",
+                },
             },
             "tools": {
                 "qemu": {"path": "/usr/bin/qemu-system-aarch64", "version": "qemu", "exitCode": 0},
@@ -133,6 +149,10 @@ class H02AEvidenceTests(unittest.TestCase):
         self.assertTrue(value["restartChecks"]["qemuStopStartChangedBootId"])
         self.assertTrue(value["restartChecks"]["sshHostKeyStableAcrossRestarts"])
         self.assertTrue(value["stages"]["initial"]["sshAuthentication"]["qualificationSudoNoninteractive"])
+        self.assertEqual(
+            "/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd",
+            value["preflight"]["firmware"]["code"]["resolvedPath"],
+        )
         self.assertEqual(9, len(value["logs"]))
         self.assertIn("[REDACTED]", value["logs"]["initial:serial"]["tail"])
         self.assertNotIn("tskey-" + "auth-", value["logs"]["initial:serial"]["tail"])
@@ -162,6 +182,20 @@ class H02AEvidenceTests(unittest.TestCase):
         value["testUserData"].pop("qualificationSudo")
         (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
         with self.assertRaisesRegex(evidence.EvidenceError, "user-data contract"):
+            evidence.create_evidence(self.state)
+
+    def test_missing_resolved_firmware_path_is_rejected(self) -> None:
+        value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
+        value["firmware"]["code"].pop("resolvedPath")
+        (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaisesRegex(evidence.EvidenceError, "firmware identity is invalid"):
+            evidence.create_evidence(self.state)
+
+    def test_mismatched_copied_firmware_digest_is_rejected(self) -> None:
+        value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
+        value["firmware"]["vars"]["copiedSha256"] = "6" * 64
+        (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaisesRegex(evidence.EvidenceError, "differs from source"):
             evidence.create_evidence(self.state)
 
     def test_finalize_requires_exact_cleanup_and_verified_base(self) -> None:
