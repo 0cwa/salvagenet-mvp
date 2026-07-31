@@ -9,15 +9,17 @@ Physical Android evidence remains authoritative. Hardware-independent work exist
 | F01 | **MERGED** | Canonical packaged profiles and the strict active artifact-manifest contract landed at `246d551ca7e691a0319a4b30e29d6e4905cd9910`; final workflow `30549498423` passed. |
 | H01 | **MERGED** | Resumable authenticated artifact upload landed at `60d0394e25cc84f8ea0dcc39f62a349c17171b2b`; validation run `30510377089` passed. |
 | H02 | **SUPERSEDED** | The combined guest boot and guest mesh packet mixed separate failure domains and was split into H02A and H02B. |
-| H02A | **QUEUED_REVIEW** | Reviewed canonical Ubuntu guest-boot task, paused without implementation for the bounded WEB04 foundation. |
+| H02A | **PLANNED / ACTIVE** | Sole authorised task in `guest-boot-2`: canonical Ubuntu host-QEMU boot, QMP, NoCloud, key-only loopback SSH, restart, forbidden-material scan, evidence, and cleanup. |
 | H02B | **QUEUED_REVIEW** | Guest Headscale identity, tailnet SSH, coordination interruption, and recovery. Requires H02A to pass. |
 | H03 | **QUEUED_REVIEW** | Emulator infrastructure and lifecycle scenarios remain queued for a later value/cost review. |
 | H04 | **MERGED** | HIL evidence hardening landed at `1f127ef8b5fcf04762a0cc4dd15f8313df23839e`. |
-| WEB04 | **PLANNED** | Sole active task: bootstrap the GitHub issue roadmap, last-known-good snapshot, compact agent index, and bounded context tooling. |
+| WEB04 | **MERGED** | Roadmap foundation merged at `888eb7e63a3419dca3f867d6baadbe95ef8c7e1f`; reviewed live snapshot merged at `15cc2791ebc6e81860fb73ca7a58e4ad12cf5235`. |
 
 PR #19 merged at `b42c35ac17793fb1621baf19905a0eacea9b3521` after Actions run `30578924509`. It accepted `docs/roadmap/podroid-mvp-alignment.md`, ADR-012, complete roadmap governance, and the human-aware task-management contract.
 
-Only WEB04 appears in `agents/task-dag.json`. H02A is not superseded and no H02A implementation is discarded.
+WEB04 then materialised 30 labels, seven milestones, 53 stable-ID issues, and 82 dependency links. The reviewed live snapshot reports no fallback and no disagreements. GUEST-01 is issue #37 and is bound to `agents/tasks/H02A/task.md`.
+
+Only H02A appears in `agents/task-dag.json`. Draft PR #20 remains a path-disjoint HIL safety review; it is not a prerequisite, a second authorised task, or physical evidence.
 
 ## Layered path
 
@@ -48,34 +50,43 @@ W00/PR #19 established:
 
 ### Phase 3 — issue roadmap and human-aware agent foundation
 
-**Active task:** WEB04.
+**Complete and merged.**
 
-The user selected task-management infrastructure before website implementation. WEB04 is intentionally short and bounded:
+WEB04 delivered:
 
-1. create and validate the complete stable-ID seed;
-2. materialize labels, milestones, issues, and real dependency links idempotently;
-3. generate a last-known-good public snapshot and compact agent index;
-4. add bounded status, freshness, sync, and per-issue context tools;
-5. report disagreement among issue, task, PR, and acceptance state instead of hiding it.
+1. a reviewed complete stable-ID seed;
+2. a human-visible exact-main bootstrap of labels, milestones, issues, and dependency links;
+3. a live no-fallback public snapshot and compact agent index;
+4. bounded status, freshness, sync, and per-issue context tools;
+5. fail-closed structural validation and explicit disagreement reporting.
 
-This is an enabling reordering, not a product-direction change. It makes no Android, guest, physical, release, or website claim.
+This enabling reordering made no Android, guest, physical, release, website, or acceptance claim.
 
-### Phase 4 — deterministic guest boot and website foundation
+### Phase 4 — deterministic guest boot
 
-At WEB04 phase end, run a fresh review. The expected shape is:
+**Active task:** H02A.
 
-- **H02A reactivated:** canonical Ubuntu UEFI/QMP, NoCloud, key-only loopback SSH, restart, and secret-hygiene qualification;
-- **WEB01 optionally authorised in parallel:** Astro shell, global design tokens/CSS, layout components, theme control, and component gallery.
+H02A must prove one production-aligned host-QEMU flow before guest mesh or physical Android work resumes:
 
-These tasks may run together only when their write paths are disjoint and the live roadmap/index is healthy. H02A remains the product critical path; WEB01 must not consume Android/QEMU/profile ownership.
+1. pin and verify the exact Ubuntu ARM64 cloud image;
+2. consume the canonical packaged profile and rendered vendor-data rather than parallel definitions;
+3. record exact AAVMF code/vars source paths, digests, sizes, and package/tool facts;
+4. derive or verify the QEMU command shape against the canonical profile;
+5. prove real QMP `running`, NoCloud completion, and key-only loopback SSH;
+6. prove a clean guest reboot and a complete QEMU stop/start;
+7. scan bounded seed, cloud-init, log, environment, and temporary state for forbidden bootstrap material;
+8. capture machine-readable `host-qemu` evidence and remove generated keys, seed media, PID/socket files, and temporary state.
+
+The phase explicitly excludes Headscale/Tailscale guest enrollment, Android process-death/runtime-ownership changes, AVF, emulator work, physical gate claims, website implementation, native-runtime rebuilds, and USB.
 
 ### Phase 5 — queued preflight candidates
 
 After H02A evidence, reconsider rather than auto-activate:
 
 1. **H02B:** one-use guest Headscale enrollment, distinct guest identity, tailnet SSH, `tailscaled` restart, interruption, and recovery.
-2. **Emulator harness/scenarios:** only if remaining Android lifecycle ambiguity justifies the cost.
-3. **Website content/status/enhancements:** WEB02–WEB06 follow the generated graph and design-system foundation; they do not alter product acceptance.
+2. **Runtime-presence investigation:** only if physical Android evidence shows a QEMU child can remain live or ambiguous after app-process loss; study PID/start-time ownership, authenticated QMP probing, and stale-endpoint cleanup without importing a second supervisor authority.
+3. **Emulator harness/scenarios:** only if remaining Android lifecycle ambiguity justifies the cost.
+4. **Website foundation/content:** follow the live roadmap and remain path-disjoint from the product critical path when separately authorised.
 
 ### Phase 6 — physical vertical slice
 
@@ -103,4 +114,4 @@ AOA/USB control, stream NIC, TAP/NAT, fallback, and optional artifact transfer r
 
 ## Simplicity rule
 
-Use the smallest phase that resolves the next uncertainty. A bounded governance/tooling phase may temporarily pause a ready product task when it prevents duplicated roadmap state and enables safe parallel work, but it must record the pause and restore the product critical path at phase end. Delete compatibility code and task scope that have no real users, evidence need, or near-term product value.
+Use the smallest phase that resolves the next uncertainty. Do not import a parallel supervisor, VM manager, management transport, profile authority, or speculative compatibility system merely because another fork implemented one. A larger mechanism must be justified by current evidence, a concrete security/correctness failure, or a present validation blocker. Delete compatibility code and task scope that have no real users, evidence need, or near-term product value.
