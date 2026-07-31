@@ -20,10 +20,13 @@ make qemu-lab-stop
 - consumes the immutable 2026-07-25 Ubuntu ARM64 release lock without rewriting it;
 - verifies the exact 618,098,176-byte image and SHA-256 before use;
 - renders canonical Ubuntu vendor-data with the production renderer;
-- adds only an ephemeral SSH public key, strict SSH policy, and mesh-independent readiness marker through test-only shell user-data;
+- adds only an ephemeral SSH public key, strict SSH policy, a mesh-independent readiness marker, and a clearly named test-only `nodeadmin` `NOPASSWD` sudo rule through shell user-data;
+- validates the sudoers fragment with `visudo` before cloud-init finishes;
 - creates an independent copied-writable qcow2 system disk, not a backing-file overlay;
 - creates the profile's persistent raw data disk;
-- records AAVMF source paths, digests, sizes, package facts, tool facts, source commit, dirty state, and the closed QEMU command in `preflight.json` before launch.
+- records the qualification-only sudo mode, AAVMF source paths, digests, sizes, package facts, tool facts, source commit, dirty state, and the closed QEMU command in `preflight.json` before launch.
+
+The passwordless sudo rule exists only in the disposable H02A guest so the laboratory can run privileged cloud-init, SSH-policy, secret-scan, reboot, and poweroff checks without adding a password or interactive prompt. Runtime commands use `sudo -n` and fail if that explicit qualification capability is missing. This is not part of the production guest profile or the H02B bootstrap contract.
 
 `make qemu-lab-start` executes the recorded `qemu-command.json`. It verifies that the command still matches preflight and refuses stale PID files that point at an unrelated process.
 
@@ -38,6 +41,7 @@ make qemu-lab-stop
 Every stage requires:
 
 - a bounded QMP greeting/capability exchange and `query-status == running`;
+- noninteractive qualification sudo before privileged checks;
 - `cloud-init status --wait` completion and the test-only readiness marker;
 - key-only loopback SSH;
 - effective `sshd -T` policy disabling password, keyboard-interactive, and root login;
@@ -47,7 +51,7 @@ Every stage requires:
 - bounded local seed and guest-state scans for bootstrap, callback, Headscale, and Tailscale material;
 - serial, QEMU stdout, and QEMU stderr snapshots.
 
-The final evidence assembler rejects inferred or partial results. It requires three distinct boot IDs, one stable SSH host key, all nine bounded log snapshots, exact preparation identities, and explicit `host-qemu` classification. Successful cleanup retains only:
+The final evidence assembler rejects inferred or partial results. It requires three distinct boot IDs, one stable SSH host key, the recorded qualification-only sudo contract, all nine bounded log snapshots, exact preparation identities, and explicit `host-qemu` classification. Successful cleanup retains only:
 
 - `ubuntu-24.04-server-cloudimg-arm64.img` as the verified immutable cache;
 - the bounded `evidence/` directory containing `evidence.json` and `cleanup.json`.
