@@ -75,7 +75,13 @@ class StrictGitHubClient(GitHubClient):
                     last_transient = f"HTTP {exc.code}: {detail}"
                     if attempt + 1 < retries:
                         retry_after = exc.headers.get("Retry-After")
-                        delay = float(retry_after) if retry_after and retry_after.isdigit() else min(2**attempt, 20)
+                        reset = exc.headers.get("x-ratelimit-reset")
+                        if retry_after and retry_after.isdigit():
+                            delay = float(retry_after)
+                        elif remaining == "0" and reset and reset.isdigit():
+                            delay = min(max(int(reset) - int(time.time()), 0) + 1, 300)
+                        else:
+                            delay = min(2**attempt, 20)
                         time.sleep(delay)
                         continue
                     raise RoadmapTransportError(f"GitHub API {method} {path} remained unavailable: {last_transient}") from exc
