@@ -82,6 +82,9 @@ class H02ALabTests(unittest.TestCase):
         self.assertIn("PasswordAuthentication no", rendered)
         self.assertIn("KbdInteractiveAuthentication no", rendered)
         self.assertIn("PermitRootLogin no", rendered)
+        self.assertIn("/etc/sudoers.d/90-nodehost-h02a", rendered)
+        self.assertIn("nodeadmin ALL=(ALL) NOPASSWD:ALL", rendered)
+        self.assertIn("visudo -cf /etc/sudoers.d/90-nodehost-h02a", rendered)
         for forbidden in (
             "#cloud-config",
             "users:",
@@ -133,6 +136,7 @@ class H02ALabTests(unittest.TestCase):
         self.assertNotIn("QEMU_EFI.fd", helper)
         self.assertIn("find_firmware_pair", helper)
         self.assertIn("sha256_file(system) != lock", helper)
+        self.assertIn('"qualificationSudo": "nodeadmin-nopasswd-test-only"', helper)
         for script in (
             ROOT / "tools/profiles/pin-ubuntu-image.sh",
             ROOT / "lab/qemu/scripts/prepare.sh",
