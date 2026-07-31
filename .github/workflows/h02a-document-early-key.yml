@@ -1,0 +1,141 @@
+name: h02a-document-early-key
+
+on:
+  push:
+    branches:
+      - automation/H02A-document-early-key
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ee0785f1afe07cd8f36a28b1a79f5588f0e9936a
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+  CONTROL_BRANCH: automation/H02A-document-early-key
+
+jobs:
+  document:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Patch, validate, publish, and record
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-document-early-key.log"
+          set +e
+          (
+            set -euo pipefail
+            cd source
+            test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+            python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(path: str, replacements: list[tuple[str, str]]) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              for old, new in replacements:
+                  if text.count(old) != 1:
+                      raise SystemExit(f'{path}: expected one match for {old[:80]!r}')
+                  text = text.replace(old, new, 1)
+              target.write_text(text, encoding='utf-8')
+
+          patch('lab/qemu/README.md', [
+              (
+                  '- adds only an ephemeral SSH public key, strict SSH policy, a mesh-independent readiness marker, and a clearly named test-only `nodeadmin` `NOPASSWD` sudo rule through shell user-data;\n',
+                  '- adds the ephemeral SSH public key through a deterministic `users`-only cloud-config MIME part during the config stage, then applies strict SSH policy, a mesh-independent readiness marker, and a clearly named test-only `nodeadmin` `NOPASSWD` sudo rule through a final shell part;\n',
+              ),
+              (
+                  'The passwordless sudo rule exists only in the disposable H02A guest so the laboratory can run privileged cloud-init, SSH-policy, secret-scan, reboot, and poweroff checks without adding a password or interactive prompt. Runtime commands use `sudo -n` and fail if that explicit qualification capability is missing. This is not part of the production guest profile or the H02B bootstrap contract.\n',
+                  'The config-stage key lets the host authenticate before slow TCG package/final work finishes, then wait explicitly for `cloud-init status --wait`. The passwordless sudo rule exists only in the disposable H02A guest so the laboratory can run later privileged SSH-policy, secret-scan, reboot, and poweroff checks without adding a password or interactive prompt. Runtime commands use `sudo -n` and fail if that explicit qualification capability is missing. This is not part of the production guest profile or the H02B bootstrap contract.\n',
+              ),
+              (
+                  '- noninteractive qualification sudo before privileged checks;\n- `cloud-init status --wait` completion and the test-only readiness marker;\n- key-only loopback SSH;\n',
+                  '- key-only loopback SSH established from the config-stage ephemeral key;\n- explicit bounded `cloud-init status --wait` completion and the test-only readiness marker;\n- noninteractive qualification sudo before later privileged checks;\n',
+              ),
+          ])
+
+          patch('docs/research/experiments/H02A.md', [
+              (
+                  '**RUNTIME IMPLEMENTATION IN REVIEW — HOST QUALIFICATION NOT YET RUN.** H02A remains the sole authorised task in phase `guest-boot-2`. The production-aligned preparation slice merged through PR #80 at `096ad60136bef2e007ab7a78bb66c16487a41000` after exact-head workflow `30600697377` passed. The runtime/evidence implementation is on `agent/H02A-runtime-qualification`; no `host-qemu` pass or evidence path is claimed yet.\n',
+                  '**HOST QUALIFICATION IN PROGRESS — NO COMPLETE PASS YET.** H02A remains the sole authorised task in phase `guest-boot-2`. The production-aligned preparation slice merged through PR #80 at `096ad60136bef2e007ab7a78bb66c16487a41000` after exact-head workflow `30600697377` passed. Real host runs have validated image preparation, AAVMF resolution, QEMU launch, and QMP `running`, while exposing and resolving bounded portability and cloud-init timing defects. No complete `host-qemu` pass or reviewed evidence path is claimed yet.\n',
+              ),
+              (
+                  '- shell-form test-only user-data that cannot override vendor cloud-config lists;\n',
+                  '- deterministic two-part test MIME data: a `users`-only cloud-config part mirrors canonical `nodeadmin` and installs the ephemeral key during the config stage, while a final shell part adds qualification-only sudo, SSH hardening, and readiness without overriding vendor package, `write_files`, or `runcmd` lists;\n',
+              ),
+              (
+                  'The passwordless sudo rule is laboratory-only. It is created by the H02A shell user-data, not the canonical vendor-data, and is not a production guest-profile or guest-mesh contract. It introduces no reusable password, bootstrap token, callback capability, or mesh key.\n\n## Evidence class\n',
+                  'The passwordless sudo rule is laboratory-only. It is created by the H02A final shell part, not the canonical vendor-data, and is not a production guest-profile or guest-mesh contract. It introduces no reusable password, bootstrap token, callback capability, or mesh key.\n\n## Real host findings resolved before qualification\n\n- Packaged AAVMF aliases may be symlinks; they are accepted only when their resolved regular files remain confined under `/usr/share/AAVMF`, and both requested and resolved identities are recorded.\n- Ubuntu host QEMU may not ship the optional `efi-virtio.rom`; the recorded PCI virtio-net argument explicitly uses `romfile=` without changing the profile transport.\n- TCG boot reached cloud-init network/config after the original 360-second SSH bound; the lab now uses a measured 900-second SSH readiness bound.\n- Canonical package/final work can continue beyond that point. The ephemeral key therefore moves to a `users`-only config-stage MIME part, while the host waits separately for cloud-init final completion before requiring final hardening/readiness.\n\n## Evidence class\n',
+              ),
+              (
+                  'H02A uses canonical vendor-data plus a clearly test-only shell user-data layer for the ephemeral SSH key, readiness marker, strict SSH policy, and qualification-only noninteractive sudo. It does not create the bootstrap environment that activates the canonical mesh/bootstrap service.\n',
+                  'H02A uses canonical vendor-data plus deterministic two-part test MIME data. Its `users`-only cloud-config part mirrors canonical `nodeadmin` and installs the ephemeral SSH key early enough for the host to observe cloud-init; its final shell part adds qualification-only sudo, SSH hardening, and readiness. It does not create the bootstrap environment that activates the canonical mesh/bootstrap service.\n',
+              ),
+          ])
+
+          patch('agents/tasks/H02A/task.md', [
+              (
+                  '- The runtime branch must prove three complete stages: initial boot, clean guest reboot, and complete QEMU stop/start. Each stage requires independent QMP, NoCloud, SSH, host-key, guest-tool, scan, and log records.\n',
+                  '- The runtime branch must prove three complete stages: initial boot, clean guest reboot, and complete QEMU stop/start. Each stage requires independent QMP, NoCloud, SSH, host-key, guest-tool, scan, and log records.\n- The explicitly test-only user-data is deterministic multipart MIME: a `users`-only cloud-config part mirrors canonical `nodeadmin` and installs the ephemeral key during the config stage, while a final shell part adds qualification-only sudo, SSH hardening, and readiness. It must not override canonical vendor package, `write_files`, or `runcmd` work.\n',
+              ),
+              (
+                  '- NoCloud uses the canonical rendered vendor-data plus an explicitly test-only user-data layer. `cloud-init status --wait` completes and no unresolved template markers remain.\n',
+                  '- NoCloud uses canonical rendered vendor-data plus explicitly test-only two-part MIME data. The `users`-only cloud-config part installs the ephemeral SSH key during the config stage without replacing vendor package, `write_files`, or `runcmd` work; the final shell part applies qualification-only hardening/readiness. `cloud-init status --wait` completes and no unresolved template markers remain.\n',
+              ),
+          ])
+          PY
+            make validate
+            python3 tools/agents/verify-scope.py H02A
+            expected=(
+              agents/tasks/H02A/task.md
+              docs/research/experiments/H02A.md
+              lab/qemu/README.md
+            )
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'docs(H02A): record early-key host qualification contract'
+            git push origin "HEAD:$TARGET_BRANCH"
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            new_head=$(git -C source rev-parse HEAD)
+          else
+            new_head="$EXPECTED_HEAD"
+          fi
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          result = {
+              'schemaVersion': 1,
+              'exitCode': int(sys.argv[2]),
+              'productHead': sys.argv[3],
+              'logTail': Path(sys.argv[1]).read_bytes()[-32768:].decode('utf-8', 'replace'),
+          }
+          path = Path('control/automation/h02a-document-early-key-result.json')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-document-early-key-result.json
+          git -C control commit -m 'automation: record H02A documentation result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
