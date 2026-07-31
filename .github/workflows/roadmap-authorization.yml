@@ -13,7 +13,7 @@ on:
       - tools/roadmap/catalog.py
       - tools/roadmap/roadmap.py
   issues:
-    types: [labeled, unlabeled, closed, reopened]
+    types: [edited, labeled, unlabeled, closed, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -28,6 +28,7 @@ jobs:
   synchronize:
     if: >-
       github.event_name != 'issues' ||
+      github.event.action == 'edited' ||
       github.event.action == 'closed' ||
       github.event.action == 'reopened' ||
       startsWith(github.event.label.name, 'agent:')
