@@ -166,6 +166,12 @@ def merge_catalog(
             raise ValueError(
                 f"roadmap expansion update for {item_id} must be an object"
             )
+        unknown = set(update) - {"addBlockedBy", "addContextPaths"}
+        if unknown:
+            raise ValueError(
+                f"roadmap expansion update for {item_id} has unknown keys: "
+                f"{sorted(unknown)}"
+            )
         item = items[item_id]
         item["blockedBy"] = _append_unique(
             list(item.get("blockedBy", [])),
@@ -324,217 +330,15 @@ def configure_roadmap(roadmap_module: Any) -> None:
 
 
 def configure_live(live_module: Any, roadmap_module: Any) -> None:
-    """Replace fixed first-bootstrap cardinality and milestone filters."""
+    """Configure the single live validator for the composed catalog."""
     if getattr(live_module, "_strategic_catalog_configured", False):
         return
+    if not getattr(roadmap_module, "_strategic_catalog_configured", False):
+        raise ValueError("configure_roadmap must run before configure_live")
 
     catalog = roadmap_module.load_seed()
-    expected_items = set(roadmap_module.REQUIRED_ITEMS)
-    expected_milestone_titles = {
+    live_module.REQUIRED_ITEMS = set(roadmap_module.REQUIRED_ITEMS)
+    live_module.EXPECTED_MILESTONE_TITLES = {
         value["title"] for value in catalog["milestones"]
     }
-    expected_milestones = len(expected_milestone_titles)
-
-    def validate_graph(graph: dict[str, Any]) -> None:
-        items = graph.get("items")
-        milestones = graph.get("milestones")
-        if not isinstance(items, dict) or set(items) != expected_items:
-            actual = set(items) if isinstance(items, dict) else set()
-            raise roadmap_module.RoadmapError(
-                "live roadmap item set is incomplete: "
-                f"missing={sorted(expected_items-actual)} "
-                f"extra={sorted(actual-expected_items)}"
-            )
-        if not isinstance(milestones, list) or len(milestones) != expected_milestones:
-            raise roadmap_module.RoadmapError(
-                f"live roadmap must contain the {expected_milestones} reviewed milestone bands"
-            )
-        milestone_titles = {
-            value.get("title") for value in milestones if isinstance(value, dict)
-        }
-        if milestone_titles != expected_milestone_titles:
-            raise roadmap_module.RoadmapError(
-                "live roadmap milestone titles differ from the reviewed catalog: "
-                f"missing={sorted(expected_milestone_titles-milestone_titles)} "
-                f"extra={sorted(milestone_titles-expected_milestone_titles)}"
-            )
-
-        for item_id, item in items.items():
-            labels = set(item.get("labels", []))
-            if "roadmap" not in labels:
-                raise roadmap_module.RoadmapError(
-                    f"{item_id} is missing roadmap label"
-                )
-            item["area"] = live_module._one_label(
-                labels, "area:", item_id
-            ).removeprefix("area:")
-            item["kind"] = live_module._one_label(
-                labels, "kind:", item_id
-            ).removeprefix("kind:")
-            visibility = live_module._one_label(labels, "roadmap:", item_id)
-            if visibility not in {"roadmap:public", "roadmap:internal"}:
-                raise roadmap_module.RoadmapError(
-                    f"{item_id} has invalid visibility label {visibility}"
-                )
-            item["public"] = visibility == "roadmap:public"
-            agent_labels = sorted(
-                value
-                for value in labels
-                if value in set(roadmap_module.AGENT_LABELS.values())
-            )
-            if len(agent_labels) > 1:
-                raise roadmap_module.RoadmapError(
-                    f"{item_id} has multiple agent-state labels: {agent_labels}"
-                )
-            if item.get("milestoneTitle") not in milestone_titles:
-                raise roadmap_module.RoadmapError(
-                    f"{item_id} has no reviewed milestone"
-                )
-            blockers = item.get("blockedBy")
-            if not isinstance(blockers, list) or any(
-                blocker not in items for blocker in blockers
-            ):
-                raise roadmap_module.RoadmapError(
-                    f"{item_id} has unknown or invalid blockers"
-                )
-            if len(blockers) != len(set(blockers)):
-                raise roadmap_module.RoadmapError(
-                    f"{item_id} has duplicate blockers"
-                )
-
-        visiting: list[str] = []
-        complete: set[str] = set()
-
-        def visit(item_id: str) -> None:
-            if item_id in complete:
-                return
-            if item_id in visiting:
-                cycle = visiting[visiting.index(item_id) :] + [item_id]
-                raise roadmap_module.RoadmapError(
-                    "live roadmap dependency cycle: " + " -> ".join(cycle)
-                )
-            visiting.append(item_id)
-            for blocker in items[item_id]["blockedBy"]:
-                visit(blocker)
-            visiting.pop()
-            complete.add(item_id)
-
-        for item_id in sorted(items):
-            visit(item_id)
-
-    def fetch_validated_live_graph(client: Any) -> dict[str, Any]:
-        milestones = client.paginate(
-            client.repo_path("/milestones?state=all")
-        )
-        issues = client.paginate(client.repo_path("/issues?state=all"))
-        roadmap: dict[str, dict[str, Any]] = {}
-        newest: str | None = None
-
-        for issue in issues:
-            if "pull_request" in issue:
-                continue
-            labels = {label["name"] for label in issue.get("labels", [])}
-            if "roadmap" not in labels:
-                continue
-            item_id, task_packet, summary, pull_requests = (
-                live_module.parse_issue_body(issue)
-            )
-            if item_id in roadmap:
-                raise roadmap_module.RoadmapError(
-                    f"duplicate live roadmap ID {item_id}"
-                )
-            updated = issue.get("updated_at")
-            if isinstance(updated, str) and (
-                newest is None or updated > newest
-            ):
-                newest = updated
-            roadmap[item_id] = {
-                "id": item_id,
-                "number": int(issue["number"]),
-                "nodeId": issue.get("node_id"),
-                "databaseId": int(issue["id"]),
-                "title": live_module.re.sub(
-                    r"^\[[A-Z0-9-]+\]\s*", "", issue["title"]
-                ),
-                "summary": summary,
-                "url": issue["html_url"],
-                "issueState": issue["state"],
-                "labels": sorted(labels),
-                "milestoneNumber": issue.get("milestone", {}).get("number")
-                if issue.get("milestone")
-                else None,
-                "milestoneTitle": issue.get("milestone", {}).get("title")
-                if issue.get("milestone")
-                else None,
-                "taskPacket": task_packet,
-                "updatedAt": updated,
-                "blockedBy": [],
-                "pullRequestNumbers": pull_requests,
-                "pullRequests": [],
-            }
-
-        if set(roadmap) != expected_items:
-            raise roadmap_module.RoadmapError(
-                "live roadmap item set is incomplete: "
-                f"missing={sorted(expected_items-set(roadmap))} "
-                f"extra={sorted(set(roadmap)-expected_items)}"
-            )
-
-        by_database_id = {
-            item["databaseId"]: item_id for item_id, item in roadmap.items()
-        }
-        for item_id, item in roadmap.items():
-            dependencies = client.paginate(
-                client.repo_path(
-                    f"/issues/{item['number']}/dependencies/blocked_by"
-                )
-            )
-            blockers: list[str] = []
-            for dependency in dependencies:
-                blocker_id = by_database_id.get(int(dependency["id"]))
-                if blocker_id is None:
-                    raise roadmap_module.RoadmapError(
-                        f"{item_id} is blocked by non-roadmap issue "
-                        f"#{dependency.get('number')}"
-                    )
-                blockers.append(blocker_id)
-            item["blockedBy"] = sorted(blockers)
-            for number in item["pullRequestNumbers"]:
-                pull = client.call(
-                    "GET", client.repo_path(f"/pulls/{number}")
-                ).value
-                item["pullRequests"].append(
-                    {
-                        "number": number,
-                        "state": pull.get("state"),
-                        "draft": bool(pull.get("draft")),
-                        "merged": pull.get("merged_at") is not None,
-                        "mergedAt": pull.get("merged_at"),
-                        "url": pull.get("html_url"),
-                        "headSha": pull.get("head", {}).get("sha"),
-                    }
-                )
-
-        milestone_view = [
-            {
-                "number": int(value["number"]),
-                "title": value["title"],
-                "state": value["state"],
-                "description": value.get("description") or "",
-            }
-            for value in milestones
-            if value.get("title") in expected_milestone_titles
-        ]
-        graph = {
-            "repository": client.repository,
-            "newestIssueUpdate": newest,
-            "milestones": milestone_view,
-            "items": roadmap,
-        }
-        validate_graph(graph)
-        return graph
-
-    live_module.validate_graph = validate_graph
-    live_module.fetch_validated_live_graph = fetch_validated_live_graph
-    live_module.REQUIRED_ITEMS = expected_items
     live_module._strategic_catalog_configured = True
