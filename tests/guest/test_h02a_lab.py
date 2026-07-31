@@ -93,53 +93,57 @@ class H02ALabTests(unittest.TestCase):
             with self.assertRaisesRegex(h02a.LabError, "escapes"):
                 h02a.resolve_firmware_path(escaped, firmware_root)
 
-    def test_test_only_user_data_is_multipart_with_an_early_key(self) -> None:
-        key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
-        rendered = h02a.test_user_data(key)
-        message = BytesParser(policy=policy.default).parsebytes(rendered.encode("utf-8"))
-        self.assertTrue(message.is_multipart())
-        self.assertEqual("multipart/mixed", message.get_content_type())
-        parts = list(message.iter_parts())
-        self.assertEqual(
-            ["text/cloud-config", "text/x-shellscript"],
-            [part.get_content_type() for part in parts],
-        )
-        cloud_config = parts[0].get_content()
-        final_script = parts[1].get_content()
-        self.assertTrue(cloud_config.startswith("#cloud-config\nusers:\n"))
-        for expected in (
-            "name: nodeadmin",
-            "groups: [sudo]",
-            "shell: /bin/bash",
-            "lock_passwd: false",
-            'hashed_passwd: "NP"',
-            "ssh_authorized_keys:",
-            key,
-        ):
-            self.assertIn(expected, cloud_config)
-        for forbidden in (
-            "packages:",
-            "write_files:",
-            "runcmd:",
-            "bootstrap.env",
-            "BOOTSTRAP_TOKEN",
-            "METADATA_BASE",
-            "tailscale",
-            "headscale",
-            "tskey-",
-        ):
-            self.assertNotIn(forbidden, cloud_config)
-        self.assertTrue(final_script.startswith("#!/bin/sh\nset -eu\n"))
-        self.assertNotIn("authorized_keys", final_script)
-        self.assertIn("/etc/sudoers.d/90-nodehost-h02a", final_script)
-        self.assertIn("nodeadmin ALL=(ALL) NOPASSWD:ALL", final_script)
-        self.assertIn("visudo -cf /etc/sudoers.d/90-nodehost-h02a", final_script)
-        self.assertIn("PasswordAuthentication no", final_script)
-        self.assertIn("KbdInteractiveAuthentication no", final_script)
-        self.assertIn("PermitRootLogin no", final_script)
-        self.assertIn("/var/lib/nodehost/h02a-ready", final_script)
-        self.assertEqual(2, rendered.count(f"--{h02a.MIME_BOUNDARY}\n"))
-        self.assertTrue(rendered.endswith(f"--{h02a.MIME_BOUNDARY}--\n"))
+def test_test_only_user_data_is_multipart_with_an_early_key(self) -> None:
+    key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
+    rendered = h02a.test_user_data(key)
+    message = BytesParser(policy=policy.default).parsebytes(rendered.encode("utf-8"))
+    self.assertTrue(message.is_multipart())
+    self.assertEqual("multipart/mixed", message.get_content_type())
+    parts = list(message.iter_parts())
+    self.assertEqual(
+        ["text/cloud-config-jsonp", "text/x-shellscript"],
+        [part.get_content_type() for part in parts],
+    )
+    jsonp = parts[0].get_content()
+    final_script = parts[1].get_content()
+    self.assertTrue(jsonp.startswith("#cloud-config-jsonp\n"))
+    patch = json.loads(jsonp.split("\n", 1)[1])
+    self.assertEqual(
+        [
+            {
+                "op": "add",
+                "path": "/users/0/ssh_authorized_keys",
+                "value": [key],
+            }
+        ],
+        patch,
+    )
+    serialized = json.dumps(patch)
+    for forbidden in (
+        "lock_passwd",
+        "hashed_passwd",
+        "packages",
+        "write_files",
+        "runcmd",
+        "bootstrap.env",
+        "BOOTSTRAP_TOKEN",
+        "METADATA_BASE",
+        "tailscale",
+        "headscale",
+        "tskey-",
+    ):
+        self.assertNotIn(forbidden, serialized)
+    self.assertTrue(final_script.startswith("#!/bin/sh\nset -eu\n"))
+    self.assertNotIn("authorized_keys", final_script)
+    self.assertIn("/etc/sudoers.d/90-nodehost-h02a", final_script)
+    self.assertIn("nodeadmin ALL=(ALL) NOPASSWD:ALL", final_script)
+    self.assertIn("visudo -cf /etc/sudoers.d/90-nodehost-h02a", final_script)
+    self.assertIn("PasswordAuthentication no", final_script)
+    self.assertIn("KbdInteractiveAuthentication no", final_script)
+    self.assertIn("PermitRootLogin no", final_script)
+    self.assertIn("/var/lib/nodehost/h02a-ready", final_script)
+    self.assertEqual(2, rendered.count(f"--{h02a.MIME_BOUNDARY}\n"))
+    self.assertTrue(rendered.endswith(f"--{h02a.MIME_BOUNDARY}--\n"))
 
     def test_qemu_plan_is_closed_and_matches_profile_contract(self) -> None:
         profile = h02a.canonical_profile()
@@ -182,7 +186,7 @@ class H02ALabTests(unittest.TestCase):
         self.assertIn("sha256_file(system) != lock", helper)
         self.assertIn('"format": "multipart/mixed"', helper)
         self.assertIn('"earlySshKey": True', helper)
-        self.assertIn('"qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel"', helper)
+        self.assertIn('"earlySshKeyOverlay": "vendor-users-json-patch"', helper)
         self.assertIn('"qualificationSudo": "nodeadmin-nopasswd-test-only"', helper)
         self.assertIn('"virtio-net-pci,netdev=net0,romfile="', helper)
         for script in (

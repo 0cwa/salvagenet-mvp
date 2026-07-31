@@ -52,9 +52,9 @@ class H02AEvidenceTests(unittest.TestCase):
             },
             "testUserData": {
                 "format": "multipart/mixed",
-                "parts": ["text/cloud-config", "text/x-shellscript"],
+                "parts": ["text/cloud-config-jsonp", "text/x-shellscript"],
                 "earlySshKey": True,
-                "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",
+                "earlySshKeyOverlay": "vendor-users-json-patch",
                 "sha256": "3" * 64,
                 "qualificationSudo": "nodeadmin-nopasswd-test-only",
             },
@@ -182,7 +182,7 @@ class H02AEvidenceTests(unittest.TestCase):
 
     def test_unrecorded_qualification_contract_is_rejected(self) -> None:
         original = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
-        for field in ("qualificationSudo", "qualificationAccountPassword"):
+        for field in ("qualificationSudo", "earlySshKeyOverlay"):
             with self.subTest(field=field):
                 value = json.loads(json.dumps(original))
                 value["testUserData"].pop(field)

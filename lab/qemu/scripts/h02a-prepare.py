@@ -213,18 +213,18 @@ def validate_public_key(text: str) -> str:
 
 
 def test_user_data(public_key: str) -> str:
-    """Return deterministic multipart data without overriding vendor work lists."""
+    """Patch only the canonical vendor user, then run final-stage lab setup."""
     key = validate_public_key(public_key)
-    cloud_config = f"""#cloud-config
-users:
-  - name: nodeadmin
-    groups: [sudo]
-    shell: /bin/bash
-    lock_passwd: false
-    hashed_passwd: "NP"
-    ssh_authorized_keys:
-      - {key}
-"""
+    json_patch = "#cloud-config-jsonp\n" + json.dumps(
+        [
+            {
+                "op": "add",
+                "path": "/users/0/ssh_authorized_keys",
+                "value": [key],
+            }
+        ],
+        separators=(",", ":"),
+    ) + "\n"
     final_script = """#!/bin/sh
 set -eu
 cat > /etc/sudoers.d/90-nodehost-h02a <<'NODEHOST_H02A_SUDO'
@@ -247,10 +247,10 @@ printf 'h02a-ready\\n' > /var/lib/nodehost/h02a-ready
         f'Content-Type: multipart/mixed; boundary="{MIME_BOUNDARY}"\n'
         "\n"
         f"--{MIME_BOUNDARY}\n"
-        'Content-Type: text/cloud-config; charset="us-ascii"\n'
+        'Content-Type: text/cloud-config-jsonp; charset="us-ascii"\n'
         "Content-Transfer-Encoding: 7bit\n"
         "\n"
-        f"{cloud_config}"
+        f"{json_patch}"
         f"--{MIME_BOUNDARY}\n"
         'Content-Type: text/x-shellscript; charset="us-ascii"\n'
         "Content-Transfer-Encoding: 7bit\n"
@@ -557,9 +557,9 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
         },
         "testUserData": {
             "format": "multipart/mixed",
-            "parts": ["text/cloud-config", "text/x-shellscript"],
+            "parts": ["text/cloud-config-jsonp", "text/x-shellscript"],
             "earlySshKey": True,
-            "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",
+            "earlySshKeyOverlay": "vendor-users-json-patch",
             "sha256": sha256_file(user),
             "qualificationSudo": "nodeadmin-nopasswd-test-only",
         },
