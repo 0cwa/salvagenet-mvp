@@ -181,27 +181,25 @@ def validate_public_key(text: str) -> str:
 
 
 def test_user_data(public_key: str) -> str:
+    """Return a shell script so user-data cannot override vendor cloud-config lists."""
     key = validate_public_key(public_key)
-    return f"""#cloud-config
-write_files:
-  - path: /run/nodehost-h02a-authorized-key
-    owner: root:root
-    permissions: '0600'
-    content: |
-      {key}
-  - path: /etc/ssh/sshd_config.d/99-nodehost-h02a.conf
-    owner: root:root
-    permissions: '0644'
-    content: |
-      PasswordAuthentication no
-      KbdInteractiveAuthentication no
-      PermitRootLogin no
-runcmd:
-  - [sh, -c, 'install -d -m 0700 -o nodeadmin -g nodeadmin /home/nodeadmin/.ssh']
-  - [sh, -c, 'install -m 0600 -o nodeadmin -g nodeadmin /run/nodehost-h02a-authorized-key /home/nodeadmin/.ssh/authorized_keys']
-  - [rm, -f, /run/nodehost-h02a-authorized-key]
-  - [systemctl, restart, ssh]
-  - [sh, -c, 'install -d -m 0755 /var/lib/nodehost && printf h02a-ready\\n > /var/lib/nodehost/h02a-ready']
+    return f"""#!/bin/sh
+set -eu
+install -d -m 0700 -o nodeadmin -g nodeadmin /home/nodeadmin/.ssh
+cat > /home/nodeadmin/.ssh/authorized_keys <<'NODEHOST_H02A_KEY'
+{key}
+NODEHOST_H02A_KEY
+chown nodeadmin:nodeadmin /home/nodeadmin/.ssh/authorized_keys
+chmod 0600 /home/nodeadmin/.ssh/authorized_keys
+cat > /etc/ssh/sshd_config.d/99-nodehost-h02a.conf <<'NODEHOST_H02A_SSHD'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+NODEHOST_H02A_SSHD
+chmod 0644 /etc/ssh/sshd_config.d/99-nodehost-h02a.conf
+systemctl restart ssh
+install -d -m 0755 /var/lib/nodehost
+printf 'h02a-ready\\n' > /var/lib/nodehost/h02a-ready
 """
 
 
@@ -455,6 +453,10 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
         "vendorData": {
             "path": str((ROOT / "profiles" / profile["spec"]["initialization"]["vendorData"]).relative_to(ROOT)),
             "renderedSha256": sha256_file(vendor),
+        },
+        "testUserData": {
+            "format": "text/x-shellscript",
+            "sha256": sha256_file(user),
         },
         "image": lock,
         "firmware": {
