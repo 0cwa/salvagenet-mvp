@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PROFILE_PATH = ROOT / "profiles/ubuntu-2404-arm64-uefi/profile.json"
 LOCK_PATH = ROOT / "profiles/locks/images.lock.json"
 RENDERER = ROOT / "tools/profiles/render-guest-init.py"
+AAVMF_ROOT = Path("/usr/share/AAVMF")
 IMAGE_ID = "ubuntu-2404-arm64-cloud"
 PROFILE_ID = "ubuntu-2404-arm64-uefi"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -273,7 +274,24 @@ def render_vendor_data(state: Path, profile: dict[str, Any]) -> Path:
     return destination
 
 
-def find_firmware_pair() -> tuple[Path, Path]:
+def resolve_firmware_path(path: Path, root: Path = AAVMF_ROOT) -> Path:
+    if not path.exists():
+        raise LabError(f"packaged firmware path is missing: {path}")
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise LabError(f"cannot resolve packaged firmware path {path}: {exc}") from exc
+    try:
+        relative = resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise LabError(f"packaged firmware path escapes {resolved_root}: {path} -> {resolved}") from exc
+    if not relative.parts or not resolved.is_file():
+        raise LabError(f"packaged firmware target is not one regular file: {path} -> {resolved}")
+    return resolved
+
+
+def find_firmware_pair() -> tuple[tuple[Path, Path], tuple[Path, Path]]:
     pairs = [
         (
             Path("/usr/share/AAVMF/AAVMF_CODE.fd"),
@@ -285,9 +303,11 @@ def find_firmware_pair() -> tuple[Path, Path]:
         ),
     ]
     for code, variables in pairs:
-        if all(path.is_file() and not path.is_symlink() for path in (code, variables)):
-            return code, variables
-    raise LabError("a matched AAVMF code/vars firmware pair was not found")
+        try:
+            return (code, resolve_firmware_path(code)), (variables, resolve_firmware_path(variables))
+        except LabError:
+            continue
+    raise LabError("a matched, confined AAVMF code/vars firmware pair was not found")
 
 
 def package_fact(path: Path) -> str | None:
@@ -314,12 +334,14 @@ def package_fact(path: Path) -> str | None:
     return version.stdout.strip() if version.returncode == 0 else package
 
 
-def firmware_fact(path: Path) -> dict[str, Any]:
+def firmware_fact(requested: Path, resolved: Path) -> dict[str, Any]:
     return {
-        "sourcePath": str(path),
-        "sha256": sha256_file(path),
-        "sizeBytes": path.stat().st_size,
-        "package": package_fact(path),
+        "sourcePath": str(requested),
+        "resolvedPath": str(resolved),
+        "sourcePathSymlink": requested.is_symlink(),
+        "sha256": sha256_file(resolved),
+        "sizeBytes": resolved.stat().st_size,
+        "package": package_fact(requested),
     }
 
 
@@ -481,7 +503,7 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
     if data.stat().st_size != data_size:
         raise LabError("raw data disk has the wrong virtual size")
 
-    code_source, vars_source = find_firmware_pair()
+    (code_requested, code_source), (vars_requested, vars_source) = find_firmware_pair()
     code = state / "AAVMF_CODE.fd"
     variables = state / "AAVMF_VARS.fd"
     code_digest = copy_verified(code_source, code)
@@ -511,8 +533,8 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
         },
         "image": lock,
         "firmware": {
-            "code": {**firmware_fact(code_source), "copiedSha256": code_digest},
-            "vars": {**firmware_fact(vars_source), "copiedSha256": vars_digest},
+            "code": {**firmware_fact(code_requested, code_source), "copiedSha256": code_digest},
+            "vars": {**firmware_fact(vars_requested, vars_source), "copiedSha256": vars_digest},
         },
         "tools": {
             "qemu": tool_fact("qemu-system-aarch64", "--version"),
