@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "updates": [
+    {
+      "id": "PLAT-03",
+      "set": {
+        "title": "Mature the thin Slint controller into the durable cross-platform control application",
+        "summary": "Expand the intentionally small turnkey-MVP controller into a maintainable shared Rust core and Slint application for multiple host platforms, controllers, trust tiers, and recovery workflows.",
+        "outcome": "The controller preserves the signed-capsule and Host API boundaries while adding durable packaging, multi-platform host management, richer diagnostics, principal/revocation UX, and tested accessibility without owning cluster workload state.",
+        "whyNow": "MVP-03 proves the minimum guided stock-phone/Swarm path. This later item matures that proof only after real platform and authorization needs are known, avoiding a speculative controller suite before the workflow is evidenced.",
+        "nonGoals": [
+          "No Android-host rewrite, browser-held private keys, custom scheduler, cluster dashboard clone, or Kubernetes/Nomad/Swarm workload model."
+        ],
+        "validation": [
+          "Contract compatibility, desktop packaging, multiple host-platform fixtures, multi-controller authorization, enrollment, lifecycle, recovery, diagnostics, accessibility, upgrade, and offline-authority tests pass."
+        ]
+      }
+    },
+    {
+      "id": "PLAT-04",
+      "set": {
+        "title": "Build the shared Linux host-agent foundation",
+        "summary": "Create the common Linux daemon, service lifecycle, packaging primitives, execution-environment ports, and conformance suite used by the later SBC, existing-Linux, appliance, and WSL platform adapters.",
+        "outcome": "A Rust host-agent foundation implements the generic host contracts on a development Linux system with systemd/OpenRC seams, local IPC, durable state, update/recovery boundaries, and adapter contracts without claiming every concrete platform is already supported.",
+        "whyNow": "The original combined Linux/SBC/WSL issue hid materially different qualification and delivery work. A shared foundation followed by platform-specific issues preserves reuse while keeping evidence and priority explicit.",
+        "nonGoals": [
+          "No broad SBC, legacy-Linux, appliance, or WSL compatibility claim; no custom init, container runtime, VM manager, or shared mutable Android implementation."
+        ],
+        "validation": [
+          "Host API/execution-environment conformance, durable lifecycle, local IPC, package/service installation, upgrade/rollback skeleton, diagnostics, and adapter-isolation tests pass on the Linux development environment."
+        ]
+      }
+    },
+    {
+      "id": "PLAT-10",
+      "set": {
+        "title": "Broaden Docker Swarm qualification after the turnkey proof",
+        "summary": "Extend the single-phone MVP-02 worker proof into documented multi-device, manager-eligibility, failure-domain, replacement, update, and recovery guidance while Docker Engine remains authoritative.",
+        "outcome": "Qualified phone, SBC, and Linux classes pass native join, drain, leave, replacement, manager-quorum interruption, certificate rotation, update, and recovery recipes with explicit resource and reliability envelopes.",
+        "whyNow": "MVP-02 proves the smallest honest upstream attachment. Broader Swarm topology and HA guidance should follow measured stable-node classes rather than inflate the first product proof.",
+        "nonGoals": [
+          "No raw SwarmKit embedding, Classic Swarm compatibility, Compose abstraction, service objects in the Host API, or claim that SalvageNet replaces Docker manager quorum."
+        ],
+        "validation": [
+          "Multi-class join/drain/leave/replace, manager quorum loss/recovery, worker continuity, certificate rotation, rolling update/rollback, placement, and documented failure-domain recipes pass."
+        ]
+      }
+    },
+    {
+      "id": "PLAT-11",
+      "set": {
+        "title": "Qualify managed and whitelisted stock-Android deployment tiers",
+        "summary": "Use Device Owner, managed configuration, and preconfigured/whitelisted APK builds to improve stock-Android setup and reliability without changing runtime capsules or requiring system patching.",
+        "outcome": "Managed and whitelisted builds publish explicit permission, background, update, authority-root, enrollment-domain, policy-precedence, reboot, revocation, and recovery guarantees while permanent cluster secrets remain runtime data.",
+        "whyNow": "Managed stock Android and AVB-patched Android are distinct trust and capability tiers. Separating them prevents enterprise policy APIs or build-time defaults from being mistaken for root/native-runtime support.",
+        "nonGoals": [
+          "No general root shell, AVB system daemon, native container backend, permanent overlay/orchestrator token in an APK, or hidden downgrade of ordinary stock-APK support."
+        ],
+        "validation": [
+          "Device Owner enrollment, managed policy, whitelisted build constraints, permission/background behavior, update, authority rotation, reboot, revocation, removal, and recovery tests pass per supported tier."
+        ]
+      }
+    },
+    {
+      "id": "PLAT-19",
+      "addBlockedBy": [
+        "PLAT-04"
+      ]
+    }
+  ]
+}
