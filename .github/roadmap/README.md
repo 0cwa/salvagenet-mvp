@@ -6,15 +6,16 @@ GitHub roadmap issues and dependency links are the live planning authority. `age
 
 - `seed.v1.json` — immutable reviewed input for the first live bootstrap. It remains provenance and should not be rewritten to pretend later planning existed at bootstrap time.
 - `expansion.v1.json` — reviewed strategic expansion covering the turnkey cluster proof, platform priority A–F, Nomad, Zenoh research, first-node Headscale/DDNS, community enrollment, and personal-data locality.
-- `../../tools/roadmap/catalog.py` — composes the bootstrap seed and reviewed expansions, updates completeness sets, and derives live item/milestone cardinality from catalog data.
+- `milestone-updates.v1.json` — reviewed in-place milestone title/description migrations; the current generation renames M1 from “Validated MVP” to “Validated stock-node substrate” without moving or recreating its issues.
+- `../../tools/roadmap/catalog.py` — composes the bootstrap seed and reviewed expansions, applies milestone metadata to the composed catalog, and derives live item/milestone cardinality from reviewed data.
 - `bootstrap-state.v1.json` — generated exact apply/source/issue map from the last reviewed apply.
 - `../workflows/roadmap-bootstrap.yml` — explicit dry-run/apply workflow.
 - `../workflows/roadmap-authorization.yml` — keeps GitHub's `agent:active` projection synchronized with the active DAG and repairs manual active-label drift.
-- `../../tools/roadmap/commands.py` — catalog validation and GitHub apply entry point.
+- `../../tools/roadmap/commands.py` — catalog validation, milestone migration, and GitHub apply entry point.
 - `../../tools/roadmap/authorization.py` — DAG-to-issue authorization synchronizer and read-only verifier.
 - `../../tools/roadmap/sync.py` — strict live/fallback projection with reviewed acceptance and context metadata.
 
-A later catalog generation should be a new reviewed expansion file or a clean schema-version transition. Do not rewrite a historical generation merely to avoid an additive catalog mechanism.
+A later catalog generation should be a new reviewed expansion/migration file or a clean schema-version transition. Do not rewrite a historical generation merely to avoid an additive catalog mechanism.
 
 ## Local commands
 
@@ -34,11 +35,11 @@ python3 tools/roadmap/authorization.py --apply
 A roadmap expansion intentionally uses two reviewed states:
 
 1. **Code/catalog review:** merge the catalog, tests, docs, and synchronization logic. The active DAG remains unchanged.
-2. **Exact-main apply:** run the existing apply workflow against the exact merged commit to create missing milestones/issues and add missing dependency links.
+2. **Exact-main apply:** run the existing apply workflow against the exact merged commit to rename reviewed milestones in place, create missing milestones/issues, and add missing dependency links.
 3. **Generated-state review:** review and merge the updated bootstrap state, public snapshot, and agent index.
-4. **Strict-live verification:** confirm the live issue set, dependencies, active issue label, DAG authorization, and generated source hash agree.
+4. **Strict-live verification:** confirm the live issue set, milestone names, dependencies, active issue label, DAG authorization, and generated source hash agree.
 
-Between steps 1 and 2, strict live generation is expected to report that the new reviewed issues have not yet been materialized. Do not publish a new snapshot or claim the expansion is live until apply completes.
+Between steps 1 and 2, strict live generation is expected to report that the new reviewed milestone names and issues have not yet been materialized. Do not publish a new snapshot or claim the expansion is live until apply completes.
 
 ## Human-visible apply
 
@@ -48,10 +49,11 @@ After the catalog implementation PR merges, open or reuse an authorized roadmap-
 /roadmap-apply <40-character-main-sha>
 ```
 
-The workflow verifies the author and exact `main`, validates the composed catalog, creates missing labels/milestones/issues/dependencies idempotently, reruns without mutation, generates snapshots, and pushes a review branch.
+The workflow verifies the author and exact `main`, validates the composed catalog, applies reviewed milestone metadata in place, creates missing labels/milestones/issues/dependencies idempotently, reruns without mutation, generates snapshots, and pushes a review branch.
 
 The apply operation:
 
+- renames explicitly migrated milestones by GitHub milestone number, preserving issue assignments and history;
 - creates missing catalog items;
 - adds dependencies that are reviewed in the composed catalog but absent live;
 - does not remove extra dependencies automatically;
@@ -59,7 +61,7 @@ The apply operation:
 - keeps the active issue label derived from the active DAG for newly created items;
 - cannot close acceptance gates.
 
-Existing issue wording or dependency removals require an explicit roadmap-edit review rather than being hidden in bootstrap reconciliation.
+Unreviewed issue wording, milestone, or dependency changes require an explicit roadmap-edit review rather than being hidden in bootstrap reconciliation.
 
 ## Authorization synchronization
 
