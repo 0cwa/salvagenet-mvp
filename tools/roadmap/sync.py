@@ -17,13 +17,13 @@ from pathlib import Path
 import re
 import sys
 
-from commands import normalized_seed
 from live import PR_REFERENCE_RE, RoadmapTransportError, StrictGitHubClient, fetch_validated_live_graph
 from roadmap import (
     INDEX_PATH,
     RoadmapError,
     SNAPSHOT_PATH,
     derive_snapshot,
+    load_seed,
     parse_time,
     read_json,
     seed_graph,
@@ -143,7 +143,10 @@ def main() -> int:
     parser.add_argument("--max-age-hours", type=int, default=72)
     args = parser.parse_args()
 
-    seed = normalized_seed()
+    if args.seed_only and args.check:
+        raise RoadmapError("--check requires the live graph; it cannot be combined with --seed-only")
+
+    seed = load_seed()
     validate_seed(seed)
     token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
 
