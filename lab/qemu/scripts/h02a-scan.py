@@ -11,7 +11,8 @@ import shutil
 import sys
 from typing import Any, Iterable
 
-ROOT = Path(__file__).resolve().parents[3]
+SCRIPT_PATH = Path(__file__).resolve()
+ROOT = SCRIPT_PATH.parents[3] if len(SCRIPT_PATH.parents) > 3 else Path.cwd()
 PATTERNS = (
     ("tailscale-key", re.compile(rb"tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}")),
     ("headscale-key", re.compile(rb"hskey-[A-Za-z0-9_-]{12,}")),
@@ -172,7 +173,7 @@ def combine_scan(state_path: Path, stage: str, remote_path: Path) -> dict[str, A
     state = validate_state_directory(state_path)
     remote = read_remote(remote_path)
     local_paths = [state / "vendor-data", state / "user-data", state / "meta-data"]
-    local_findings, file_count, total_bytes = scan_regular_files(local_paths)
+    local_findings, _, _ = scan_regular_files(local_paths)
     findings = list(remote["findings"]) + local_findings
     scanned = list(remote["scannedPaths"]) + [str(path) for path in local_paths]
     result = {
