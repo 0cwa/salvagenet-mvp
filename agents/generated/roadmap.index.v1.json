@@ -1,0 +1,893 @@
+{
+  "active": [
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "WEB-00"
+      ],
+      "dependencyState": "clear",
+      "id": "WEB-04",
+      "number": 31,
+      "pullRequests": [],
+      "taskAuthorized": true,
+      "taskPacket": "agents/tasks/WEB04/task.md",
+      "title": "Generate the GitHub issue roadmap and compact agent index",
+      "workState": "active"
+    }
+  ],
+  "blocked": [
+    {
+      "acceptance": [
+        {
+          "id": "B02",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B08",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B09",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "blockedBy": [
+        "FND-03",
+        "GUEST-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-01",
+      "number": 39,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate APK-native QEMU, host mesh, and Host API on Android",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B11",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B12",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "blockedBy": [
+        "DEVICE-01",
+        "GUEST-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-02",
+      "number": 40,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate remote Ubuntu deployment and ordinary guest SSH",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B13",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "blockedBy": [
+        "DEVICE-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-03",
+      "number": 41,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate recovery SSH with guest mesh unavailable",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B07",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B16",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B17",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "blockedBy": [
+        "DEVICE-01",
+        "DEVICE-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-04",
+      "number": 42,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate lifecycle, reboot, and controller-offline durability",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-01",
+      "number": 45,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create guided early-access onboarding",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01",
+        "WEB-02",
+        "WEB-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-02",
+      "number": 46,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish first verified device compatibility records",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "EA-00",
+        "RELEASE-01",
+        "WEB-06"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-03",
+      "number": 47,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish exact candidate downloads and verification",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01",
+        "WEB-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-04",
+      "number": 48,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish tested user guides and recovery paths",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "EA-02",
+        "EA-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-05",
+      "number": 49,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create a community device-test day process",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B20",
+          "status": "PASS"
+        }
+      ],
+      "blockedBy": [
+        "EA-04",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-06",
+      "number": 50,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Improve diagnostics and support UX",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "GUEST-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "GUEST-02",
+      "number": 38,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": "agents/tasks/H02B/task.md",
+      "title": "Qualify the guest private-network path",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-01",
+      "number": 57,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Isolate QEMU from host controller credentials",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-02",
+      "number": 58,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Build project-owned native runtime artifacts from source",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01",
+        "WEB-00"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-03",
+      "number": 59,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create a durable Rust and Slint controller",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "PLAT-03",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-04",
+      "number": 60,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create Linux, SBC, and WSL host service",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "PLAT-15",
+        "REL-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-05",
+      "number": 62,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify more guest profiles and a real K3s worker",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "REL-03",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-06",
+      "number": 63,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add a structurally different second mesh adapter",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "PLAT-15",
+        "REL-06"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-07",
+      "number": 64,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add production artifact trust and OCI distribution",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "PLAT-01",
+        "REL-05"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-08",
+      "number": 65,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Support more than one active VM",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-09",
+      "number": 66,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add reviewed multi-controller authentication",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "REL-03",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-10",
+      "number": 67,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish Docker and Swarm reference provisioning",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "REL-04",
+        "REL-05",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-11",
+      "number": 68,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create managed and patched Android reliability tiers",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "REL-04",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-12",
+      "number": 69,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add an AVF runtime backend",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "PLAT-07"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-13",
+      "number": 70,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create a delegated remote profile repository",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "PLAT-03",
+        "WEB-06"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-14",
+      "number": 71,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add a web UI through a local controller bridge",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-15",
+      "number": 61,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Separate guest classes, images, sources, and family adapters",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-01",
+      "number": 51,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify sustained thermal and power behavior",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-02",
+      "number": 52,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify storage pressure, export, reset, and uninstall behavior",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-03",
+      "number": 53,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify network transitions and coordination interruption",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-04",
+      "number": 54,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify Android and OEM lifecycle behavior",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "REL-01",
+        "REL-02",
+        "REL-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-05",
+      "number": 55,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add measured resource admission and device classes",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "REL-02",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-06",
+      "number": 56,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify app upgrade, rollback, and runtime continuity",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B01",
+          "status": "PASS"
+        },
+        {
+          "id": "B02",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B03",
+          "status": "PASS"
+        },
+        {
+          "id": "B04",
+          "status": "PASS"
+        },
+        {
+          "id": "B05",
+          "status": "PASS"
+        },
+        {
+          "id": "B06",
+          "status": "PASS"
+        },
+        {
+          "id": "B07",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B08",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B09",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B11",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B12",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B13",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B14",
+          "status": "PASS"
+        },
+        {
+          "id": "B15",
+          "status": "PASS"
+        },
+        {
+          "id": "B16",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B17",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B18",
+          "status": "PASS"
+        },
+        {
+          "id": "B19",
+          "status": "PASS"
+        },
+        {
+          "id": "B20",
+          "status": "PASS"
+        }
+      ],
+      "blockedBy": [
+        "DEVICE-01",
+        "DEVICE-02",
+        "DEVICE-03",
+        "DEVICE-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "RELEASE-01",
+      "number": 43,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Seal one exact validated MVP candidate",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U01",
+          "status": "DEFERRED"
+        }
+      ],
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-01",
+      "number": 72,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Establish Android Open Accessory control link",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U02",
+          "status": "DEFERRED"
+        }
+      ],
+      "blockedBy": [
+        "USB-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-02",
+      "number": 73,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Attach a QEMU stream NIC through USB",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U03",
+          "status": "DEFERRED"
+        }
+      ],
+      "blockedBy": [
+        "USB-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-03",
+      "number": 74,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Provide Linux TAP and NAT internet through node-linkd",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U04",
+          "status": "DEFERRED"
+        }
+      ],
+      "blockedBy": [
+        "USB-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-04",
+      "number": 75,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Fail safely between USB and SLIRP",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "PLAT-07",
+        "USB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-05",
+      "number": 76,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Harden USB and add optional artifact transfer",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "WEB-00",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-01",
+      "number": 32,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Build the Astro design-system foundation",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "WEB-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-02",
+      "number": 33,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish the user-facing SalvageNet pages",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B01",
+          "status": "PASS"
+        },
+        {
+          "id": "B02",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B03",
+          "status": "PASS"
+        },
+        {
+          "id": "B04",
+          "status": "PASS"
+        },
+        {
+          "id": "B05",
+          "status": "PASS"
+        },
+        {
+          "id": "B06",
+          "status": "PASS"
+        },
+        {
+          "id": "B07",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B08",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B09",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B11",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B12",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B13",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B14",
+          "status": "PASS"
+        },
+        {
+          "id": "B15",
+          "status": "PASS"
+        },
+        {
+          "id": "B16",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B17",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B18",
+          "status": "PASS"
+        },
+        {
+          "id": "B19",
+          "status": "PASS"
+        },
+        {
+          "id": "B20",
+          "status": "PASS"
+        }
+      ],
+      "blockedBy": [
+        "WEB-01",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-03",
+      "number": 34,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Generate public acceptance and release status",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "WEB-01",
+        "WEB-02",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-05",
+      "number": 35,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add progressive-enhancement site components",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "blockedBy": [
+        "WEB-02",
+        "WEB-03",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-06",
+      "number": 36,
+      "pullRequests": [],
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Deploy exact static artifacts with freshness evidence",
+      "workState": "queued"
+    }
+  ],
+  "currentMilestone": "M0.5 — Public project surface",
+  "disagreements": [],
+  "generatedAt": "2026-07-31T02:02:10Z",
+  "ready": [],
+  "schemaVersion": 1,
+  "sourceHash": "sha256:58ea35f122c38db558b533d194147230549bea3b40d1b8ee871dc11bb8daf96e"
+}
