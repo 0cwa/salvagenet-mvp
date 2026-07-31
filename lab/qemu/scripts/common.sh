@@ -41,6 +41,7 @@ chmod 0600 "$known_hosts"
 export root state ssh_port known_hosts
 
 ssh_options=(
+  -F /dev/null
   -q
   -o BatchMode=yes
   -o IdentitiesOnly=yes
