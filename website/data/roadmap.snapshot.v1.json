@@ -1,6 +1,6 @@
 {
   "disagreements": [],
-  "generatedAt": "2026-07-31T02:02:10Z",
+  "generatedAt": "2026-07-31T02:30:51Z",
   "items": [
     {
       "acceptance": [
@@ -505,12 +505,12 @@
       "public": true,
       "pullRequests": [],
       "summary": "Prove UEFI, QMP, NoCloud, key-only loopback SSH, restart, and secret hygiene before adding guest mesh.",
-      "taskAuthorized": false,
+      "taskAuthorized": true,
       "taskPacket": "agents/tasks/H02A/task.md",
       "title": "Qualify deterministic Ubuntu ARM64 guest boot",
-      "updatedAt": "2026-07-31T01:59:43Z",
+      "updatedAt": "2026-07-31T02:30:01Z",
       "url": "https://github.com/0cwa/salvagenet-mvp/issues/37",
-      "workState": "queued"
+      "workState": "active"
     },
     {
       "acceptance": [],
@@ -1255,7 +1255,7 @@
         "WEB-00",
         "WEB-04"
       ],
-      "dependencyState": "blocked",
+      "dependencyState": "clear",
       "id": "WEB-01",
       "kind": "foundation",
       "milestone": "M0.5 — Public project surface",
@@ -1408,12 +1408,12 @@
       "public": true,
       "pullRequests": [],
       "summary": "Turn roadmap-labelled issues, milestones, and dependencies into a static public roadmap and bounded agent context.",
-      "taskAuthorized": true,
+      "taskAuthorized": false,
       "taskPacket": "agents/tasks/WEB04/task.md",
       "title": "Generate the GitHub issue roadmap and compact agent index",
-      "updatedAt": "2026-07-31T01:59:37Z",
+      "updatedAt": "2026-07-31T02:29:53Z",
       "url": "https://github.com/0cwa/salvagenet-mvp/issues/31",
-      "workState": "active"
+      "workState": "done"
     },
     {
       "acceptance": [],
@@ -1509,8 +1509,8 @@
   "schemaVersion": 1,
   "source": {
     "fallback": false,
-    "newestIssueUpdate": "2026-07-31T02:00:23Z",
+    "newestIssueUpdate": "2026-07-31T02:30:01Z",
     "repository": "0cwa/salvagenet-mvp",
-    "sourceHash": "sha256:58ea35f122c38db558b533d194147230549bea3b40d1b8ee871dc11bb8daf96e"
+    "sourceHash": "sha256:6e2b3db39b309212bea00dcb8dcd3cb61a28ca161b2632de4504c7e56ec0480c"
   }
 }
