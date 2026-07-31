@@ -1,0 +1,275 @@
+name: h02a-jsonp-candidate
+
+on:
+  push:
+    branches:
+      - automation/H02A-jsonp-candidate-953070de
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: 953070de36e3f6d724ed2393327b0c7dfab2b511
+  TARGET_BRANCH: research/H02A-jsonp-candidate-953070de
+  CONTROL_BRANCH: automation/H02A-jsonp-candidate-953070de
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out control branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - name: Check out exact candidate branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Apply and validate JSONP key overlay
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-jsonp.log"
+          set +e
+          (
+            set -euo pipefail
+            cd source
+            test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+            python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          def load(path: str) -> str:
+              return Path(path).read_text(encoding='utf-8')
+
+          def save(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding='utf-8')
+
+          def once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          def section(text: str, start: str, end: str, replacement: str, label: str) -> str:
+              first = text.find(start)
+              if first < 0:
+                  raise SystemExit(f'{label}: start marker missing')
+              second = text.find(end, first)
+              if second < 0:
+                  raise SystemExit(f'{label}: end marker missing')
+              return text[:first] + replacement + text[second:]
+
+          path = 'lab/qemu/scripts/h02a-prepare.py'
+          text = load(path)
+          replacement = dedent('''\
+          def test_user_data(public_key: str) -> str:
+              """Patch only the canonical vendor user, then run final-stage lab setup."""
+              key = validate_public_key(public_key)
+              json_patch = "#cloud-config-jsonp\\n" + json.dumps(
+                  [
+                      {
+                          "op": "add",
+                          "path": "/users/0/ssh_authorized_keys",
+                          "value": [key],
+                      }
+                  ],
+                  separators=(",", ":"),
+              ) + "\\n"
+              final_script = """#!/bin/sh
+          set -eu
+          cat > /etc/sudoers.d/90-nodehost-h02a <<'NODEHOST_H02A_SUDO'
+          nodeadmin ALL=(ALL) NOPASSWD:ALL
+          NODEHOST_H02A_SUDO
+          chmod 0440 /etc/sudoers.d/90-nodehost-h02a
+          visudo -cf /etc/sudoers.d/90-nodehost-h02a
+          cat > /etc/ssh/sshd_config.d/99-nodehost-h02a.conf <<'NODEHOST_H02A_SSHD'
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin no
+          NODEHOST_H02A_SSHD
+          chmod 0644 /etc/ssh/sshd_config.d/99-nodehost-h02a.conf
+          systemctl restart ssh
+          install -d -m 0755 /var/lib/nodehost
+          printf 'h02a-ready\\\\n' > /var/lib/nodehost/h02a-ready
+          """
+              return (
+                  "MIME-Version: 1.0\\n"
+                  f'Content-Type: multipart/mixed; boundary="{MIME_BOUNDARY}"\\n'
+                  "\\n"
+                  f"--{MIME_BOUNDARY}\\n"
+                  'Content-Type: text/cloud-config-jsonp; charset="us-ascii"\\n'
+                  "Content-Transfer-Encoding: 7bit\\n"
+                  "\\n"
+                  f"{json_patch}"
+                  f"--{MIME_BOUNDARY}\\n"
+                  'Content-Type: text/x-shellscript; charset="us-ascii"\\n'
+                  "Content-Transfer-Encoding: 7bit\\n"
+                  "\\n"
+                  f"{final_script}"
+                  f"--{MIME_BOUNDARY}--\\n"
+              )
+
+
+          ''')
+          text = section(text, 'def test_user_data(', 'def meta_data(', replacement, 'test user-data function')
+          text = once(
+              text,
+              '            "parts": ["text/cloud-config", "text/x-shellscript"],\n            "earlySshKey": True,\n            "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",\n',
+              '            "parts": ["text/cloud-config-jsonp", "text/x-shellscript"],\n            "earlySshKey": True,\n            "earlySshKeyOverlay": "vendor-users-json-patch",\n',
+              'preflight JSONP contract',
+          )
+          save(path, text)
+
+          path = 'lab/qemu/scripts/h02a-evidence.py'
+          text = load(path)
+          text = once(
+              text,
+              '        or user.get("parts") != ["text/cloud-config", "text/x-shellscript"]\n        or user.get("earlySshKey") is not True\n        or user.get("qualificationAccountPassword") != "unlocked-non-authenticating-NP-sentinel"\n',
+              '        or user.get("parts") != ["text/cloud-config-jsonp", "text/x-shellscript"]\n        or user.get("earlySshKey") is not True\n        or user.get("earlySshKeyOverlay") != "vendor-users-json-patch"\n',
+              'evidence JSONP contract',
+          )
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_lab.py'
+          text = load(path)
+          replacement = dedent('''\
+              def test_test_only_user_data_is_multipart_with_an_early_key(self) -> None:
+                  key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
+                  rendered = h02a.test_user_data(key)
+                  message = BytesParser(policy=policy.default).parsebytes(rendered.encode("utf-8"))
+                  self.assertTrue(message.is_multipart())
+                  self.assertEqual("multipart/mixed", message.get_content_type())
+                  parts = list(message.iter_parts())
+                  self.assertEqual(
+                      ["text/cloud-config-jsonp", "text/x-shellscript"],
+                      [part.get_content_type() for part in parts],
+                  )
+                  jsonp = parts[0].get_content()
+                  final_script = parts[1].get_content()
+                  self.assertTrue(jsonp.startswith("#cloud-config-jsonp\\n"))
+                  patch = json.loads(jsonp.split("\\n", 1)[1])
+                  self.assertEqual(
+                      [
+                          {
+                              "op": "add",
+                              "path": "/users/0/ssh_authorized_keys",
+                              "value": [key],
+                          }
+                      ],
+                      patch,
+                  )
+                  serialized = json.dumps(patch)
+                  for forbidden in (
+                      "lock_passwd",
+                      "hashed_passwd",
+                      "packages",
+                      "write_files",
+                      "runcmd",
+                      "bootstrap.env",
+                      "BOOTSTRAP_TOKEN",
+                      "METADATA_BASE",
+                      "tailscale",
+                      "headscale",
+                      "tskey-",
+                  ):
+                      self.assertNotIn(forbidden, serialized)
+                  self.assertTrue(final_script.startswith("#!/bin/sh\\nset -eu\\n"))
+                  self.assertNotIn("authorized_keys", final_script)
+                  self.assertIn("/etc/sudoers.d/90-nodehost-h02a", final_script)
+                  self.assertIn("nodeadmin ALL=(ALL) NOPASSWD:ALL", final_script)
+                  self.assertIn("visudo -cf /etc/sudoers.d/90-nodehost-h02a", final_script)
+                  self.assertIn("PasswordAuthentication no", final_script)
+                  self.assertIn("KbdInteractiveAuthentication no", final_script)
+                  self.assertIn("PermitRootLogin no", final_script)
+                  self.assertIn("/var/lib/nodehost/h02a-ready", final_script)
+                  self.assertEqual(2, rendered.count(f"--{h02a.MIME_BOUNDARY}\\n"))
+                  self.assertTrue(rendered.endswith(f"--{h02a.MIME_BOUNDARY}--\\n"))
+
+          ''')
+          text = section(
+              text,
+              '    def test_test_only_user_data_is_multipart_with_an_early_key',
+              '    def test_qemu_plan_is_closed_and_matches_profile_contract',
+              replacement,
+              'JSONP user-data test',
+          )
+          text = once(
+              text,
+              '        self.assertIn(\'"earlySshKey": True\', helper)\n        self.assertIn(\'"qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel"\', helper)\n',
+              '        self.assertIn(\'"earlySshKey": True\', helper)\n        self.assertIn(\'"earlySshKeyOverlay": "vendor-users-json-patch"\', helper)\n',
+              'source contract assertions',
+          )
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_evidence.py'
+          text = load(path)
+          text = once(
+              text,
+              '                "parts": ["text/cloud-config", "text/x-shellscript"],\n                "earlySshKey": True,\n                "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",\n',
+              '                "parts": ["text/cloud-config-jsonp", "text/x-shellscript"],\n                "earlySshKey": True,\n                "earlySshKeyOverlay": "vendor-users-json-patch",\n',
+              'evidence fixture JSONP contract',
+          )
+          text = once(
+              text,
+              '        for field in ("qualificationSudo", "qualificationAccountPassword"):\n',
+              '        for field in ("qualificationSudo", "earlySshKeyOverlay"):\n',
+              'missing contract fields',
+          )
+          save(path, text)
+          PY
+            make validate
+            make test-guest
+            python3 tools/agents/verify-scope.py H02A
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          new_head="$EXPECTED_HEAD"
+          if [[ $rc -eq 0 ]]; then
+            cd source
+            expected=(
+              lab/qemu/scripts/h02a-evidence.py
+              lab/qemu/scripts/h02a-prepare.py
+              tests/guest/test_h02a_evidence.py
+              tests/guest/test_h02a_lab.py
+            )
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'lab(H02A): patch canonical user SSH key with JSONP'
+            git push origin "HEAD:$TARGET_BRANCH"
+            new_head=$(git rev-parse HEAD)
+            cd ..
+          fi
+
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          log = Path(sys.argv[1])
+          result = {
+              'schemaVersion': 1,
+              'exitCode': int(sys.argv[2]),
+              'candidateHead': sys.argv[3],
+              'logTail': log.read_bytes()[-32768:].decode('utf-8', 'replace'),
+          }
+          target = Path('control/automation/h02a-jsonp-candidate-result.json')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-jsonp-candidate-result.json
+          git -C control commit -m 'automation: record H02A JSONP candidate result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
