@@ -21,12 +21,13 @@ python3 "$root/lab/qemu/scripts/h02a-qmp.py" \
   --wait 300 \
   --output "$state/qmp-$stage.json"
 wait_for_ssh 360
+ssh_nodeadmin 15 'sudo -n true'
 
-ssh_nodeadmin 360 'sudo cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
-ssh_nodeadmin 30 'sudo cat /var/lib/nodehost/h02a-ready' > "$state/readiness-$stage.txt"
+ssh_nodeadmin 360 'sudo -n cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
+ssh_nodeadmin 30 'sudo -n cat /var/lib/nodehost/h02a-ready' > "$state/readiness-$stage.txt"
 ssh_nodeadmin 30 'cat /proc/sys/kernel/random/boot_id' > "$state/boot-id-$stage.txt"
 ssh_nodeadmin 30 \
-  "sudo sshd -T | awk '\$1 == \"passwordauthentication\" || \$1 == \"kbdinteractiveauthentication\" || \$1 == \"permitrootlogin\" {print \$1, \$2}'" \
+  "sudo -n sshd -T | awk '\$1 == \"passwordauthentication\" || \$1 == \"kbdinteractiveauthentication\" || \$1 == \"permitrootlogin\" {print \$1, \$2}'" \
   > "$state/sshd-$stage.txt"
 ssh_nodeadmin 30 \
   "printf 'cloud-init: '; cloud-init --version 2>&1; printf 'openssh-client: '; ssh -V 2>&1; printf 'kernel: '; uname -srmo" \
@@ -74,6 +75,7 @@ result = {
     'passwordAuthenticationDisabled': True,
     'keyboardInteractiveDisabled': True,
     'rootLoginDisabled': True,
+    'qualificationSudoNoninteractive': True,
 }
 path = Path(sys.argv[2])
 temporary = path.with_name(path.name + '.tmp')
@@ -83,7 +85,7 @@ temporary.replace(path)
 PY
 
 remote_scan="$state/remote-secret-scan-$stage.json"
-timeout 120 ssh "${ssh_options[@]}" nodeadmin@127.0.0.1 'sudo python3 - remote' \
+timeout 120 ssh "${ssh_options[@]}" nodeadmin@127.0.0.1 'sudo -n python3 - remote' \
   < "$root/lab/qemu/scripts/h02a-scan.py" \
   > "$remote_scan"
 python3 "$root/lab/qemu/scripts/h02a-scan.py" combine \
