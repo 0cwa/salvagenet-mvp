@@ -2,7 +2,7 @@
 
 ## Status
 
-**QUEUED FOR REACTIVATION — not active work.** The prior phase-start review remains useful, but implementation is paused for the bounded WEB04 roadmap/agent foundation. Re-run phase-start review against current `main` after WEB04; do not implement merely because this packet exists.
+**ACTIVE — sole authorised task in phase `guest-boot-2`.** Implementation may begin only within this packet's allowed boundary. GUEST-01 is live roadmap issue #37; issue state does not replace this task authorization.
 
 ## Outcome
 
@@ -10,7 +10,11 @@ Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact iden
 
 ## Phase-start review
 
-- F01 merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910`; packaged profile JSON and strict active manifests are production truth.
+- WEB04 merged through PR #22 at `888eb7e63a3419dca3f867d6baadbe95ef8c7e1f`; its exact implementation head passed workflow `30597378616`.
+- The reviewed live roadmap snapshot merged through PR #77 at `15cc2791ebc6e81860fb73ca7a58e4ad12cf5235`; its exact generated head passed workflow `30598010253`.
+- The live graph contains 53 stable-ID issues, 82 dependency links, seven milestones, no reported disagreements, and GUEST-01 issue #37 bound to this packet. The generated index correctly kept WEB04 active until this separate phase transition.
+- Draft PR #20 remains a path-disjoint HIL safety review. It is not a prerequisite, is not authorized by this phase, and supplies no physical evidence.
+- F01 merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910`; packaged profile JSON and strict active manifests remain production truth.
 - The existing `make qemu-lab-e2e` baseline is not yet sufficient: it writes a parallel cloud-init document and discovers arbitrary host firmware without binding those choices to the canonical profile/evidence record.
 - H02A must use the canonical rendered Ubuntu vendor-data as NoCloud vendor-data, while a clearly test-only NoCloud user-data layer provides the ephemeral SSH public key and a mesh-independent readiness marker.
 - H02A must not create `/var/lib/nodehost/bootstrap.env`, redeem a one-use guest secret, install/enroll Tailscale, or exercise readiness callbacks. Actual redemption, erasure, and guest-mesh persistence checks belong to H02B.
@@ -19,7 +23,7 @@ Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact iden
 - Guest boot and guest mesh are separate failure domains. Headscale, Tailscale enrollment, tailnet SSH, and coordination outage/recovery are deferred to H02B.
 - Emulator and physical-device behavior are out of scope; host-QEMU evidence cannot close Android gates.
 - The task may update only its packet, the specifically listed host-QEMU laboratory files, H02A-named helpers, guest-side qualification tests, the exact Ubuntu image lock/pinning helper, its experiment record, and Makefile entry points needed to expose the reviewed flow.
-- Before reactivation, inspect WEB04's live issue graph and compact index, current pull requests, and any merged device-lab safety changes. Update this packet only where those results change the real prerequisite, evidence, or authorization boundary.
+- Runtime ownership, Android process-death recovery, QMP peer authentication, AVF, controller replacement, website implementation, and native-runtime rebuilds remain outside this phase. Useful ideas from the Kybernetria fork may inform later tasks but must not expand H02A.
 
 ## Compatibility policy
 
@@ -40,7 +44,7 @@ None. H02A is pre-release host-QEMU qualification and may make clean-break chang
 - Evidence is bounded under `.local/qemu-lab/`, names its evidence class as `host-qemu`, and states `androidHardwareValidated: false`, `physicalGateEligible: false`, and `guestMeshValidated: false`.
 - Cleanup stops QEMU and removes generated seed, key, socket, PID, and temporary files while retaining only the explicitly documented evidence and cached pinned base image.
 - Existing repository, profile, guest, Android, and package checks remain green.
-- No Headscale/Tailscale guest enrollment, emulator work, qcow2 product-semantic change, native build rewrite, or physical gate claim is introduced.
+- No Headscale/Tailscale guest enrollment, emulator work, qcow2 product-semantic change, native build rewrite, runtime-ownership refactor, or physical gate claim is introduced.
 
 ## Required checks
 
@@ -62,8 +66,8 @@ The phase-end record must include host prerequisites, lock/profile/vendor-data/f
 5. Confirm normal runs consume an existing pinned Ubuntu lock rather than mutating it.
 6. Run the required checks and complete applicable CI.
 7. Record implemented, tested, merge-ready, merged, and host-qualified states separately.
-8. Re-evaluate H02B and H03 from the result; activate neither automatically.
+8. Re-evaluate H02B, H03, physical validation, and any runtime-ownership investigation from the result; activate none automatically.
 
 ## Handoff
 
-Report the exact source commit, host/tool versions, canonical profile/vendor-data identity, Ubuntu lock, AAVMF identities, QMP/NoCloud/SSH/restart results, forbidden-material scan, cleanup result, evidence classification, and every unmet criterion. Do not claim Android behavior, one-use secret erasure, or guest mesh viability.
+Report the exact source commit, host/tool versions, canonical profile/vendor-data identity, Ubuntu lock, AAVMF identities, QMP/NoCloud/SSH/restart results, forbidden-material scan, cleanup result, evidence classification, and every unmet criterion. Do not claim Android behavior, one-use secret erasure, guest mesh viability, or process-death recovery.

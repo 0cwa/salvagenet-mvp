@@ -1,30 +1,32 @@
 {
   "schemaVersion": 1,
-  "integrationBranch": "integration/roadmap-foundation-1",
+  "integrationBranch": "integration/guest-boot-2",
   "phase": {
-    "id": "roadmap-foundation-1",
-    "objective": "Bootstrap the complete GitHub issue roadmap and compact human-aware agent state before website implementation, while preserving H02A as the next product-critical qualification phase.",
+    "id": "guest-boot-2",
+    "objective": "Qualify the canonical Ubuntu guest boot, NoCloud, QMP, key-only loopback SSH, restart, and secret-hygiene path before adding guest mesh behavior or returning to physical Android validation.",
     "entryCriteria": [
-      "PR #19 merged at b42c35ac17793fb1621baf19905a0eacea9b3521 and accepted the Podroid-MVP alignment, roadmap truth, static-site, theme, and human-aware planning contracts.",
-      "GitHub Issues are enabled, but the reviewed roadmap has not yet been materialized as labels, milestones, stable-ID issues, dependency links, snapshots, or agent commands.",
-      "GOAL.md and docs/roadmap/podroid-mvp-alignment.md preserve H02A and the one-phone vertical slice as the product critical path.",
-      "H02A implementation has not started and may be paused without discarding code or evidence; it will receive a fresh phase-start review after this bounded foundation.",
-      "The phase changes planning infrastructure only and makes no Android, guest, physical-device, release, or acceptance claim."
+      "WEB04 merged through PR #22 at 888eb7e63a3419dca3f867d6baadbe95ef8c7e1f after exact-head workflow 30597378616 passed.",
+      "The reviewed live roadmap snapshot merged through PR #77 at 15cc2791ebc6e81860fb73ca7a58e4ad12cf5235 after exact-head workflow 30598010253 passed.",
+      "The live graph contains 53 stable-ID issues, 82 dependency links, seven milestones, no reported disagreements, and GUEST-01 issue #37 bound to agents/tasks/H02A/task.md.",
+      "F01 remains merged at 246d551ca7e691a0319a4b30e29d6e4905cd9910; packaged profile JSON, guest-init assets, and strict active artifact manifests are production truth.",
+      "The existing host-QEMU laboratory can perform its current bounded UEFI, NoCloud, QMP, and loopback SSH smoke flow, but has not yet proved the canonical H02A contract.",
+      "Draft PR #20 remains a path-disjoint device-lab safety review and is not a prerequisite, a second authorized task, or physical evidence.",
+      "The phase makes no Android, physical-device, guest-mesh, release, or acceptance claim."
     ],
     "exitCriteria": [
-      "A complete reviewed seed covers all roadmap outcomes, B01-B20, U01-U04, release-blocking debt, accepted post-MVP directions, current pull requests, and task-packet mappings.",
-      "An idempotent dry-run/apply bootstrap creates or verifies GitHub labels, milestones, stable-ID issues, and complete issue-dependency links without overwriting live refinements.",
-      "The normalized live graph generates a bounded last-known-good public snapshot and compact agent index with source hash, freshness, fallback, and partial-graph protections.",
-      "Bounded status, freshness, sync, and per-issue context entry points are tested and documented with human-visible state and disagreement reporting.",
-      "All WEB04 criteria and normal repository checks pass, and no website page or product implementation is introduced.",
-      "A phase-end review normally reactivates H02A and may authorize WEB01 in parallel only when paths remain disjoint and the live roadmap/index is healthy."
+      "One bounded command prepares, boots, verifies, records, and cleans up the canonical Ubuntu host-QEMU flow.",
+      "The run records exact source, profile, guest-init, Ubuntu image, and AAVMF identities before QEMU starts.",
+      "Real QMP running status, NoCloud completion, and key-only loopback SSH succeed independently of guest mesh.",
+      "Guest reboot and complete QEMU stop/start return to readiness without introducing or replaying one-use guest-mesh material.",
+      "A bounded redacted forbidden-material scan and machine-readable host-QEMU evidence are reviewed.",
+      "All H02A task criteria and normal repository, Android, guest, and package checks pass before H02B, H03, or physical validation is reconsidered."
     ]
   },
   "tasks": [
     {
-      "id": "WEB04",
-      "slug": "issue-roadmap-and-human-aware-agent-index",
-      "dependsOn": [],
+      "id": "H02A",
+      "slug": "canonical-ubuntu-guest-boot-qualification",
+      "dependsOn": ["F01"],
       "parallelGroup": 1,
       "mvpPlus": false
     }

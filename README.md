@@ -4,7 +4,7 @@ NodeHost is the internal implementation name for the open-source SalvageNet Andr
 
 > **Current maturity: device-lab candidate, not yet a validated MVP.**
 >
-> Automated software and packaging checks are substantially implemented. The current bounded phase bootstraps the issue roadmap and human-aware agent state before website implementation; H02A remains the next product-critical guest-boot qualification task.
+> Automated software and packaging checks are substantially implemented. The current bounded phase qualifies the canonical Ubuntu ARM64 guest boot independently of guest mesh and physical Android behavior.
 
 <!-- MVP-STATUS-BEGIN -->
 **Acceptance:** 10/20 base gates passed; 10 are blocked on physical-device validation. USB networking remains deferred until every base gate passes.
@@ -23,6 +23,7 @@ See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/
 - Authenticated resumable artifact delivery and a hardened public import path.
 - Static, JVM, Android, guest, packaging, signature, alignment, and evidence checks.
 - One physical HIL runner under `tests/hil/`.
+- A live stable-ID GitHub roadmap with reviewed public and agent snapshots.
 
 ## Active phase
 
@@ -30,12 +31,14 @@ See [`docs/STATUS.md`](docs/STATUS.md) for the generated gate breakdown, [`docs/
 make dev-plan
 make dev-check
 make status
-make context TASK=WEB04
+make context TASK=H02A
 ```
 
-WEB04 is the sole active task after the phase-transition PR merges. It creates the complete GitHub issue graph, last-known-good roadmap snapshot, compact agent index, and bounded per-issue context before the website is implemented.
+H02A is the sole active task in phase `guest-boot-2`. It must prove one bounded canonical Ubuntu UEFI/QMP, NoCloud, key-only loopback SSH, restart, secret-hygiene, evidence, and cleanup flow on Linux host QEMU.
 
-H02A is paused, not superseded. It remains the next product-critical task and must receive a fresh phase-start review after WEB04. The expected next phase may pair reactivated H02A with path-disjoint WEB01 website-foundation work.
+Guest Headscale/Tailscale enrollment remains H02B. Emulator work, Android process-death/runtime-ownership changes, physical validation, website implementation, AVF, native rebuilds, and USB are not authorized by this phase.
+
+WEB04 is complete: PR #22 merged the roadmap foundation, a human-visible exact-main bootstrap created the 53-item/82-dependency live graph, and PR #77 merged the reviewed no-fallback snapshot and compact agent index.
 
 ## Base-MVP work still requiring live evidence
 
@@ -55,7 +58,7 @@ A physical run during an implementation phase is useful diagnostic evidence. All
 cat GOAL.md
 cat AGENTS.md
 cat agents/task-dag.json
-cat agents/tasks/WEB04/task.md
+cat agents/tasks/H02A/task.md
 cat docs/roadmap/podroid-mvp-alignment.md
 cat docs/STATUS.md
 make doctor
@@ -80,4 +83,4 @@ make validate
 
 ## Historical material
 
-The initial scaffold, overnight packets, completed F01/H01/H04 packets, superseded H02 packet, and accepted W00 governance remain as provenance. They do not define current task authorization. The active phase metadata, live roadmap after bootstrap, acceptance ledger, generated status, and reviewed evidence are authoritative for their own concerns.
+The initial scaffold, overnight packets, completed F01/H01/H04/WEB04 packets, superseded H02 packet, and accepted W00 governance remain as provenance. They do not define current task authorization. The active phase metadata, live roadmap, acceptance ledger, generated status, and reviewed evidence are authoritative for their own concerns.
