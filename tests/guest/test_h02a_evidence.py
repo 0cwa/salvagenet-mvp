@@ -50,7 +50,11 @@ class H02AEvidenceTests(unittest.TestCase):
                 "path": "profiles/guest-init/ubuntu/vendor-data.yaml",
                 "renderedSha256": "2" * 64,
             },
-            "testUserData": {"format": "text/x-shellscript", "sha256": "3" * 64},
+            "testUserData": {
+                "format": "text/x-shellscript",
+                "sha256": "3" * 64,
+                "qualificationSudo": "nodeadmin-nopasswd-test-only",
+            },
             "image": {
                 "url": "https://example.invalid/releases/20260725/immutable.img",
                 "sha256": evidence.sha256_file(self.base),
@@ -94,6 +98,7 @@ class H02AEvidenceTests(unittest.TestCase):
                         "passwordAuthenticationDisabled": True,
                         "keyboardInteractiveDisabled": True,
                         "rootLoginDisabled": True,
+                        "qualificationSudoNoninteractive": True,
                     }
                 ),
                 encoding="utf-8",
@@ -127,6 +132,7 @@ class H02AEvidenceTests(unittest.TestCase):
         self.assertTrue(value["restartChecks"]["guestRebootChangedBootId"])
         self.assertTrue(value["restartChecks"]["qemuStopStartChangedBootId"])
         self.assertTrue(value["restartChecks"]["sshHostKeyStableAcrossRestarts"])
+        self.assertTrue(value["stages"]["initial"]["sshAuthentication"]["qualificationSudoNoninteractive"])
         self.assertEqual(9, len(value["logs"]))
         self.assertIn("[REDACTED]", value["logs"]["initial:serial"]["tail"])
         self.assertNotIn("tskey-" + "auth-", value["logs"]["initial:serial"]["tail"])
@@ -149,6 +155,13 @@ class H02AEvidenceTests(unittest.TestCase):
     def test_inferred_auth_or_unbounded_scan_is_rejected(self) -> None:
         (self.state / "ssh-auth-initial.json").write_text(json.dumps({"keyOnlyLoopbackSsh": True}), encoding="utf-8")
         with self.assertRaisesRegex(evidence.EvidenceError, "closed contract"):
+            evidence.create_evidence(self.state)
+
+    def test_unrecorded_qualification_sudo_is_rejected(self) -> None:
+        value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
+        value["testUserData"].pop("qualificationSudo")
+        (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaisesRegex(evidence.EvidenceError, "user-data contract"):
             evidence.create_evidence(self.state)
 
     def test_finalize_requires_exact_cleanup_and_verified_base(self) -> None:
