@@ -155,17 +155,24 @@ The APK generates a device key through Android Keystore and requests key attesta
 - OS and patch information;
 - signed `my-avbroot-setup` build manifest.
 
-Suggested trust classes:
+Use one platform-wide canonical boot-trust class set in admission policy, capsule policy, and evidence reports:
 
 ```text
-hardware-vendor-verified
-hardware-custom-key-locked
+hardware-vendor-verified-locked
+hardware-custom-key-verified-locked
 hardware-custom-unlocked-measured
 software-measured
 unattested
 ```
 
-An unlocked bootloader remains a lower-assurance class even when the build is known. Policy may still admit it for appropriate workloads.
+Deployment form is an orthogonal fact, not part of the trust-class identifier. Evidence therefore reports both, for example:
+
+```text
+deploymentTier: ordinary-stock | managed-stock | whitelisted-stock | avb-patched
+bootTrustClass: hardware-vendor-verified-locked | hardware-custom-key-verified-locked | hardware-custom-unlocked-measured | software-measured | unattested
+```
+
+An unlocked bootloader remains a lower-assurance class even when the build is known. Policy may still admit it for appropriate workloads. Managed or whitelisted stock deployment does not automatically raise the boot-trust class; it contributes separate policy and installation facts.
 
 ## C. SBC native host
 
