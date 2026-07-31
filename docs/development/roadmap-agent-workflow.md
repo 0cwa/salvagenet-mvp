@@ -2,227 +2,152 @@
 
 ## Objective
 
-Let GitHub Issues describe the complete project path while keeping agent context small and preserving the repository's phase-boundary discipline.
+GitHub Issues describe the complete planned path while normal agent context remains small. The roadmap is a planning graph, not standing permission to implement every visible issue.
 
-The roadmap is a planning graph, not a standing instruction to implement every visible issue.
+## Separate authorities
+
+| Concern | Authority |
+|---|---|
+| Durable direction | `GOAL.md` and accepted ADRs |
+| Planned outcomes and dependencies | GitHub roadmap issues and milestones |
+| Current implementation authorization | `agents/task-dag.json` and the active packet |
+| Validated product claims | acceptance ledger and reviewed evidence |
+| Website and agent projections | generated snapshots |
+
+Issue closure never changes acceptance status. A dependency-clear issue is not automatically authorised.
 
 ## Agent start sequence
 
-Before roadmap or implementation work, an agent must:
+Before roadmap or implementation work:
 
-1. read `GOAL.md` and the root `AGENTS.md`;
-2. inspect the compact generated roadmap index;
-3. check whether the local roadmap snapshot is current;
+1. read `GOAL.md` and root `AGENTS.md`;
+2. run `make roadmap-status`;
+3. run `make roadmap-check` when live GitHub access is available;
 4. read only the assigned issue and active task packet;
-5. confirm that the issue is dependency-clear and the packet is authorised in `agents/task-dag.json`;
-6. stop and request a phase review when those sources disagree.
+5. confirm the issue is dependency-clear and the packet is present in the active DAG;
+6. stop for phase review when those sources disagree.
 
-The roadmap tooling phase will provide these commands:
+Stable commands:
 
 ```sh
+make roadmap-validate
 make roadmap-status
-make roadmap-check
 make roadmap-sync
-make roadmap-context ISSUE=123
-make context TASK=H02A
+make roadmap-check
+make roadmap-context ISSUE=WEB-04
+make context TASK=WEB04
 ```
 
-Until those commands exist, `agents/task-dag.json`, the active packet, `docs/roadmap/podroid-mvp-alignment.md`, and `docs/roadmap/public-roadmap-governance.md` are the relevant sources.
+`make roadmap-context` writes one bounded pack under `.agent-context/roadmap/`. It excludes comments by default.
 
-## Compact generated state
+## Bootstrap and live authority
 
-The generator writes a small ignored local cache and a small committed/public snapshot.
+`.github/roadmap/seed.v1.json` is reviewed one-time bootstrap input. It contains stable IDs, milestones, labels, summaries, outcomes, dependencies, acceptance links, task/context paths, non-goals, and validation requirements.
 
-### Public website snapshot
+The apply sequence is human-visible:
 
-```text
-website/data/roadmap.snapshot.v1.json
-```
+1. merge the reviewed WEB04 implementation;
+2. open an issue titled `[Roadmap Apply] Bootstrap reviewed graph`;
+3. add `/roadmap-apply <exact-main-sha>` as an explicit owner/member/collaborator comment;
+4. the `roadmap-bootstrap` workflow verifies exact main, validates the seed, and applies labels, milestones, issues, and real `blocked by` edges;
+5. it reruns in non-destructive verification mode;
+6. it pushes generated bootstrap state and snapshots to an automation branch;
+7. review and merge those generated files through a normal PR.
 
-Contains:
+The comment trigger avoids a workflow run for every roadmap issue created during bootstrap. A manual workflow dispatch supports the same dry-run/apply boundary.
 
-- schema version;
-- generation time;
-- source repository and source hash;
-- fallback/staleness metadata;
-- milestones;
-- issue number, title, public summary, URL, milestone, labels, dependency IDs, and derived states.
+After the generated snapshot PR merges, live GitHub Issues are roadmap authority. The seed remains historical input and must not overwrite edited issue bodies, state, dependencies, or planning notes.
 
-It does not contain full issue bodies, comments, review threads, logs, attachments, or secrets.
+## Generated state
 
-### Agent index
+### Public snapshot
 
-```text
-agents/generated/roadmap.index.v1.json
-```
+`website/data/roadmap.snapshot.v1.json` contains:
 
-Contains only:
+- schema version and generation time;
+- repository, source hash, newest issue update, and fallback state;
+- milestone summaries;
+- stable ID, issue number, title, current visible public summary, URL, area, kind, work state, dependency state, blockers, task authorization, pull-request state, and acceptance links;
+- explicit disagreement messages.
 
-- current milestone;
-- active, ready, and blocked issue summaries;
-- stable roadmap IDs and issue numbers;
-- dependency numbers;
-- task-packet paths;
-- acceptance IDs;
-- source hash and generation time.
+It excludes full issue bodies, comments, review threads, logs, attachments, credentials, and guest data.
 
-The index is intended to fit in normal orchestrator context without loading the complete roadmap.
+### Compact agent index
+
+`agents/generated/roadmap.index.v1.json` contains only current milestone, active/ready/blocked summaries, stable IDs, issue numbers, dependencies, acceptance links, task paths, task authorization, linked pull-request state, source hash, and generation time.
 
 ### Local cache
 
-```text
-.agent-cache/roadmap/
-├── roadmap.v1.json
-├── etags.json
-└── fetched-at.json
-```
+`.agent-cache/roadmap/` is ignored and contains normalized graph/fetch metadata only. It must not contain credentials or comments.
 
-This directory is ignored by Git. It may contain fetch metadata and the current normalized graph, but not credentials or raw issue comments.
+## Freshness and fallback
 
-## Per-issue context
-
-`make roadmap-context ISSUE=<number>` produces a bounded context pack containing:
-
-- issue title and public summary;
-- observable outcome;
-- milestone and labels;
-- blockers and items unblocked;
-- acceptance IDs;
-- task-packet path;
-- declared context paths;
-- linked pull requests and current review state;
-- latest concise planning note when present.
-
-Comments are history, not canonical context. They are excluded by default.
-
-An explicit debug option may include a small, newest-first, byte-limited comment selection. Important conclusions must be folded into the issue body, task packet, ADR, experiment record, or acceptance evidence.
-
-## Human awareness
-
-Automation may calculate state and propose changes, but it must keep human-visible boundaries clear.
-
-- Every agent-state change is visible as an issue label and concise issue update.
-- A phase-transition PR explains why the next issue was selected and what remained queued, changed, or removed.
-- Destructive or direction-changing actions require explicit human review: weakening `GOAL.md`, changing an accepted ADR, changing an acceptance criterion, publishing a release, deleting evidence, or starting MVP+ while base gates are red.
-- An agent may refine issue wording and dependencies within an authorised phase, but it must not silently expand its allowed paths or turn a queued issue into current work.
-- The compact index reports disagreement among issue state, task DAG, acceptance status, and pull-request state rather than choosing one silently.
-
-## Freshness policy
-
-The roadmap fetcher records:
-
-- `generatedAt`;
-- newest issue update time;
-- source hash;
-- whether live data or fallback was used;
-- snapshot age.
-
-Policy:
+The fetcher records `generatedAt`, newest issue update, source hash, and fallback state.
 
 ```text
 Live fetch succeeds
-    publish the validated live snapshot
+    validate and publish complete live data
 
-Live fetch fails and snapshot age <= 72 hours
-    use the last complete snapshot and display last-sync information
+Transient network, gateway, or rate-limit failure occurs and the complete snapshot is <= 72 hours old
+    use the last-known-good snapshot and expose fallback age/reason
 
-Live fetch fails and snapshot age > 72 hours
-    fail the new site deployment and keep the previous deployment online
+Transient failure occurs and the snapshot is older than 72 hours
+    fail the new deployment and keep the previous site online
 
-Structural roadmap validation fails
-    fail immediately; do not hide the error with a snapshot
+Structural validation or partial dependency fetch fails
+    fail immediately; never publish a fallback or incomplete graph
 ```
 
-A partial dependency fetch is treated as a failed live fetch. It must never publish a graph that incorrectly shows blocked work as ready.
+Structural failures include duplicate or missing stable IDs, missing or duplicate area/kind/visibility labels, missing milestones, dependencies on non-roadmap issues, cycles, invalid task paths, and incomplete acceptance coverage.
 
-## Work-state and dependency-state separation
+## Work, dependency, PR, task, and acceptance state
 
-The generator derives two separate concepts.
+These remain independent:
 
-### Work state
+- work state: planned, queued, ready, active, review, hold, or done;
+- dependency state: clear or blocked;
+- task authorization: present or absent in the active DAG;
+- pull-request state: open, draft, merged, or closed without merge;
+- acceptance state: ledger/evidence status only.
 
-```text
-planned
-ready
-active
-review
-hold
-done
-```
+The compact index reports disagreement instead of choosing one source silently. A merged PR may complete implementation while the related physical acceptance gate remains open.
 
-### Dependency state
+## Human awareness
 
-```text
-clear
-blocked
-```
+Automation may calculate and propose state, but:
 
-A closed issue is `done`. An open issue with an unresolved dependency is `blocked` regardless of its agent label. An issue without blockers is not automatically ready; `agent:ready` still requires a phase-start review and a reviewed packet.
+- every agent-state change is visible as an issue label or phase PR;
+- a phase-transition PR explains selection, reordering, deferral, split, merge, or removal;
+- direction changes, accepted-ADR changes, acceptance changes, evidence deletion, release publication, and premature MVP+ work require explicit human review;
+- an agent may refine issue wording and direct dependencies within its authorised phase but may not silently expand allowed paths or activate queued work;
+- the visible `Public summary` section in a live issue is publication truth; a hidden bootstrap marker cannot freeze stale copy;
+- comments are history, not canonical context. Important conclusions move into the issue body, packet, ADR, experiment, or evidence.
 
-## Phase-start review
+## Phase boundary
 
 Before activating the next issue:
 
-1. refresh the roadmap, acceptance status, open debt, and exact current `main`;
-2. compare the proposed work with `GOAL.md` and `docs/roadmap/podroid-mvp-alignment.md`;
-3. verify the exact previous merge result;
-4. identify the smallest unresolved uncertainty on the critical path;
-5. re-evaluate every queued issue whose premise may have changed;
-6. split, merge, reorder, defer, or remove issues as evidence requires;
-7. confirm acceptance coverage and durable-goal alignment;
-8. create or revise the task packet and compatibility policy;
-9. verify allowed paths and context limits;
-10. update issue dependencies and agent-state labels;
-11. place only the authorised current phase in `agents/task-dag.json`.
+1. refresh roadmap, acceptance status, open debt, pull-request state, and current `main`;
+2. compare the proposal with `GOAL.md` and `docs/roadmap/podroid-mvp-alignment.md`;
+3. identify the smallest unresolved uncertainty;
+4. re-evaluate nearby queued issues;
+5. split, merge, reorder, defer, remove, or rewrite issues as evidence requires;
+6. confirm B01–B20/U01–U04 and release-debt coverage;
+7. create or revise the task packet and compatibility policy;
+8. verify allowed paths and context limits;
+9. update issue dependencies and agent labels;
+10. place only the authorised phase in the DAG.
 
-The phase-transition PR records the planning rationale. It should explain why the selected issue is now the smallest useful next step and why nearby queued work remains queued, changed, or removed.
-
-## During implementation
-
-Discovery may change the real problem.
-
-The implementation branch may update:
-
-- the active issue's outcome, acceptance criteria, context paths, or non-goals;
-- the active task packet and compatibility policy;
-- the experiment record;
-- directly affected dependency links.
-
-Large roadmap reshaping belongs in a phase-transition or governance PR, not hidden inside an unrelated implementation commit.
-
-## Phase end
-
-### Before merge-ready status
-
-1. verify every issue and task acceptance criterion;
-2. run all required checks and inspect relevant artifacts;
-3. record unavailable physical checks honestly;
-4. record the exact tested head and evidence identity;
-5. update the issue and task record to `review` or `merge-ready` without closing them;
-6. resolve or explicitly disposition every actionable review finding;
-7. confirm the exact final head still passes the required checks.
-
-### After approval and merge
-
-1. merge the exact tested and reviewed head;
-2. record the merge SHA and evidence result in the issue, packet, registry, and experiment record as applicable;
-3. close the issue only when its implementation outcome is complete;
-4. leave acceptance gates unchanged unless their own required evidence passed;
-5. run the next phase-start review instead of automatically activating the next queued issue.
-
-This preserves distinct `active`, `review` or `merge-ready`, and `merged` states. An implementation is never merged merely because its first test run passed.
+At phase end, verify issue and packet acceptance, run exact-head checks, record unavailable physical work honestly, merge the tested/reviewed head, record the merge identity, leave acceptance unchanged unless its own evidence passed, and perform a fresh phase review rather than auto-activating the next issue.
 
 ## Alignment guardrails
 
-Agents may reshape the roadmap freely at phase boundaries when the following remain true:
+Agents may reshape the roadmap when:
 
 - `GOAL.md` and accepted ADRs are not silently weakened;
-- `docs/roadmap/podroid-mvp-alignment.md` still maps the critical path and explains deliberate refinements;
-- B01–B20 and U01–U04 retain issue coverage;
-- release-blocking debt retains an explicit issue or disposition;
-- one active implementation phase remains explicit;
-- closed implementation is not represented as unearned product validation;
+- the Podroid-MVP alignment and physical critical path remain explicit;
+- every base/MVP+ gate and release-blocking debt item remains represented or explicitly dispositioned;
+- one active implementation phase remains visible;
+- closed work is not presented as unearned validation;
 - USB remains blocked until every base gate passes;
-- public summaries remain understandable and evidence-aligned;
-- removed work includes a recorded reason;
-- superseded issues link to their replacements.
+- removed or superseded work records a reason and replacement.
