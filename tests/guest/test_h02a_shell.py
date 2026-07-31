@@ -88,6 +88,10 @@ class H02AShellTests(unittest.TestCase):
         self.assertNotIn("'sudo systemctl", smoke + e2e + stop)
         self.assertIn("StrictHostKeyChecking=accept-new", common)
         self.assertNotIn("StrictHostKeyChecking=no", common + smoke + e2e)
+        self.assertIn("readonly ssh_wait_seconds=900", common)
+        self.assertIn('wait_for_ssh "$ssh_wait_seconds"', smoke)
+        self.assertIn('wait_for_ssh "$ssh_wait_seconds"', e2e)
+        self.assertNotIn("wait_for_ssh 360", smoke + e2e)
         self.assertFalse((SCRIPTS / "report.py").exists())
 
 
