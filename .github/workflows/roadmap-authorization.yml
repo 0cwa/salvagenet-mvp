@@ -8,6 +8,7 @@ on:
       - agents/task-registry.json
       - .github/roadmap/seed.v1.json
       - .github/roadmap/expansion.v1.json
+      - .github/roadmap/milestone-updates.v1.json
       - tools/roadmap/authorization.py
       - tools/roadmap/catalog.py
       - tools/roadmap/roadmap.py
