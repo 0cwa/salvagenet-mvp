@@ -52,6 +52,27 @@ class H02ALabTests(unittest.TestCase):
             with self.assertRaises(h02a.LabError):
                 h02a.immutable_image_lock(path)
 
+    def test_state_cleanup_is_confined_to_repository_local_storage(self) -> None:
+        accepted = h02a.validate_state_directory(ROOT / ".local/h02a-test-state")
+        self.assertEqual((ROOT / ".local/h02a-test-state").resolve(), accepted)
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(h02a.LabError, "must remain under"):
+                h02a.validate_state_directory(Path(temporary) / "unsafe-state")
+
+    def test_verified_copy_rejects_symlink_destinations(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT / ".local") as temporary:
+            directory = Path(temporary)
+            source = directory / "source.bin"
+            destination = directory / "destination.bin"
+            source.write_bytes(b"verified-boot-input")
+            expected = h02a.sha256_file(source)
+            self.assertEqual(expected, h02a.copy_verified(source, destination, expected))
+            self.assertEqual(source.read_bytes(), destination.read_bytes())
+            destination.unlink()
+            destination.symlink_to(source)
+            with self.assertRaisesRegex(h02a.LabError, "must not be a symlink"):
+                h02a.copy_verified(source, destination, expected)
+
     def test_test_only_user_data_is_a_non_merging_final_stage_script(self) -> None:
         key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
         rendered = h02a.test_user_data(key)
@@ -103,11 +124,15 @@ class H02ALabTests(unittest.TestCase):
         pin = (ROOT / "tools/profiles/pin-ubuntu-image.sh").read_text(encoding="utf-8")
         prepare = (ROOT / "lab/qemu/scripts/prepare.sh").read_text(encoding="utf-8")
         start = (ROOT / "lab/qemu/scripts/start.sh").read_text(encoding="utf-8")
+        helper = HELPER.read_text(encoding="utf-8")
         self.assertNotIn("/current/", pin)
         self.assertIn("explicit immutable Ubuntu release date is required", pin)
         self.assertIn("h02a-prepare.py", prepare)
         self.assertIn("qemu-command.json", start)
         self.assertNotIn("qemu-system-aarch64 \\", start)
+        self.assertNotIn("QEMU_EFI.fd", helper)
+        self.assertIn("find_firmware_pair", helper)
+        self.assertIn("sha256_file(system) != lock", helper)
         for script in (
             ROOT / "tools/profiles/pin-ubuntu-image.sh",
             ROOT / "lab/qemu/scripts/prepare.sh",
