@@ -1,0 +1,1516 @@
+{
+  "disagreements": [],
+  "generatedAt": "2026-07-31T02:02:10Z",
+  "items": [
+    {
+      "acceptance": [
+        {
+          "id": "B02",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B08",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B09",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "area": "android",
+      "blockedBy": [
+        "FND-03",
+        "GUEST-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-01",
+      "kind": "qualification",
+      "milestone": "M1 — Validated MVP",
+      "number": 39,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Prove the device substrate on one exact ARM64 Android phone and APK.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate APK-native QEMU, host mesh, and Host API on Android",
+      "updatedAt": "2026-07-31T01:59:45Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/39",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B11",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B12",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "area": "guest",
+      "blockedBy": [
+        "DEVICE-01",
+        "GUEST-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-02",
+      "kind": "qualification",
+      "milestone": "M1 — Validated MVP",
+      "number": 40,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Deploy Ubuntu through the real controller path and reach the separately enrolled guest with ordinary SSH.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate remote Ubuntu deployment and ordinary guest SSH",
+      "updatedAt": "2026-07-31T01:59:46Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/40",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B13",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "area": "network",
+      "blockedBy": [
+        "DEVICE-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-03",
+      "kind": "qualification",
+      "milestone": "M1 — Validated MVP",
+      "number": 41,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Prove that the Android host can recover a guest whose private guest network is broken.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate recovery SSH with guest mesh unavailable",
+      "updatedAt": "2026-07-31T01:59:47Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/41",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B07",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B16",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B17",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "area": "android",
+      "blockedBy": [
+        "DEVICE-01",
+        "DEVICE-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "DEVICE-04",
+      "kind": "qualification",
+      "milestone": "M1 — Validated MVP",
+      "number": 42,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Prove that UI, service, process, reboot, and controller outages do not redefine desired VM state.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Validate lifecycle, reboot, and controller-offline durability",
+      "updatedAt": "2026-07-31T01:59:48Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/42",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "release",
+      "blockedBy": [
+        "FND-04"
+      ],
+      "dependencyState": "clear",
+      "id": "EA-00",
+      "kind": "release",
+      "milestone": "M2 — Early access",
+      "number": 44,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Resolve repository licensing, notices, modification records, corresponding source, and exact binary/source identity before public APK distribution.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish release licensing and corresponding source",
+      "updatedAt": "2026-07-31T01:59:50Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/44",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "android",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-01",
+      "kind": "feature",
+      "milestone": "M2 — Early access",
+      "number": 45,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Help careful testers understand safety, trust, permissions, profiles, progress, recovery, and current limits.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create guided early-access onboarding",
+      "updatedAt": "2026-07-31T01:59:51Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/45",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "testing",
+      "blockedBy": [
+        "RELEASE-01",
+        "WEB-02",
+        "WEB-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-02",
+      "kind": "qualification",
+      "milestone": "M2 — Early access",
+      "number": 46,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Turn physical evidence into clear model-specific compatibility records.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish first verified device compatibility records",
+      "updatedAt": "2026-07-31T01:59:52Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/46",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "release",
+      "blockedBy": [
+        "EA-00",
+        "RELEASE-01",
+        "WEB-06"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-03",
+      "kind": "release",
+      "milestone": "M2 — Early access",
+      "number": 47,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Give testers one clear place to find a compliant exact candidate and verify it locally.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish exact candidate downloads and verification",
+      "updatedAt": "2026-07-31T01:59:54Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/47",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "documentation",
+      "blockedBy": [
+        "RELEASE-01",
+        "WEB-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-04",
+      "kind": "documentation",
+      "milestone": "M2 — Early access",
+      "number": 48,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Publish versioned guides for installation, enrolment, deployment, SSH, recovery, reset, diagnostics, and removal.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish tested user guides and recovery paths",
+      "updatedAt": "2026-07-31T01:59:55Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/48",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "community",
+      "blockedBy": [
+        "EA-02",
+        "EA-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-05",
+      "kind": "feature",
+      "milestone": "M2 — Early access",
+      "number": 49,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Let repair cafés, schools, libraries, and hackerspaces contribute safe comparable evidence.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create a community device-test day process",
+      "updatedAt": "2026-07-31T01:59:56Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/49",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B20",
+          "status": "PASS"
+        }
+      ],
+      "area": "android",
+      "blockedBy": [
+        "EA-04",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "EA-06",
+      "kind": "feature",
+      "milestone": "M2 — Early access",
+      "number": 50,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Make failures understandable without exposing credentials or guest data.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Improve diagnostics and support UX",
+      "updatedAt": "2026-07-31T01:59:57Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/50",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B03",
+          "status": "PASS"
+        },
+        {
+          "id": "B04",
+          "status": "PASS"
+        },
+        {
+          "id": "B05",
+          "status": "PASS"
+        },
+        {
+          "id": "B06",
+          "status": "PASS"
+        }
+      ],
+      "area": "profiles",
+      "blockedBy": [],
+      "dependencyState": "clear",
+      "id": "FND-01",
+      "kind": "foundation",
+      "milestone": "M0 — Foundation",
+      "number": 24,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Use one strict checked-in profile and artifact contract in production, labs, and tests.",
+      "taskAuthorized": false,
+      "taskPacket": "agents/tasks/F01/task.md",
+      "title": "Canonical VM profiles and artifact manifests",
+      "updatedAt": "2026-07-31T01:59:24Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/24",
+      "workState": "done"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "area": "artifacts",
+      "blockedBy": [],
+      "dependencyState": "clear",
+      "id": "FND-02",
+      "kind": "foundation",
+      "milestone": "M0 — Foundation",
+      "number": 25,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Let a trusted controller deliver large verified artifacts without relying on a public server.",
+      "taskAuthorized": false,
+      "taskPacket": "agents/tasks/H01/task.md",
+      "title": "Authenticated resumable artifact delivery",
+      "updatedAt": "2026-07-31T01:59:26Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/25",
+      "workState": "done"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B02",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B07",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B08",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B09",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B11",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B12",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B13",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B16",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B17",
+          "status": "BLOCKED-HARDWARE"
+        }
+      ],
+      "area": "testing",
+      "blockedBy": [],
+      "dependencyState": "clear",
+      "id": "FND-03",
+      "kind": "foundation",
+      "milestone": "M0 — Foundation",
+      "number": 26,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Run one authoritative physical-device scenario path and bind evidence to an exact device, commit, and APK.",
+      "taskAuthorized": false,
+      "taskPacket": "agents/tasks/H04/task.md",
+      "title": "Evidence-bound hardware-in-the-loop runner",
+      "updatedAt": "2026-07-31T01:59:28Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/26",
+      "workState": "done"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B01",
+          "status": "PASS"
+        },
+        {
+          "id": "B19",
+          "status": "PASS"
+        }
+      ],
+      "area": "runtime",
+      "blockedBy": [],
+      "dependencyState": "clear",
+      "id": "FND-04",
+      "kind": "foundation",
+      "milestone": "M0 — Foundation",
+      "number": 27,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Make inherited Podroid source and downstream patches reviewable, reproducible, and updateable.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Deterministic Podroid vendoring and upstream sync",
+      "updatedAt": "2026-07-31T01:59:30Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/27",
+      "workState": "done"
+    },
+    {
+      "acceptance": [],
+      "area": "testing",
+      "blockedBy": [],
+      "dependencyState": "clear",
+      "id": "FND-05",
+      "kind": "governance",
+      "milestone": "M0 — Foundation",
+      "number": 28,
+      "public": false,
+      "pullRequests": [],
+      "summary": "Keep one authorised phase and prefer clean unreleased-alpha contracts over unneeded compatibility code.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Explicit phase and alpha compatibility policy",
+      "updatedAt": "2026-07-31T01:59:32Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/28",
+      "workState": "done"
+    },
+    {
+      "acceptance": [],
+      "area": "testing",
+      "blockedBy": [
+        "FND-03"
+      ],
+      "dependencyState": "clear",
+      "id": "FND-06",
+      "kind": "foundation",
+      "milestone": "M0 — Foundation",
+      "number": 29,
+      "public": true,
+      "pullRequests": [
+        {
+          "draft": true,
+          "headSha": "60e730e6f5a0f7d55082f72665c855c3da9a2c7c",
+          "merged": false,
+          "mergedAt": null,
+          "number": 20,
+          "state": "open",
+          "url": "https://github.com/0cwa/salvagenet-mvp/pull/20"
+        }
+      ],
+      "summary": "Add serial leases, expiring scenario authorization, evidence classes, clean-tree promotion, and exact-input records.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Agent-safe supervised device validation",
+      "updatedAt": "2026-07-31T01:59:33Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/29",
+      "workState": "review"
+    },
+    {
+      "acceptance": [],
+      "area": "guest",
+      "blockedBy": [
+        "FND-01",
+        "FND-02"
+      ],
+      "dependencyState": "clear",
+      "id": "GUEST-01",
+      "kind": "qualification",
+      "milestone": "M1 — Validated MVP",
+      "number": 37,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Prove UEFI, QMP, NoCloud, key-only loopback SSH, restart, and secret hygiene before adding guest mesh.",
+      "taskAuthorized": false,
+      "taskPacket": "agents/tasks/H02A/task.md",
+      "title": "Qualify deterministic Ubuntu ARM64 guest boot",
+      "updatedAt": "2026-07-31T01:59:43Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/37",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "network",
+      "blockedBy": [
+        "GUEST-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "GUEST-02",
+      "kind": "qualification",
+      "milestone": "M1 — Validated MVP",
+      "number": 38,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Prove one-use guest enrolment, separate identity, tailnet SSH, restart, interruption, and recovery.",
+      "taskAuthorized": false,
+      "taskPacket": "agents/tasks/H02B/task.md",
+      "title": "Qualify the guest private-network path",
+      "updatedAt": "2026-07-31T01:59:44Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/38",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "security",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-01",
+      "kind": "security",
+      "milestone": "M4 — Platform expansion",
+      "number": 57,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Reduce the impact of a hostile guest escaping QEMU and define the arbitrary-image threat boundary.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Isolate QEMU from host controller credentials",
+      "updatedAt": "2026-07-31T02:00:04Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/57",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "runtime",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-02",
+      "kind": "foundation",
+      "milestone": "M4 — Platform expansion",
+      "number": 58,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Replace pinned release extraction with reproducible project-controlled builds and provenance.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Build project-owned native runtime artifacts from source",
+      "updatedAt": "2026-07-31T02:00:05Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/58",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "controller",
+      "blockedBy": [
+        "RELEASE-01",
+        "WEB-00"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-03",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 59,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Replace the Python test client with a maintainable cross-platform controller and friendly UI.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create a durable Rust and Slint controller",
+      "updatedAt": "2026-07-31T02:00:06Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/59",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "platform",
+      "blockedBy": [
+        "PLAT-03",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-04",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 60,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Bring the same Host API and lifecycle semantics to stable computers.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create Linux, SBC, and WSL host service",
+      "updatedAt": "2026-07-31T02:00:07Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/60",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "profiles",
+      "blockedBy": [
+        "PLAT-15",
+        "REL-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-05",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 62,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Expand qualified Linux choices and prove an externally managed cluster-worker path.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify more guest profiles and a real K3s worker",
+      "updatedAt": "2026-07-31T02:00:09Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/62",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "network",
+      "blockedBy": [
+        "REL-03",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-06",
+      "kind": "research",
+      "milestone": "M4 — Platform expansion",
+      "number": 63,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Use Nebula or another provider to prove the host-mesh port is not merely Tailscale-shaped.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add a structurally different second mesh adapter",
+      "updatedAt": "2026-07-31T02:00:10Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/63",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "artifacts",
+      "blockedBy": [
+        "PLAT-15",
+        "REL-06"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-07",
+      "kind": "security",
+      "milestone": "M4 — Platform expansion",
+      "number": 64,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Use TUF and digest-addressed OCI or HTTP transport for normalized bootable artifact distribution.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add production artifact trust and OCI distribution",
+      "updatedAt": "2026-07-31T02:00:11Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/64",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "runtime",
+      "blockedBy": [
+        "PLAT-01",
+        "REL-05"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-08",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 65,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Expand beyond the explicit one-VM MVP only after resource and lifecycle evidence supports it.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Support more than one active VM",
+      "updatedAt": "2026-07-31T02:00:12Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/65",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "security",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-09",
+      "kind": "security",
+      "milestone": "M4 — Platform expansion",
+      "number": 66,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Replace the MVP controller capability with reviewed mTLS or principal authorization, revocation, and recovery.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add reviewed multi-controller authentication",
+      "updatedAt": "2026-07-31T02:00:13Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/66",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "guest",
+      "blockedBy": [
+        "REL-03",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-10",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 67,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Prove join, drain, leave, replacement, and recovery without moving orchestrator state into the Host API.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish Docker and Swarm reference provisioning",
+      "updatedAt": "2026-07-31T02:00:14Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/67",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "android",
+      "blockedBy": [
+        "REL-04",
+        "REL-05",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-11",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 68,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Use Device Owner and narrowly patched Android capabilities without creating a general-purpose root shell.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create managed and patched Android reliability tiers",
+      "updatedAt": "2026-07-31T02:00:15Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/68",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "runtime",
+      "blockedBy": [
+        "REL-04",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-12",
+      "kind": "research",
+      "milestone": "M4 — Platform expansion",
+      "number": 69,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Implement AVF behind the existing runtime contract and compare it with QEMU on supported devices.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add an AVF runtime backend",
+      "updatedAt": "2026-07-31T02:00:16Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/69",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "profiles",
+      "blockedBy": [
+        "PLAT-07"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-13",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 70,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Support signed profile publication with controlled delegation and reviewed maintainer boundaries.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Create a delegated remote profile repository",
+      "updatedAt": "2026-07-31T02:00:17Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/70",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "controller",
+      "blockedBy": [
+        "PLAT-03",
+        "WEB-06"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-14",
+      "kind": "feature",
+      "milestone": "M4 — Platform expansion",
+      "number": 71,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Keep keys, SSH, tunnels, and native tools outside the browser while offering a local web interface.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add a web UI through a local controller bridge",
+      "updatedAt": "2026-07-31T02:00:18Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/71",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "profiles",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "PLAT-15",
+      "kind": "foundation",
+      "milestone": "M4 — Platform expansion",
+      "number": 61,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Model boot contract, immutable image identity, artifact source, and distro-family bootstrap independently without exposing raw host configuration.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Separate guest classes, images, sources, and family adapters",
+      "updatedAt": "2026-07-31T02:00:08Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/61",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "testing",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-01",
+      "kind": "qualification",
+      "milestone": "M3 — Reliability",
+      "number": 51,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Measure safe sustained operation instead of inferring it from a successful boot.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify sustained thermal and power behavior",
+      "updatedAt": "2026-07-31T01:59:58Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/51",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "artifacts",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-02",
+      "kind": "qualification",
+      "milestone": "M3 — Reliability",
+      "number": 52,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Make storage ownership, full-disk failure, data export, reset, and uninstall consequences explicit.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify storage pressure, export, reset, and uninstall behavior",
+      "updatedAt": "2026-07-31T01:59:59Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/52",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "network",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-03",
+      "kind": "qualification",
+      "milestone": "M3 — Reliability",
+      "number": 53,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Measure host and guest behavior across Wi-Fi changes, relay paths, and temporary Headscale interruption.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify network transitions and coordination interruption",
+      "updatedAt": "2026-07-31T02:00:00Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/53",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "android",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-04",
+      "kind": "qualification",
+      "milestone": "M3 — Reliability",
+      "number": 54,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Expand beyond one phone without treating manufacturer background behavior as uniform.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify Android and OEM lifecycle behavior",
+      "updatedAt": "2026-07-31T02:00:01Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/54",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "android",
+      "blockedBy": [
+        "REL-01",
+        "REL-02",
+        "REL-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-05",
+      "kind": "feature",
+      "milestone": "M3 — Reliability",
+      "number": 55,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Prevent obviously unsafe or unrealistic VM requests and communicate appropriate device roles.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add measured resource admission and device classes",
+      "updatedAt": "2026-07-31T02:00:02Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/55",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "release",
+      "blockedBy": [
+        "REL-02",
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "REL-06",
+      "kind": "qualification",
+      "milestone": "M3 — Reliability",
+      "number": 56,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Make updates predictable for installed nodes.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Qualify app upgrade, rollback, and runtime continuity",
+      "updatedAt": "2026-07-31T02:00:03Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/56",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B01",
+          "status": "PASS"
+        },
+        {
+          "id": "B02",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B03",
+          "status": "PASS"
+        },
+        {
+          "id": "B04",
+          "status": "PASS"
+        },
+        {
+          "id": "B05",
+          "status": "PASS"
+        },
+        {
+          "id": "B06",
+          "status": "PASS"
+        },
+        {
+          "id": "B07",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B08",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B09",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B11",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B12",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B13",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B14",
+          "status": "PASS"
+        },
+        {
+          "id": "B15",
+          "status": "PASS"
+        },
+        {
+          "id": "B16",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B17",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B18",
+          "status": "PASS"
+        },
+        {
+          "id": "B19",
+          "status": "PASS"
+        },
+        {
+          "id": "B20",
+          "status": "PASS"
+        }
+      ],
+      "area": "release",
+      "blockedBy": [
+        "DEVICE-01",
+        "DEVICE-02",
+        "DEVICE-03",
+        "DEVICE-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "RELEASE-01",
+      "kind": "release",
+      "milestone": "M1 — Validated MVP",
+      "number": 43,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Bind every base acceptance result to one source commit, one APK, one device record, and reviewed evidence.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Seal one exact validated MVP candidate",
+      "updatedAt": "2026-07-31T01:59:49Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/43",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U01",
+          "status": "DEFERRED"
+        }
+      ],
+      "area": "network",
+      "blockedBy": [
+        "RELEASE-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-01",
+      "kind": "feature",
+      "milestone": "MVP+ — USB physical link",
+      "number": 72,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Create a bounded reconnectable USB control channel between a Linux host and the Android app.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Establish Android Open Accessory control link",
+      "updatedAt": "2026-07-31T02:00:19Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/72",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U02",
+          "status": "DEFERRED"
+        }
+      ],
+      "area": "runtime",
+      "blockedBy": [
+        "USB-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-02",
+      "kind": "feature",
+      "milestone": "MVP+ — USB physical link",
+      "number": 73,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Carry framed Ethernet traffic from the Android USB bridge to a second QEMU guest NIC.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Attach a QEMU stream NIC through USB",
+      "updatedAt": "2026-07-31T02:00:20Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/73",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U03",
+          "status": "DEFERRED"
+        }
+      ],
+      "area": "platform",
+      "blockedBy": [
+        "USB-02"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-03",
+      "kind": "feature",
+      "milestone": "MVP+ — USB physical link",
+      "number": 74,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Let a Linux or SBC host route the USB guest link to its network.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Provide Linux TAP and NAT internet through node-linkd",
+      "updatedAt": "2026-07-31T02:00:21Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/74",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "U04",
+          "status": "DEFERRED"
+        }
+      ],
+      "area": "network",
+      "blockedBy": [
+        "USB-03"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-04",
+      "kind": "qualification",
+      "milestone": "MVP+ — USB physical link",
+      "number": 75,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Keep guest connectivity understandable when the optional USB link appears or disappears.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Fail safely between USB and SLIRP",
+      "updatedAt": "2026-07-31T02:00:22Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/75",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "artifacts",
+      "blockedBy": [
+        "PLAT-07",
+        "USB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "USB-05",
+      "kind": "security",
+      "milestone": "MVP+ — USB physical link",
+      "number": 76,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Version and bound the USB protocol, improve diagnostics, and optionally transfer artifacts without weakening fallback.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Harden USB and add optional artifact transfer",
+      "updatedAt": "2026-07-31T02:00:23Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/76",
+      "workState": "hold"
+    },
+    {
+      "acceptance": [],
+      "area": "website",
+      "blockedBy": [],
+      "dependencyState": "clear",
+      "id": "WEB-00",
+      "kind": "governance",
+      "milestone": "M0.5 — Public project surface",
+      "number": 30,
+      "public": true,
+      "pullRequests": [
+        {
+          "draft": false,
+          "headSha": "e736d610510f55b5c1226e63f134f92cf57f4c83",
+          "merged": true,
+          "mergedAt": "2026-07-30T20:31:32Z",
+          "number": 19,
+          "state": "closed",
+          "url": "https://github.com/0cwa/salvagenet-mvp/pull/19"
+        }
+      ],
+      "summary": "Define the static site, design system, theme, roadmap truth, Podroid-MVP alignment, and replanning contracts.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Establish public-site and issue-roadmap governance",
+      "updatedAt": "2026-07-31T01:59:35Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/30",
+      "workState": "done"
+    },
+    {
+      "acceptance": [],
+      "area": "website",
+      "blockedBy": [
+        "WEB-00",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-01",
+      "kind": "foundation",
+      "milestone": "M0.5 — Public project surface",
+      "number": 32,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Create a static component shell with one token-driven CSS system and accessible System, Light, and Dark theme control.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Build the Astro design-system foundation",
+      "updatedAt": "2026-07-31T01:59:38Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/32",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "website",
+      "blockedBy": [
+        "WEB-01"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-02",
+      "kind": "documentation",
+      "milestone": "M0.5 — Public project surface",
+      "number": 33,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Publish simple, uplifting, honest pages for users and community members from shared components.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Publish the user-facing SalvageNet pages",
+      "updatedAt": "2026-07-31T01:59:39Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/33",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [
+        {
+          "id": "B01",
+          "status": "PASS"
+        },
+        {
+          "id": "B02",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B03",
+          "status": "PASS"
+        },
+        {
+          "id": "B04",
+          "status": "PASS"
+        },
+        {
+          "id": "B05",
+          "status": "PASS"
+        },
+        {
+          "id": "B06",
+          "status": "PASS"
+        },
+        {
+          "id": "B07",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B08",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B09",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B10",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B11",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B12",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B13",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B14",
+          "status": "PASS"
+        },
+        {
+          "id": "B15",
+          "status": "PASS"
+        },
+        {
+          "id": "B16",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B17",
+          "status": "BLOCKED-HARDWARE"
+        },
+        {
+          "id": "B18",
+          "status": "PASS"
+        },
+        {
+          "id": "B19",
+          "status": "PASS"
+        },
+        {
+          "id": "B20",
+          "status": "PASS"
+        }
+      ],
+      "area": "website",
+      "blockedBy": [
+        "WEB-01",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-03",
+      "kind": "feature",
+      "milestone": "M0.5 — Public project surface",
+      "number": 34,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Keep public status current without hard-coded gate counts, candidate identities, or issue-derived validation claims.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Generate public acceptance and release status",
+      "updatedAt": "2026-07-31T01:59:40Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/34",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "website",
+      "blockedBy": [
+        "WEB-00"
+      ],
+      "dependencyState": "clear",
+      "id": "WEB-04",
+      "kind": "foundation",
+      "milestone": "M0.5 — Public project surface",
+      "number": 31,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Turn roadmap-labelled issues, milestones, and dependencies into a static public roadmap and bounded agent context.",
+      "taskAuthorized": true,
+      "taskPacket": "agents/tasks/WEB04/task.md",
+      "title": "Generate the GitHub issue roadmap and compact agent index",
+      "updatedAt": "2026-07-31T01:59:37Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/31",
+      "workState": "active"
+    },
+    {
+      "acceptance": [],
+      "area": "website",
+      "blockedBy": [
+        "WEB-01",
+        "WEB-02",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-05",
+      "kind": "feature",
+      "milestone": "M0.5 — Public project surface",
+      "number": 35,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Add useful optional interactions while keeping every page complete without JavaScript.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Add progressive-enhancement site components",
+      "updatedAt": "2026-07-31T01:59:41Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/35",
+      "workState": "queued"
+    },
+    {
+      "acceptance": [],
+      "area": "website",
+      "blockedBy": [
+        "WEB-02",
+        "WEB-03",
+        "WEB-04"
+      ],
+      "dependencyState": "blocked",
+      "id": "WEB-06",
+      "kind": "release",
+      "milestone": "M0.5 — Public project surface",
+      "number": 36,
+      "public": true,
+      "pullRequests": [],
+      "summary": "Publish the exact validated site artifact and expose when project data was last synchronized.",
+      "taskAuthorized": false,
+      "taskPacket": null,
+      "title": "Deploy exact static artifacts with freshness evidence",
+      "updatedAt": "2026-07-31T01:59:42Z",
+      "url": "https://github.com/0cwa/salvagenet-mvp/issues/36",
+      "workState": "queued"
+    }
+  ],
+  "milestones": [
+    {
+      "description": "Core Android/QEMU, artifact, evidence, and repository foundations.",
+      "number": 1,
+      "state": "closed",
+      "title": "M0 — Foundation"
+    },
+    {
+      "description": "Issue-roadmap and agent foundations followed by the public static website.",
+      "number": 2,
+      "state": "open",
+      "title": "M0.5 — Public project surface"
+    },
+    {
+      "description": "Complete one-phone Android, Linux guest, network, recovery, and durability path.",
+      "number": 3,
+      "state": "open",
+      "title": "M1 — Validated MVP"
+    },
+    {
+      "description": "Release compliance, guided setup, verified downloads, device records, guides, and community testing.",
+      "number": 4,
+      "state": "open",
+      "title": "M2 — Early access"
+    },
+    {
+      "description": "Thermal, storage, network, OEM lifecycle, upgrade, and device-class qualification.",
+      "number": 5,
+      "state": "open",
+      "title": "M3 — Reliability"
+    },
+    {
+      "description": "Stronger isolation, authentication, reproducible builds, controllers, Linux hosts, profiles, and runtime adapters.",
+      "number": 6,
+      "state": "open",
+      "title": "M4 — Platform expansion"
+    },
+    {
+      "description": "Android Open Accessory link, QEMU stream NIC, Linux TAP/NAT, fallback, and optional artifact transfer.",
+      "number": 7,
+      "state": "open",
+      "title": "MVP+ — USB physical link"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "fallback": false,
+    "newestIssueUpdate": "2026-07-31T02:00:23Z",
+    "repository": "0cwa/salvagenet-mvp",
+    "sourceHash": "sha256:58ea35f122c38db558b533d194147230549bea3b40d1b8ee871dc11bb8daf96e"
+  }
+}
