@@ -27,6 +27,7 @@ MAX_EVIDENCE_BYTES = 512 * 1024
 STAGES = ("initial", "guest-reboot", "qemu-restart")
 LOG_NAMES = ("serial", "qemu.stderr", "qemu.stdout")
 BASE_IMAGE = "ubuntu-24.04-server-cloudimg-arm64.img"
+AAVMF_ROOT = "/usr/share/AAVMF/"
 
 
 class EvidenceError(RuntimeError):
@@ -237,13 +238,35 @@ def validate_preflight(preflight: Any) -> dict[str, Any]:
         item = firmware[name]
         if (
             not isinstance(item, dict)
+            or set(item) != {
+                "copiedSha256",
+                "package",
+                "resolvedPath",
+                "sha256",
+                "sizeBytes",
+                "sourcePath",
+                "sourcePathSymlink",
+            }
             or not isinstance(item.get("sourcePath"), str)
-            or not item["sourcePath"].startswith("/")
+            or not item["sourcePath"].startswith(AAVMF_ROOT)
+            or not isinstance(item.get("resolvedPath"), str)
+            or not item["resolvedPath"].startswith(AAVMF_ROOT)
+            or not isinstance(item.get("sourcePathSymlink"), bool)
             or not isinstance(item.get("sizeBytes"), int)
             or item["sizeBytes"] <= 0
+            or not (
+                item.get("package") is None
+                or (
+                    isinstance(item.get("package"), str)
+                    and 0 < len(item["package"]) <= 256
+                )
+            )
         ):
             raise EvidenceError(f"preflight firmware identity is invalid: {name}")
-        require_sha(item.get("sha256"), f"firmware {name}")
+        source_sha = require_sha(item.get("sha256"), f"firmware {name}")
+        copied_sha = require_sha(item.get("copiedSha256"), f"copied firmware {name}")
+        if copied_sha != source_sha:
+            raise EvidenceError(f"copied firmware identity differs from source: {name}")
     tools = preflight.get("tools")
     if not isinstance(tools, dict) or set(tools) != {"qemu", "qemuImg", "cloudLocalds"}:
         raise EvidenceError("preflight tool facts are incomplete")
