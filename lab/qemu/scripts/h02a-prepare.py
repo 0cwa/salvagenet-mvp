@@ -300,6 +300,15 @@ def render_vendor_data(state: Path, profile: dict[str, Any]) -> Path:
 """
     if canonical_user not in text or "ssh_authorized_keys:" in text:
         raise LabError("canonical vendor-data nodeadmin contract changed")
+    required_bootstrap_commands = (
+    "- [systemctl, enable, nodehost-bootstrap.service]",
+    "- [systemctl, start, --no-block, nodehost-bootstrap.service]",
+)
+    if "- [systemctl, enable, --now, nodehost-bootstrap.service]" in text:
+        raise LabError("canonical vendor-data deadlocks cloud-final with enable --now")
+    missing = [command for command in required_bootstrap_commands if command not in text]
+    if missing:
+        raise LabError(f"canonical vendor-data lost nonblocking bootstrap activation: {missing}")
     return destination
 
 

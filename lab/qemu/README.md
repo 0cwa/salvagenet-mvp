@@ -20,6 +20,7 @@ make qemu-lab-stop
 - consumes the immutable 2026-07-25 Ubuntu ARM64 release lock without rewriting it;
 - verifies the exact 618,098,176-byte image and SHA-256 before use;
 - renders canonical Ubuntu vendor-data with the production renderer;
+- verifies canonical bootstrap activation cannot deadlock cloud-final: the unit is enabled persistently and started through a separate nonblocking request;
 - adds the ephemeral SSH public key through a deterministic `users`-only cloud-config MIME part during the config stage;
 - makes the disposable qualification account public-key accessible with `lock_passwd: false` and the non-authenticating `NP` password sentinel, while canonical `ssh_pwauth: false` and the final SSH drop-in prohibit password authentication;
 - applies strict SSH policy, a mesh-independent readiness marker, and a clearly named test-only `nodeadmin` `NOPASSWD` sudo rule through a final shell part;
@@ -29,6 +30,8 @@ make qemu-lab-stop
 - records the qualification account-password mode, qualification-only sudo mode, AAVMF source paths, digests, sizes, package facts, tool facts, source commit, dirty state, and the closed QEMU command in `preflight.json` before launch.
 
 The config-stage key and non-authenticating sentinel let the host authenticate before slow TCG package/final work finishes, then wait explicitly for `cloud-init status --wait`. `NP` is not a reusable password or password hash; it exists only because Ubuntu OpenSSH rejects a locked account even when its public key is valid. Password, keyboard-interactive, and root login are independently disabled and tested. The passwordless sudo rule likewise exists only in the disposable H02A guest so the laboratory can run later privileged SSH-policy, secret-scan, reboot, and poweroff checks without an interactive prompt. Runtime commands use `sudo -n` and fail if that explicit qualification capability is missing. Neither mechanism is part of the production guest profile or the H02B bootstrap contract.
+
+The canonical bootstrap unit declares `After=cloud-final.service`, so vendor-data must never call `systemctl enable --now` from cloud-final's own `runcmd`. The laboratory requires `systemctl enable` followed by `systemctl start --no-block`; the request returns immediately and systemd may start the conditioned unit after cloud-final has completed.
 
 `make qemu-lab-start` executes the recorded `qemu-command.json`. It verifies that the command still matches preflight and refuses stale PID files that point at an unrelated process.
 

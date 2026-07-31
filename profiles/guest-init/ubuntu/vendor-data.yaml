@@ -37,4 +37,5 @@ write_files:
       WantedBy=multi-user.target
 runcmd:
   - [systemctl, daemon-reload]
-  - [systemctl, enable, --now, nodehost-bootstrap.service]
+  - [systemctl, enable, nodehost-bootstrap.service]
+  - [systemctl, start, --no-block, nodehost-bootstrap.service]

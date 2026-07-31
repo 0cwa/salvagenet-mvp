@@ -170,6 +170,7 @@ class H02ALabTests(unittest.TestCase):
         prepare = (ROOT / "lab/qemu/scripts/prepare.sh").read_text(encoding="utf-8")
         start = (ROOT / "lab/qemu/scripts/start.sh").read_text(encoding="utf-8")
         helper = HELPER.read_text(encoding="utf-8")
+        vendor = (ROOT / "profiles/guest-init/ubuntu/vendor-data.yaml").read_text(encoding="utf-8")
         self.assertNotIn("/current/", pin)
         self.assertIn("explicit immutable Ubuntu release date is required", pin)
         self.assertIn("h02a-prepare.py", prepare)
@@ -185,6 +186,10 @@ class H02ALabTests(unittest.TestCase):
         self.assertIn('"qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel"', helper)
         self.assertIn('"qualificationSudo": "nodeadmin-nopasswd-test-only"', helper)
         self.assertIn('"virtio-net-pci,netdev=net0,romfile="', helper)
+        self.assertIn("- [systemctl, enable, nodehost-bootstrap.service]", vendor)
+        self.assertIn("- [systemctl, start, --no-block, nodehost-bootstrap.service]", vendor)
+        self.assertNotIn("enable, --now, nodehost-bootstrap.service", vendor)
+        self.assertIn("deadlocks cloud-final with enable --now", helper)
         for script in (
             ROOT / "tools/profiles/pin-ubuntu-image.sh",
             ROOT / "lab/qemu/scripts/prepare.sh",

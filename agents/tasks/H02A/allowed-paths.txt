@@ -16,3 +16,4 @@ profiles/locks/images.lock.json
 tools/profiles/pin-ubuntu-image.sh
 Makefile
 docs/research/experiments/H02A.md
+profiles/guest-init/ubuntu/vendor-data.yaml
