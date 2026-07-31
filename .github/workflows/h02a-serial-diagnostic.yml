@@ -1,0 +1,148 @@
+name: h02a-serial-diagnostic
+
+on:
+  push:
+    branches:
+      - research/H02A-serial-diagnostic-953070de
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_SHA: 953070de36e3f6d724ed2393327b0c7dfab2b511
+  CONTROL_BRANCH: research/H02A-serial-diagnostic-953070de
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Check out diagnostic control branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - name: Check out exact H02A candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+          path: source
+      - name: Run and record bounded serial diagnostic
+        shell: bash
+        run: |
+          set -uo pipefail
+          result_dir="$GITHUB_WORKSPACE/control/research/h02a-serial-diagnostic/$SOURCE_SHA"
+          mkdir -p "$result_dir"
+          qualification_log="$RUNNER_TEMP/h02a-qualification.log"
+
+          set +e
+          (
+            set -euo pipefail
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              cloud-image-utils curl jq openssh-client qemu-efi-aarch64 qemu-system-arm qemu-utils
+            cd "$GITHUB_WORKSPACE/source"
+            make qemu-lab-e2e
+          ) 2>&1 | tee "$qualification_log"
+          qualification_rc=${PIPESTATUS[0]}
+          set -e
+
+          python3 - \
+            "$GITHUB_WORKSPACE/source" \
+            "$result_dir" \
+            "$qualification_log" \
+            "$SOURCE_SHA" \
+            "$GITHUB_RUN_ID" \
+            "$qualification_rc" <<'PY'
+          from __future__ import annotations
+          import hashlib
+          import json
+          from pathlib import Path
+          import re
+          import sys
+
+          source = Path(sys.argv[1])
+          result_dir = Path(sys.argv[2])
+          qualification_log = Path(sys.argv[3])
+          source_sha = sys.argv[4]
+          workflow_run_id = sys.argv[5]
+          exit_code = int(sys.argv[6])
+          state = source / '.local/qemu-lab'
+          result_dir.mkdir(parents=True, exist_ok=True)
+
+          secret = re.compile(
+              r'(?:tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}|hskey-[A-Za-z0-9_-]{12,}|'
+              r'(?i:bootstrap[_-]?token)[=:][A-Za-z0-9._-]{8,}|'
+              r'(?i:callback[_-]?capability)[=:][A-Za-z0-9._-]{8,})'
+          )
+
+          def digest(path: Path) -> str:
+              value = hashlib.sha256()
+              with path.open('rb') as handle:
+                  while chunk := handle.read(1024 * 1024):
+                      value.update(chunk)
+              return value.hexdigest()
+
+          def capture(path: Path, maximum: int = 131072) -> dict[str, object]:
+              if path.is_symlink() or not path.is_file():
+                  return {'present': False}
+              size = path.stat().st_size
+              raw = path.read_bytes()[-maximum:]
+              return {
+                  'present': True,
+                  'sizeBytes': size,
+                  'sha256': digest(path),
+                  'truncatedToTail': size > maximum,
+                  'tail': secret.sub('[REDACTED]', raw.decode('utf-8', 'replace')),
+              }
+
+          result: dict[str, object] = {
+              'schemaVersion': 1,
+              'sourceCommit': source_sha,
+              'workflowRunId': workflow_run_id,
+              'qualificationExitCode': exit_code,
+              'status': 'PASS' if exit_code == 0 else 'FAIL',
+              'evidenceClass': 'host-qemu-diagnostic',
+              'androidHardwareValidated': False,
+              'physicalGateEligible': False,
+              'guestMeshValidated': False,
+              'logs': {
+                  'qualification': capture(qualification_log, 32768),
+                  'serial': capture(state / 'serial.log'),
+                  'qemuStdout': capture(state / 'qemu.stdout.log', 32768),
+                  'qemuStderr': capture(state / 'qemu.stderr.log', 32768),
+              },
+              'inputs': {
+                  'userData': capture(state / 'user-data', 65536),
+                  'vendorData': capture(state / 'vendor-data', 65536),
+                  'metaData': capture(state / 'meta-data', 8192),
+                  'preflight': capture(state / 'preflight.json', 65536),
+              },
+          }
+          inventory: list[dict[str, object]] = []
+          if state.exists() and not state.is_symlink():
+              for path in sorted(state.iterdir(), key=lambda item: item.name):
+                  try:
+                      inventory.append({
+                          'name': path.name[:256],
+                          'kind': 'symlink' if path.is_symlink() else ('directory' if path.is_dir() else 'file'),
+                          'sizeBytes': path.stat().st_size if path.is_file() and not path.is_symlink() else None,
+                      })
+                  except OSError:
+                      continue
+          result['diagnosticState'] = inventory[:256]
+          temporary = result_dir / 'result.json.tmp'
+          temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          temporary.chmod(0o600)
+          temporary.replace(result_dir / 'result.json')
+          PY
+
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add "research/h02a-serial-diagnostic/$SOURCE_SHA"
+          git -C control commit -m "research: capture H02A serial diagnostic $SOURCE_SHA"
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$qualification_rc"
