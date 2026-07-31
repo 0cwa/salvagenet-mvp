@@ -1,0 +1,134 @@
+name: h02a-review-fixes-v2
+
+on:
+  push:
+    branches:
+      - automation/H02A-review-fixes-v2
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: cea72d1d6d6593912f2e4045f7f45b8c2ed227cd
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+  CONTROL_BRANCH: automation/H02A-review-fixes-v2
+  PATCH_BRANCH: automation/H02A-review-fixes
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out control branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - name: Check out exact product branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Reuse reviewed patch, repair test indentation, validate, and record
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-review-fixes-v2.log"
+          set +e
+          (
+            set -euo pipefail
+            cd source
+            test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+            git fetch --quiet origin "$PATCH_BRANCH"
+            git show "origin/$PATCH_BRANCH:.github/workflows/h02a-review-fixes.yml" > "$RUNNER_TEMP/original-workflow.yml"
+            python3 - "$RUNNER_TEMP/original-workflow.yml" <<'PY'
+          from pathlib import Path
+          import sys
+
+          workflow = Path(sys.argv[1]).read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(workflow) if line.strip() == "python3 - <<'PY'") + 1
+          end = next(i for i in range(start, len(workflow)) if workflow[i] == '          PY')
+          code: list[str] = []
+          for line in workflow[start:end]:
+              if not line:
+                  code.append('')
+              elif line.startswith('          '):
+                  code.append(line[10:])
+              else:
+                  raise SystemExit(f'unexpected patch indentation: {line!r}')
+          exec(compile('\n'.join(code) + '\n', '<h02a-review-patch>', 'exec'), {'__name__': '__main__'})
+          PY
+            python3 - <<'PY'
+          from pathlib import Path
+
+          methods = {
+              'tests/guest/test_h02a_scan.py': 'test_remote_subcommand_runs_from_stdin_without_a_source_path',
+              'tests/guest/test_h02a_evidence.py': 'test_non_object_evidence_is_rejected_without_a_traceback',
+              'tests/guest/test_h02a_shell.py': 'test_ssh_port_rejects_leading_zero_without_octal_arithmetic',
+          }
+          for filename, method in methods.items():
+              path = Path(filename)
+              lines = path.read_text(encoding='utf-8').splitlines()
+              start = next(i for i, line in enumerate(lines) if line.startswith(f'    def {method}('))
+              end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith('    def ')), len(lines))
+              for i in range(start + 1, end):
+                  if lines[i]:
+                      lines[i] = '    ' + lines[i]
+              path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+            make validate
+            make test-guest
+            python3 tools/agents/verify-scope.py H02A
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          new_head="$EXPECTED_HEAD"
+          if [[ $rc -eq 0 ]]; then
+            cd source
+            expected=(
+              lab/qemu/scripts/common.sh
+              lab/qemu/scripts/e2e.sh
+              lab/qemu/scripts/h02a-evidence.py
+              lab/qemu/scripts/h02a-scan.py
+              lab/qemu/scripts/smoke.sh
+              lab/qemu/scripts/stop.sh
+              tests/guest/test_h02a_evidence.py
+              tests/guest/test_h02a_scan.py
+              tests/guest/test_h02a_shell.py
+            )
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'lab(H02A): address runtime qualification review findings'
+            git push origin "HEAD:$TARGET_BRANCH"
+            new_head=$(git rev-parse HEAD)
+            cd ..
+          fi
+
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          result = {
+              'schemaVersion': 1,
+              'exitCode': int(sys.argv[2]),
+              'productHead': sys.argv[3],
+              'logTail': Path(sys.argv[1]).read_bytes()[-32768:].decode('utf-8', 'replace'),
+          }
+          target = Path('control/automation/h02a-review-fixes-v2-result.json')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-review-fixes-v2-result.json
+          git -C control commit -m 'automation: record H02A review-fix v2 result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
