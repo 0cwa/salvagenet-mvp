@@ -20,7 +20,7 @@ python3 "$root/lab/qemu/scripts/h02a-qmp.py" \
   --socket "$state/qmp.sock" \
   --wait 300 \
   --output "$state/qmp-$stage.json"
-wait_for_ssh 360
+wait_for_ssh "$ssh_wait_seconds"
 ssh_nodeadmin 15 'sudo -n true'
 
 ssh_nodeadmin 360 'sudo -n cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
