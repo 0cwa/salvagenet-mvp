@@ -38,9 +38,13 @@ On native Linux, patched Android, SBC, and WSL environments, prefer the official
 
 ## Guest enrollment
 
-The controller mints a short-lived one-use guest pre-authentication key. Cloud-init receives a one-time bootstrap redemption token; the guest fetches the key from the host metadata endpoint, enrolls, deletes transient material, and posts readiness.
+The controller mints a short-lived, audience-bound, one-use bootstrap redemption token for exactly one intended guest identity, profile, and control-plane enrollment purpose. The token has a narrow expiry and nonce, is presented to the host metadata endpoint, and is redeemed through an atomic consume-once operation that cannot return the overlay pre-authentication key twice.
 
-Future provisioning capsules should contain enrollment references or scoped exchange material, not permanent overlay credentials.
+Cloud-init receives only that scoped redemption token, never the controller's administrative credential or a reusable overlay key. After successful or terminally failed redemption, the guest and host must erase the token from generated NoCloud media, cloud-init instance data, process environments, temporary files, and retained logs. Logs record only a redacted token identifier and redemption result. A process that reads bootstrap state before redemption must not obtain material reusable for another guest, profile, audience, or later attempt.
+
+The guest uses the redeemed short-lived overlay key to enroll, erases that key and all transient exchange material, and posts readiness. Replay, expired, wrong-audience, wrong-device, and already-redeemed requests fail visibly.
+
+Future provisioning capsules should contain one-use enrollment references or recipient-bound scoped exchange material, not permanent overlay credentials.
 
 ## Recovery
 
