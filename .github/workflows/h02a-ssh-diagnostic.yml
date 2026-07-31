@@ -1,0 +1,133 @@
+name: h02a-ssh-diagnostic
+
+on:
+  push:
+    branches:
+      - research/H02A-ssh-diagnostic-55f6a311
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_SHA: 55f6a3119d32656c7ee0f5c53bc46b4f6564b216
+  CONTROL_BRANCH: research/H02A-ssh-diagnostic-55f6a311
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out diagnostic control branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - name: Check out exact H02A candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+          path: source
+      - name: Run and record bounded diagnostics
+        shell: bash
+        run: |
+          set -uo pipefail
+          result_dir="$GITHUB_WORKSPACE/control/research/h02a-ssh-diagnostic/$SOURCE_SHA"
+          mkdir -p "$result_dir"
+          run_log="$RUNNER_TEMP/h02a-diagnostic.log"
+
+          set +e
+          (
+            set -euo pipefail
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              cloud-image-utils \
+              curl \
+              jq \
+              openssh-client \
+              qemu-efi-aarch64 \
+              qemu-system-arm \
+              qemu-utils
+            cd "$GITHUB_WORKSPACE/source"
+            make qemu-lab-e2e
+          ) 2>&1 | tee "$run_log"
+          run_rc=${PIPESTATUS[0]}
+          set -e
+
+          python3 - \
+            "$GITHUB_WORKSPACE/source" \
+            "$result_dir" \
+            "$run_log" \
+            "$SOURCE_SHA" \
+            "$GITHUB_RUN_ID" \
+            "$run_rc" <<'PY'
+          from __future__ import annotations
+          import hashlib
+          import json
+          from pathlib import Path
+          import re
+          import sys
+
+          source = Path(sys.argv[1])
+          result_dir = Path(sys.argv[2])
+          run_log = Path(sys.argv[3])
+          source_sha = sys.argv[4]
+          run_id = sys.argv[5]
+          exit_code = int(sys.argv[6])
+          state = source / '.local/qemu-lab'
+          secret = re.compile(
+              r'(?:tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}|hskey-[A-Za-z0-9_-]{12,}|'
+              r'(?i:bootstrap[_-]?token)[=:][A-Za-z0-9._-]{8,}|'
+              r'(?i:callback[_-]?capability)[=:][A-Za-z0-9._-]{8,})'
+          )
+
+          def bounded(path: Path) -> dict[str, object]:
+              if path.is_symlink() or not path.is_file():
+                  return {'present': False}
+              size = path.stat().st_size
+              if size > 64 * 1024 * 1024:
+                  return {'present': True, 'sizeBytes': size, 'tailOmitted': True}
+              digest = hashlib.sha256()
+              tail = bytearray()
+              with path.open('rb') as handle:
+                  while chunk := handle.read(8192):
+                      digest.update(chunk)
+                      tail.extend(chunk)
+                      if len(tail) > 131072:
+                          del tail[:len(tail) - 131072]
+              text = secret.sub('[REDACTED]', bytes(tail).decode('utf-8', 'replace'))
+              return {
+                  'present': True,
+                  'sizeBytes': size,
+                  'sha256': digest.hexdigest(),
+                  'tail': text,
+                  'truncatedToTail': size > 131072,
+              }
+
+          result = {
+              'schemaVersion': 1,
+              'sourceCommit': source_sha,
+              'workflowRunId': run_id,
+              'exitCode': exit_code,
+              'logs': {
+                  'qualification': bounded(run_log),
+                  'serial': bounded(state / 'serial.log'),
+                  'qemuStderr': bounded(state / 'qemu.stderr.log'),
+                  'qemuStdout': bounded(state / 'qemu.stdout.log'),
+              },
+          }
+          result_dir.mkdir(parents=True, exist_ok=True)
+          temporary = result_dir / 'diagnostic.json.tmp'
+          temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          temporary.chmod(0o600)
+          temporary.replace(result_dir / 'diagnostic.json')
+          PY
+
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add "research/h02a-ssh-diagnostic/$SOURCE_SHA"
+          git -C control commit -m "research: record late H02A SSH diagnostics $SOURCE_SHA"
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$run_rc"
