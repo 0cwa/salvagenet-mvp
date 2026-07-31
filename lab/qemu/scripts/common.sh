@@ -6,6 +6,7 @@ root=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/../../.
 raw_state=${NODEHOST_QEMU_LAB_DIR:-$root/.local/qemu-lab}
 ssh_port=${NODEHOST_QEMU_LAB_SSH_PORT:-2222}
 readonly ssh_wait_seconds=900
+readonly cloud_init_wait_seconds=1800
 
 state=$(python3 - "$root" "$raw_state" <<'PY'
 from pathlib import Path
@@ -40,7 +41,7 @@ chmod 0700 "$state"
 known_hosts="$state/known_hosts"
 touch "$known_hosts"
 chmod 0600 "$known_hosts"
-export root state ssh_port known_hosts
+export root state ssh_port known_hosts ssh_wait_seconds cloud_init_wait_seconds
 
 ssh_options=(
   -F /dev/null

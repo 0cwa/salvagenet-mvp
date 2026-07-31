@@ -51,7 +51,9 @@ class H02AEvidenceTests(unittest.TestCase):
                 "renderedSha256": "2" * 64,
             },
             "testUserData": {
-                "format": "text/x-shellscript",
+                "format": "multipart/mixed",
+                "parts": ["text/cloud-config", "text/x-shellscript"],
+                "earlySshKey": True,
                 "sha256": "3" * 64,
                 "qualificationSudo": "nodeadmin-nopasswd-test-only",
             },
@@ -196,6 +198,13 @@ class H02AEvidenceTests(unittest.TestCase):
         value["firmware"]["vars"]["copiedSha256"] = "6" * 64
         (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
         with self.assertRaisesRegex(evidence.EvidenceError, "differs from source"):
+            evidence.create_evidence(self.state)
+
+    def test_final_only_ssh_key_contract_is_rejected(self) -> None:
+        value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
+        value["testUserData"].pop("earlySshKey")
+        (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaisesRegex(evidence.EvidenceError, "user-data contract"):
             evidence.create_evidence(self.state)
 
     def test_finalize_requires_exact_cleanup_and_verified_base(self) -> None:

@@ -25,6 +25,7 @@ RENDERER = ROOT / "tools/profiles/render-guest-init.py"
 AAVMF_ROOT = Path("/usr/share/AAVMF")
 IMAGE_ID = "ubuntu-2404-arm64-cloud"
 PROFILE_ID = "ubuntu-2404-arm64-uefi"
+MIME_BOUNDARY = "===============nodehost-h02a=="
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PUBLIC_KEY = re.compile(r"^ssh-ed25519 [A-Za-z0-9+/]+={0,3}(?: [ -~]{1,128})?$")
 MAX_TEXT_BYTES = 256 * 1024
@@ -212,16 +213,19 @@ def validate_public_key(text: str) -> str:
 
 
 def test_user_data(public_key: str) -> str:
-    """Return a shell script so user-data cannot override vendor cloud-config lists."""
+    """Return deterministic multipart data without overriding vendor work lists."""
     key = validate_public_key(public_key)
-    return f"""#!/bin/sh
+    cloud_config = f"""#cloud-config
+users:
+  - name: nodeadmin
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - {key}
+"""
+    final_script = """#!/bin/sh
 set -eu
-install -d -m 0700 -o nodeadmin -g nodeadmin /home/nodeadmin/.ssh
-cat > /home/nodeadmin/.ssh/authorized_keys <<'NODEHOST_H02A_KEY'
-{key}
-NODEHOST_H02A_KEY
-chown nodeadmin:nodeadmin /home/nodeadmin/.ssh/authorized_keys
-chmod 0600 /home/nodeadmin/.ssh/authorized_keys
 cat > /etc/sudoers.d/90-nodehost-h02a <<'NODEHOST_H02A_SUDO'
 nodeadmin ALL=(ALL) NOPASSWD:ALL
 NODEHOST_H02A_SUDO
@@ -237,6 +241,22 @@ systemctl restart ssh
 install -d -m 0755 /var/lib/nodehost
 printf 'h02a-ready\\n' > /var/lib/nodehost/h02a-ready
 """
+    return (
+        "MIME-Version: 1.0\n"
+        f'Content-Type: multipart/mixed; boundary="{MIME_BOUNDARY}"\n'
+        "\n"
+        f"--{MIME_BOUNDARY}\n"
+        'Content-Type: text/cloud-config; charset="us-ascii"\n'
+        "Content-Transfer-Encoding: 7bit\n"
+        "\n"
+        f"{cloud_config}"
+        f"--{MIME_BOUNDARY}\n"
+        'Content-Type: text/x-shellscript; charset="us-ascii"\n'
+        "Content-Transfer-Encoding: 7bit\n"
+        "\n"
+        f"{final_script}"
+        f"--{MIME_BOUNDARY}--\n"
+    )
 
 
 def meta_data(instance_id: str = "nodehost-h02a-ubuntu", hostname: str = "nodehost-h02a") -> str:
@@ -271,6 +291,14 @@ def render_vendor_data(state: Path, profile: dict[str, Any]) -> Path:
         raise LabError("canonical vendor-data retained an unresolved include")
     if "/var/lib/nodehost/bootstrap.env" not in text:
         raise LabError("canonical vendor-data lost its inert bootstrap condition")
+    canonical_user = """users:
+  - name: nodeadmin
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+"""
+    if canonical_user not in text or "ssh_authorized_keys:" in text:
+        raise LabError("canonical vendor-data nodeadmin contract changed")
     return destination
 
 
@@ -527,7 +555,9 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
             "renderedSha256": sha256_file(vendor),
         },
         "testUserData": {
-            "format": "text/x-shellscript",
+            "format": "multipart/mixed",
+            "parts": ["text/cloud-config", "text/x-shellscript"],
+            "earlySshKey": True,
             "sha256": sha256_file(user),
             "qualificationSudo": "nodeadmin-nopasswd-test-only",
         },

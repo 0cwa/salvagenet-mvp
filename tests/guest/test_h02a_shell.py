@@ -89,8 +89,12 @@ class H02AShellTests(unittest.TestCase):
         self.assertIn("StrictHostKeyChecking=accept-new", common)
         self.assertNotIn("StrictHostKeyChecking=no", common + smoke + e2e)
         self.assertIn("readonly ssh_wait_seconds=900", common)
+        self.assertIn("readonly cloud_init_wait_seconds=1800", common)
         self.assertIn('wait_for_ssh "$ssh_wait_seconds"', smoke)
         self.assertIn('wait_for_ssh "$ssh_wait_seconds"', e2e)
+        self.assertIn('ssh_nodeadmin "$cloud_init_wait_seconds" \'cloud-init status --wait --long\'', smoke)
+        self.assertLess(smoke.index("cloud-init status --wait --long"), smoke.index("sudo -n true"))
+        self.assertNotIn("sudo -n cloud-init status", smoke)
         self.assertNotIn("wait_for_ssh 360", smoke + e2e)
         self.assertFalse((SCRIPTS / "report.py").exists())
 

@@ -21,9 +21,9 @@ python3 "$root/lab/qemu/scripts/h02a-qmp.py" \
   --wait 300 \
   --output "$state/qmp-$stage.json"
 wait_for_ssh "$ssh_wait_seconds"
+ssh_nodeadmin "$cloud_init_wait_seconds" 'cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
 ssh_nodeadmin 15 'sudo -n true'
 
-ssh_nodeadmin 360 'sudo -n cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
 ssh_nodeadmin 30 'sudo -n cat /var/lib/nodehost/h02a-ready' > "$state/readiness-$stage.txt"
 ssh_nodeadmin 30 'cat /proc/sys/kernel/random/boot_id' > "$state/boot-id-$stage.txt"
 ssh_nodeadmin 30 \
