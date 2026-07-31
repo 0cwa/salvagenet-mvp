@@ -24,7 +24,7 @@ trap 'exit 143' TERM
 "$(dirname "$0")/smoke.sh" initial
 initial_boot=$(cat "$state/boot-id-initial.txt")
 
-ssh_nodeadmin 15 'sudo systemctl reboot' >/dev/null 2>&1 || true
+ssh_nodeadmin 15 'sudo -n systemctl reboot' >/dev/null 2>&1 || true
 wait_for_ssh_down 90
 wait_for_ssh 360
 "$(dirname "$0")/smoke.sh" guest-reboot
@@ -34,7 +34,7 @@ guest_reboot=$(cat "$state/boot-id-guest-reboot.txt")
   exit 1
 }
 
-ssh_nodeadmin 15 'sudo systemctl poweroff' >/dev/null 2>&1 || true
+ssh_nodeadmin 15 'sudo -n systemctl poweroff' >/dev/null 2>&1 || true
 wait_for_ssh_down 90 || true
 wait_for_qemu_exit 180
 "$(dirname "$0")/start.sh"
