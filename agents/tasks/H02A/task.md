@@ -8,7 +8,7 @@
 
 Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact identities, UEFI/QMP boot, NoCloud completion, and key-only loopback SSH as one repeatable Linux host-QEMU flow before adding guest mesh behavior or returning to physical Android validation.
 
-## Current phase review
+## Phase-start review
 
 - WEB04 and its reviewed snapshots are merged; the committed live index has GUEST-01 as the sole active, task-authorized item with no reported roadmap disagreement or fallback.
 - Draft PR #20 remains a path-disjoint HIL safety review. It is not a prerequisite, is not authorized by this phase, and supplies no physical evidence.
