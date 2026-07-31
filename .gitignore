@@ -14,6 +14,7 @@ lab/headscale/data/
 lab/headscale/secrets/
 lab/headscale/.env
 lab/headscale/config/generated/
+lab/salvagehost-dev/.state/
 control/examples/*.real.json
 control/examples/local/*.json
 !control/examples/local/README.md
