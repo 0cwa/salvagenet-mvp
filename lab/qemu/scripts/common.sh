@@ -30,10 +30,10 @@ print(resolved)
 PY
 )
 
-[[ $ssh_port =~ ^[0-9]+$ ]] && (( ssh_port >= 1024 && ssh_port <= 65535 )) || {
+if [[ ! $ssh_port =~ ^[0-9]+$ ]] || (( ssh_port < 1024 || ssh_port > 65535 )); then
   echo "NODEHOST_QEMU_LAB_SSH_PORT must be in 1024..65535" >&2
   exit 2
-}
+fi
 mkdir -p "$state"
 chmod 0700 "$state"
 known_hosts="$state/known_hosts"
