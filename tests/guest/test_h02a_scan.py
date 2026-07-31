@@ -29,10 +29,20 @@ class H02AScanTests(unittest.TestCase):
         self.assertEqual([], scan.pattern_findings(data, "vendor-data"))
 
     def test_real_secret_shapes_are_reported_without_secret_values(self) -> None:
+        bootstrap_name = b"NODEHOST_" + b"BOOTSTRAP_TOKEN="
+        bootstrap_value = b"abcdefgh" + b"ijklmnop"
+        tailscale_value = b"tskey-" + b"auth-" + (b"A" * 16)
+        callback_name = b'"callback_' + b'capability":"'
+        callback_value = b"B" * 16
         data = (
-            b"NODEHOST_BOOTSTRAP_TOKEN=abcdefghijklmnop\n"
-            b"tskey-auth-AAAAAAAAAAAAAAAA\n"
-            b'"callback_capability":"BBBBBBBBBBBBBBBB"\n'
+            bootstrap_name
+            + bootstrap_value
+            + b"\n"
+            + tailscale_value
+            + b"\n"
+            + callback_name
+            + callback_value
+            + b'"\n'
         )
         findings = scan.pattern_findings(data, "guest-state")
         self.assertEqual(
@@ -44,8 +54,8 @@ class H02AScanTests(unittest.TestCase):
             findings,
         )
         serialized = json.dumps(findings)
-        self.assertNotIn("abcdefghijklmnop", serialized)
-        self.assertNotIn("BBBBBBBBBBBBBBBB", serialized)
+        self.assertNotIn(bootstrap_value.decode(), serialized)
+        self.assertNotIn(callback_value.decode(), serialized)
 
     def test_combine_scans_exact_seed_sources_and_remote_result(self) -> None:
         local = ROOT / ".local"
