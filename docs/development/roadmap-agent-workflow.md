@@ -13,7 +13,7 @@ The active issue label is mechanically synchronized from `agents/task-dag.json`;
 | Durable product direction | `docs/product/north-star.md` and accepted product/architecture ADRs |
 | Current bounded milestone | `GOAL.md` |
 | Planned outcomes and dependencies | GitHub roadmap issues and milestones |
-| Current implementation authorization | `agents/task-dag.json` and the active packet |
+| Current implementation authorization | `agents/task-dag.json` only; the active packet supplies execution constraints and acceptance details for a DAG-authorized task |
 | Validated product claims | acceptance ledger and reviewed evidence |
 | Website and agent projections | generated snapshots |
 
@@ -23,13 +23,14 @@ Issue closure never changes acceptance status. A dependency-clear issue is not a
 
 Before roadmap or implementation work:
 
-1. read `docs/product/north-star.md`, `GOAL.md`, and root `AGENTS.md`;
-2. read `agents/task-dag.json` and the active packet;
-3. run `make roadmap-status`;
-4. run `make roadmap-check` when live GitHub access is available and the current catalog generation has been applied;
-5. read only the assigned issue and bounded context pack;
-6. confirm the issue is dependency-clear, labelled active, and bound to a task in the active DAG;
-7. stop for phase review when those sources disagree.
+1. verify the working tree is based on current `main`, then run `make dev-plan` and `make validate`;
+2. read `docs/product/north-star.md`, `GOAL.md`, and root `AGENTS.md`;
+3. read `agents/task-dag.json` and the active packet, remembering that the packet cannot authorize work absent from the DAG;
+4. run `make roadmap-status`;
+5. run `make roadmap-check` when live GitHub access is available and the current catalog generation has been applied;
+6. read only the assigned issue and bounded context pack;
+7. confirm the issue is dependency-clear, labelled active, and bound to a task in the active DAG;
+8. stop for phase review when those sources disagree.
 
 Stable commands:
 
@@ -77,7 +78,7 @@ Between catalog merge and exact-main apply, strict live projection is expected t
 
 ### Automatic workflow
 
-`.github/workflows/roadmap-authorization.yml` runs on relevant changes to `main` and:
+`.github/workflows/roadmap-authorization.yml` runs on relevant changes to `main` and on relevant roadmap-issue label, state, or body edits. It:
 
 1. validates the composed roadmap catalog;
 2. fetches live roadmap issues;
@@ -181,7 +182,7 @@ Before activating the next issue:
 11. place only the authorized phase in the DAG;
 12. let the authorization workflow project the active label and verify agreement.
 
-At phase end, verify issue and packet acceptance, run exact-head checks, record unavailable physical work honestly, merge the tested/reviewed head, record the merge identity, leave acceptance unchanged unless its own evidence passed, and perform a fresh phase review rather than auto-activating the next issue.
+At phase end, verify issue and packet acceptance, run the smallest relevant test before broader exact-head checks, report unavailable checks and physical work honestly, run `python3 tools/agents/verify-scope.py <TASK>`, verify the assigned branch/worktree and clean state, record provenance, merge the tested/reviewed head, record the merge identity, leave acceptance unchanged unless its own evidence passed, and perform a fresh phase review rather than auto-activating the next issue.
 
 ## Alignment guardrails
 
