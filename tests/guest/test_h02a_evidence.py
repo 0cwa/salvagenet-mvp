@@ -75,6 +75,7 @@ class H02AEvidenceTests(unittest.TestCase):
             },
         }
         (self.state / "preflight.json").write_text(json.dumps(preflight), encoding="utf-8")
+        canary = "tskey-" + "auth-" + ("A" * 16)
         for stage, boot_id in BOOT_IDS.items():
             (self.state / f"qmp-{stage}.json").write_text(
                 json.dumps({"running": True, "status": "running"}), encoding="utf-8"
@@ -110,7 +111,7 @@ class H02AEvidenceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             for name in evidence.LOG_NAMES:
-                content = "safe log tskey-auth-AAAAAAAAAAAAAAAA\n" if name == "serial" else ""
+                content = f"safe log {canary}\n" if name == "serial" else ""
                 (self.state / f"{name}-{stage}.log").write_text(content, encoding="utf-8")
 
     def create(self) -> Path:
@@ -128,7 +129,7 @@ class H02AEvidenceTests(unittest.TestCase):
         self.assertTrue(value["restartChecks"]["sshHostKeyStableAcrossRestarts"])
         self.assertEqual(9, len(value["logs"]))
         self.assertIn("[REDACTED]", value["logs"]["initial:serial"]["tail"])
-        self.assertNotIn("tskey-auth-", value["logs"]["initial:serial"]["tail"])
+        self.assertNotIn("tskey-" + "auth-", value["logs"]["initial:serial"]["tail"])
 
     def test_duplicate_boot_id_is_rejected(self) -> None:
         (self.state / "boot-id-qemu-restart.txt").write_text(BOOT_IDS["guest-reboot"] + "\n", encoding="utf-8")
