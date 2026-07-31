@@ -384,7 +384,7 @@ def qemu_command(profile: dict[str, Any], state: Path, ssh_port: int) -> list[st
         "-drive", f"if=none,id=seed,format=raw,readonly=on,file={state / 'seed.img'}",
         "-device", "virtio-blk-pci,drive=seed",
         "-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{ssh_port}-:22",
-        "-device", "virtio-net-pci,netdev=net0",
+        "-device", "virtio-net-pci,netdev=net0,romfile=",
         "-qmp", f"unix:{state / 'qmp.sock'},server=on,wait=off",
         "-monitor", "none",
         "-serial", f"file:{state / 'serial.log'}",
