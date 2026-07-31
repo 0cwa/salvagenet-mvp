@@ -9,7 +9,9 @@ GitHub roadmap issues and dependency links are the live planning authority. `age
 - `../../tools/roadmap/catalog.py` — composes the bootstrap seed and reviewed expansions, updates completeness sets, and derives live item/milestone cardinality from catalog data.
 - `bootstrap-state.v1.json` — generated exact apply/source/issue map from the last reviewed apply.
 - `../workflows/roadmap-bootstrap.yml` — explicit dry-run/apply workflow.
+- `../workflows/roadmap-authorization.yml` — keeps GitHub's `agent:active` projection synchronized with the active DAG and repairs manual active-label drift.
 - `../../tools/roadmap/commands.py` — catalog validation and GitHub apply entry point.
+- `../../tools/roadmap/authorization.py` — DAG-to-issue authorization synchronizer and read-only verifier.
 - `../../tools/roadmap/sync.py` — strict live/fallback projection with reviewed acceptance and context metadata.
 
 A later catalog generation should be a new reviewed expansion file or a clean schema-version transition. Do not rewrite a historical generation merely to avoid an additive catalog mechanism.
@@ -23,6 +25,8 @@ make roadmap-sync               # live when token exists; reviewed fallback othe
 make roadmap-status
 make roadmap-check              # requires live token after issue apply
 make roadmap-context ISSUE=MVP-02
+python3 tools/roadmap/authorization.py       # live read-only agreement check
+python3 tools/roadmap/authorization.py --apply
 ```
 
 ## Apply sequence for a catalog expansion
@@ -56,6 +60,19 @@ The apply operation:
 - cannot close acceptance gates.
 
 Existing issue wording or dependency removals require an explicit roadmap-edit review rather than being hidden in bootstrap reconciliation.
+
+## Authorization synchronization
+
+`roadmap-authorization.yml` runs when the active DAG or registry changes and when an `agent:*` label is manually added or removed from a roadmap issue. It:
+
+- requires each active DAG task to map to one open roadmap issue through its task-packet marker;
+- assigns `agent:active` to exactly those issues;
+- removes stale active labels from tasks no longer in the DAG;
+- preserves unrelated queued/ready/review/hold planning state;
+- conservatively demotes an open task-bound issue to queued when it leaves the DAG without another reviewed state;
+- verifies the result in a second read-only pass.
+
+The workflow may cause one follow-up issue-label event when it repairs drift; the serialized rerun observes an already synchronized state and makes no further change.
 
 ## Truth after apply
 
