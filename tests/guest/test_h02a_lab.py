@@ -73,6 +73,24 @@ class H02ALabTests(unittest.TestCase):
             with self.assertRaisesRegex(h02a.LabError, "must not be a symlink"):
                 h02a.copy_verified(source, destination, expected)
 
+    def test_firmware_symlinks_must_resolve_inside_the_package_root(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT / ".local") as temporary:
+            directory = Path(temporary)
+            firmware_root = directory / "AAVMF"
+            firmware_root.mkdir()
+            target = firmware_root / "AAVMF_CODE.no-secboot.fd"
+            target.write_bytes(b"uefi-firmware")
+            admitted = firmware_root / "AAVMF_CODE.fd"
+            admitted.symlink_to(target.name)
+            self.assertEqual(target.resolve(), h02a.resolve_firmware_path(admitted, firmware_root))
+
+            outside = directory / "outside.fd"
+            outside.write_bytes(b"outside-firmware")
+            escaped = firmware_root / "AAVMF_VARS.fd"
+            escaped.symlink_to(outside)
+            with self.assertRaisesRegex(h02a.LabError, "escapes"):
+                h02a.resolve_firmware_path(escaped, firmware_root)
+
     def test_test_only_user_data_is_a_non_merging_final_stage_script(self) -> None:
         key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
         rendered = h02a.test_user_data(key)
@@ -135,6 +153,8 @@ class H02ALabTests(unittest.TestCase):
         self.assertNotIn("qemu-system-aarch64 \\", start)
         self.assertNotIn("QEMU_EFI.fd", helper)
         self.assertIn("find_firmware_pair", helper)
+        self.assertIn("resolve_firmware_path", helper)
+        self.assertIn('"resolvedPath": str(resolved)', helper)
         self.assertIn("sha256_file(system) != lock", helper)
         self.assertIn('"qualificationSudo": "nodeadmin-nopasswd-test-only"', helper)
         for script in (
