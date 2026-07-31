@@ -1,0 +1,109 @@
+{
+  "androidHardwareValidated": false,
+  "diagnosticState": [
+    {
+      "kind": "file",
+      "name": "AAVMF_CODE.fd",
+      "sizeBytes": 67108864
+    },
+    {
+      "kind": "file",
+      "name": "AAVMF_VARS.fd",
+      "sizeBytes": 67108864
+    },
+    {
+      "kind": "file",
+      "name": "data.raw",
+      "sizeBytes": 8589934592
+    },
+    {
+      "kind": "file",
+      "name": "id_ed25519",
+      "sizeBytes": 399
+    },
+    {
+      "kind": "file",
+      "name": "id_ed25519.pub",
+      "sizeBytes": 95
+    },
+    {
+      "kind": "file",
+      "name": "known_hosts",
+      "sizeBytes": 98
+    },
+    {
+      "kind": "file",
+      "name": "meta-data",
+      "sizeBytes": 64
+    },
+    {
+      "kind": "file",
+      "name": "preflight.json",
+      "sizeBytes": 3761
+    },
+    {
+      "kind": "file",
+      "name": "qemu-command.json",
+      "sizeBytes": 1406
+    },
+    {
+      "kind": "file",
+      "name": "qemu.pid",
+      "sizeBytes": 5
+    },
+    {
+      "kind": "file",
+      "name": "qemu.stderr.log",
+      "sizeBytes": 67
+    },
+    {
+      "kind": "file",
+      "name": "qemu.stdout.log",
+      "sizeBytes": 0
+    },
+    {
+      "kind": "file",
+      "name": "qmp-initial.json",
+      "sizeBytes": 45
+    },
+    {
+      "kind": "file",
+      "name": "seed.img",
+      "sizeBytes": 382976
+    },
+    {
+      "kind": "file",
+      "name": "serial.log",
+      "sizeBytes": 83981
+    },
+    {
+      "kind": "file",
+      "name": "system.qcow2",
+      "sizeBytes": 915144704
+    },
+    {
+      "kind": "file",
+      "name": "ubuntu-24.04-server-cloudimg-arm64.img",
+      "sizeBytes": 618098176
+    },
+    {
+      "kind": "file",
+      "name": "user-data",
+      "sizeBytes": 910
+    },
+    {
+      "kind": "file",
+      "name": "vendor-data",
+      "sizeBytes": 6285
+    }
+  ],
+  "evidenceClass": "host-qemu",
+  "guestMeshValidated": false,
+  "physicalGateEligible": false,
+  "qualificationExitCode": 2,
+  "qualificationLogTail": "Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]\nHit:4 https://packages.microsoft.com/repos/azure-cli noble InRelease\nGet:5 https://packages.microsoft.com/ubuntu/24.04/prod noble InRelease [3600 B]\nHit:2 http://azure.archive.ubuntu.com/ubuntu noble InRelease\nGet:3 http://azure.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]\nGet:6 http://azure.archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]\nGet:7 http://azure.archive.ubuntu.com/ubuntu noble-security InRelease [126 kB]\nGet:8 https://dl.google.com/linux/chrome-stable/deb stable InRelease [2548 B]\nGet:9 https://packages.microsoft.com/ubuntu/24.04/prod noble/main arm64 Packages [226 kB]\nGet:10 https://packages.microsoft.com/ubuntu/24.04/prod noble/main amd64 Packages [260 kB]\nGet:11 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1154 kB]\nGet:12 http://azure.archive.ubuntu.com/ubuntu noble-updates/main Translation-en [278 kB]\nGet:13 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Components [181 kB]\nGet:14 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [1680 kB]\nGet:15 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe Translation-en [334 kB]\nGet:16 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Components [388 kB]\nGet:17 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [1367 kB]\nGet:18 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted Translation-en [308 kB]\nGet:19 http://azure.archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Packages [45.4 kB]\nGet:20 http://azure.archive.ubuntu.com/ubuntu noble-updates/multiverse Translation-en [12.3 kB]\nGet:21 http://azure.archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Components [940 B]\nGet:22 http://azure.archive.ubuntu.com/ubuntu noble-backports/main amd64 Components [5744 B]\nGet:23 http://azure.archive.ubuntu.com/ubuntu noble-backports/universe amd64 Packages [32.5 kB]\nGet:24 http://azure.archive.ubuntu.com/ubuntu noble-backports/universe amd64 Components [12.6 kB]\nGet:25 http://azure.archive.ubuntu.com/ubuntu noble-security/main amd64 Packages [897 kB]\nGet:26 http://azure.archive.ubuntu.com/ubuntu noble-security/main Translation-en [198 kB]\nGet:27 http://azure.archive.ubuntu.com/ubuntu noble-security/main amd64 Components [46.4 kB]\nGet:28 http://azure.archive.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1199 kB]\nGet:29 http://azure.archive.ubuntu.com/ubuntu noble-security/universe Translation-en [239 kB]\nGet:30 http://azure.archive.ubuntu.com/ubuntu noble-security/universe amd64 Components [76.3 kB]\nGet:31 http://azure.archive.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [1273 kB]\nGet:32 http://azure.archive.ubuntu.com/ubuntu noble-security/restricted Translation-en [290 kB]\nGet:33 http://azure.archive.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [40.3 kB]\nGet:34 http://azure.archive.ubuntu.com/ubuntu noble-security/multiverse Translation-en [10.6 kB]\nGet:35 https://dl.google.com/linux/chrome-stable/deb stable/main amd64 Packages [1408 B]\nFetched 10.9 MB in 1s (8278 kB/s)\nReading package lists...\nReading package lists...\nBuilding dependency tree...\nReading state information...\ncurl is already the newest version (8.5.0-2ubuntu10.11).\njq is already the newest version (1.7.1-3ubuntu0.24.04.2).\nopenssh-client is already the newest version (1:9.6p1-3ubuntu13.18).\nThe following additional packages will be installed:\n  genisoimage libbrlapi0.8 libcacard0 libdaxctl1 libfdt1 libndctl6\n  libpcsclite1 libpmem1 librdmacm1t64 liburing2 libusbredirparser1t64\n  qemu-system-common qemu-system-data\nSuggested packages:\n  mtools wodim cdrkit-doc pcscd samba vde2\nRecommended packages:\n  ipxe-qemu ipxe-qemu-256k-compat-efi-roms qemu-efi-arm qemu-system-gui\n  qemu-system-modules-spice qemu-system-modules-opengl qemu-block-extra\nThe following NEW packages will be installed:\n  cloud-image-utils genisoimage libbrlapi0.8 libcacard0 libdaxctl1 libfdt1\n  libndctl6 libpcsclite1 libpmem1 librdmacm1t64 liburing2\n  libusbredirparser1t64 qemu-efi-aarch64 qemu-system-arm qemu-system-common\n  qemu-system-data qemu-utils\n0 upgraded, 17 newly installed, 0 to remove and 79 not upgraded.\nNeed to get 21.1 MB of archives.\nAfter this operation, 429 MB of additional disk space will be used.\nGet:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]\nGet:2 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 genisoimage amd64 9:1.1.11-3.5 [378 kB]\nGet:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libbrlapi0.8 amd64 6.6-4ubuntu5 [31.4 kB]\nGet:4 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libpcsclite1 amd64 2.0.3-1build1 [21.4 kB]\nGet:5 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libcacard0 amd64 1:2.8.0-3build4 [36.5 kB]\nGet:6 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libdaxctl1 amd64 77-2ubuntu2 [21.4 kB]\nGet:7 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libndctl6 amd64 77-2ubuntu2 [62.8 kB]\nGet:8 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libpmem1 amd64 1.13.1-1.1ubuntu2 [84.8 kB]\nGet:9 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 librdmacm1t64 amd64 50.0-2ubuntu0.2 [70.7 kB]\nGet:10 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 liburing2 amd64 2.5-1build1 [21.1 kB]\nGet:11 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libusbredirparser1t64 amd64 0.13.0-2.1build1 [16.5 kB]\nGet:12 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libfdt1 amd64 1.7.0-2build1 [20.1 kB]\nGet:13 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 qemu-system-common amd64 1:8.2.2+ds-0ubuntu1.17 [1255 kB]\nGet:14 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 qemu-system-data all 1:8.2.2+ds-0ubuntu1.17 [1796 kB]\nGet:15 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 qemu-system-arm amd64 1:8.2.2+ds-0ubuntu1.17 [11.0 MB]\nGet:16 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 qemu-utils amd64 1:8.2.2+ds-0ubuntu1.17 [2222 kB]\nGet:17 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 cloud-image-utils all 0.33-1 [19.6 kB]\nGet:18 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 qemu-efi-aarch64 all 2024.02-2ubuntu0.9 [4115 kB]\nFetched 21.1 MB in 7s (3178 kB/s)\nSelecting previously unselected package genisoimage.\r\n(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 202954 files and directories currently installed.)\r\nPreparing to unpack .../00-genisoimage_9%3a1.1.11-3.5_amd64.deb ...\r\nUnpacking genisoimage (9:1.1.11-3.5) ...\r\nSelecting previously unselected package libbrlapi0.8:amd64.\r\nPreparing to unpack .../01-libbrlapi0.8_6.6-4ubuntu5_amd64.deb ...\r\nUnpacking libbrlapi0.8:amd64 (6.6-4ubuntu5) ...\r\nSelecting previously unselected package libpcsclite1:amd64.\r\nPreparing to unpack .../02-libpcsclite1_2.0.3-1build1_amd64.deb ...\r\nUnpacking libpcsclite1:amd64 (2.0.3-1build1) ...\r\nSelecting previously unselected package libcacard0:amd64.\r\nPreparing to unpack .../03-libcacard0_1%3a2.8.0-3build4_amd64.deb ...\r\nUnpacking libcacard0:amd64 (1:2.8.0-3build4) ...\r\nSelecting previously unselected package libdaxctl1:amd64.\r\nPreparing to unpack .../04-libdaxctl1_77-2ubuntu2_amd64.deb ...\r\nUnpacking libdaxctl1:amd64 (77-2ubuntu2) ...\r\nSelecting previously unselected package libndctl6:amd64.\r\nPreparing to unpack .../05-libndctl6_77-2ubuntu2_amd64.deb ...\r\nUnpacking libndctl6:amd64 (77-2ubuntu2) ...\r\nSelecting previously unselected package libpmem1:amd64.\r\nPreparing to unpack .../06-libpmem1_1.13.1-1.1ubuntu2_amd64.deb ...\r\nUnpacking libpmem1:amd64 (1.13.1-1.1ubuntu2) ...\r\nSelecting previously unselected package librdmacm1t64:amd64.\r\nPreparing to unpack .../07-librdmacm1t64_50.0-2ubuntu0.2_amd64.deb ...\r\nUnpacking librdmacm1t64:amd64 (50.0-2ubuntu0.2) ...\r\nSelecting previously unselected package liburing2:amd64.\r\nPreparing to unpack .../08-liburing2_2.5-1build1_amd64.deb ...\r\nUnpacking liburing2:amd64 (2.5-1build1) ...\r\nSelecting previously unselected package libusbredirparser1t64:amd64.\r\nPreparing to unpack .../09-libusbredirparser1t64_0.13.0-2.1build1_amd64.deb ...\r\nUnpacking libusbredirparser1t64:amd64 (0.13.0-2.1build1) ...\r\nSelecting previously unselected package libfdt1:amd64.\r\nPreparing to unpack .../10-libfdt1_1.7.0-2build1_amd64.deb ...\r\nUnpacking libfdt1:amd64 (1.7.0-2build1) ...\r\nSelecting previously unselected package qemu-system-common.\r\nPreparing to unpack .../11-qemu-system-common_1%3a8.2.2+ds-0ubuntu1.17_amd64.deb ...\r\nUnpacking qemu-system-common (1:8.2.2+ds-0ubuntu1.17) ...\r\nSelecting previously unselected package qemu-system-data.\r\nPreparing to unpack .../12-qemu-system-data_1%3a8.2.2+ds-0ubuntu1.17_all.deb ...\r\nUnpacking qemu-system-data (1:8.2.2+ds-0ubuntu1.17) ...\r\nSelecting previously unselected package qemu-system-arm.\r\nPreparing to unpack .../13-qemu-system-arm_1%3a8.2.2+ds-0ubuntu1.17_amd64.deb ...\r\nUnpacking qemu-system-arm (1:8.2.2+ds-0ubuntu1.17) ...\r\nSelecting previously unselected package qemu-utils.\r\nPreparing to unpack .../14-qemu-utils_1%3a8.2.2+ds-0ubuntu1.17_amd64.deb ...\r\nUnpacking qemu-utils (1:8.2.2+ds-0ubuntu1.17) ...\r\nSelecting previously unselected package cloud-image-utils.\r\nPreparing to unpack .../15-cloud-image-utils_0.33-1_all.deb ...\r\nUnpacking cloud-image-utils (0.33-1) ...\r\nSelecting previously unselected package qemu-efi-aarch64.\r\nPreparing to unpack .../16-qemu-efi-aarch64_2024.02-2ubuntu0.9_all.deb ...\r\nUnpacking qemu-efi-aarch64 (2024.02-2ubuntu0.9) ...\r\nSetting up genisoimage (9:1.1.11-3.5) ...\r\nSetting up libfdt1:amd64 (1.7.0-2build1) ...\r\nSetting up qemu-efi-aarch64 (2024.02-2ubuntu0.9) ...\r\nSetting up libpcsclite1:amd64 (2.0.3-1build1) ...\r\nSetting up libdaxctl1:amd64 (77-2ubuntu2) ...\r\nSetting up qemu-system-data (1:8.2.2+ds-0ubuntu1.17) ...\r\nSetting up libusbredirparser1t64:amd64 (0.13.0-2.1build1) ...\r\nSetting up libndctl6:amd64 (77-2ubuntu2) ...\r\nSetting up librdmacm1t64:amd64 (50.0-2ubuntu0.2) ...\r\nSetting up libbrlapi0.8:amd64 (6.6-4ubuntu5) ...\r\nSetting up liburing2:amd64 (2.5-1build1) ...\r\nSetting up libpmem1:amd64 (1.13.1-1.1ubuntu2) ...\r\nSetting up libcacard0:amd64 (1:2.8.0-3build4) ...\r\nSetting up qemu-utils (1:8.2.2+ds-0ubuntu1.17) ...\r\nSetting up qemu-system-common (1:8.2.2+ds-0ubuntu1.17) ...\r\nCreated symlink /etc/systemd/system/multi-user.target.wants/qemu-kvm.service \u2192 /usr/lib/systemd/system/qemu-kvm.service.\r\r\nSetting up cloud-image-utils (0.33-1) ...\r\nSetting up qemu-system-arm (1:8.2.2+ds-0ubuntu1.17) ...\r\nProcessing triggers for libc-bin (2.39-0ubuntu8.7) ...\r\nProcessing triggers for man-db (2.12.0-4build2) ...\r\nNot building database; man-db/auto-update is not 'true'.\r\nProcessing triggers for hicolor-icon-theme (0.17-2) ...\r\n\nRunning kernel seems to be up-to-date.\n\nNo services need to be restarted.\n\nNo containers need to be restarted.\n\nNo user sessions are running outdated binaries.\n\nNo VM guests are running outdated hypervisor (qemu) binaries on this host.\nQEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.17)\nCopyright (c) 2003-2023 Fabrice Bellard and the QEMU Project developers\nqemu-img version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.17)\nCopyright (c) 2003-2023 Fabrice Bellard and the QEMU Project developers\nUsage: cloud-localds [ options ] output user-data [meta-data]\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r  0  589M    0  480k    0     0   348k      0  0:28:54  0:00:01  0:28:53  348k\r  1  589M    1 6912k    0     0  2900k      0  0:03:28  0:00:02  0:03:26 2900k\r 13  589M   13 78.7M    0     0  23.3M      0  0:00:25  0:00:03  0:00:22 23.2M\r 38  589M   38  224M    0     0  51.2M      0  0:00:11  0:00:04  0:00:07 51.2M\r 45  589M   45  266M    0     0  49.4M      0  0:00:11  0:00:05  0:00:06 53.7M\r 52  589M   52  308M    0     0  48.3M      0  0:00:12  0:00:06  0:00:06 61.5M\r 61  589M   61  364M    0     0  48.9M      0  0:00:12  0:00:07  0:00:05 70.5M\r 73  589M   73  436M    0     0  51.7M      0  0:00:11  0:00:08  0:00:03 70.7M\r 90  589M   90  531M    0     0  56.5M      0  0:00:10  0:00:09  0:00:01 61.1M\r100  589M  100  589M    0     0  59.6M      0  0:00:09  0:00:09 --:--:-- 71.9M\n{\n  \"androidHardwareValidated\": false,\n  \"evidenceClass\": \"host-qemu-preflight\",\n  \"firmware\": {\n    \"code\": {\n      \"copiedSha256\": \"4a4cb7f6d8106bb2a7dd8c763fab14b1810152136fc4304e5b728f0043e84f12\",\n      \"package\": \"qemu-efi-aarch64=2024.02-2ubuntu0.9\",\n      \"resolvedPath\": \"/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd\",\n      \"sha256\": \"4a4cb7f6d8106bb2a7dd8c763fab14b1810152136fc4304e5b728f0043e84f12\",\n      \"sizeBytes\": 67108864,\n      \"sourcePath\": \"/usr/share/AAVMF/AAVMF_CODE.fd\",\n      \"sourcePathSymlink\": true\n    },\n    \"vars\": {\n      \"copiedSha256\": \"b3b855c5a80310168051164986855692d1bdb06e67619856177965cd87c6774f\",\n      \"package\": \"qemu-efi-aarch64=2024.02-2ubuntu0.9\",\n      \"resolvedPath\": \"/usr/share/AAVMF/AAVMF_VARS.fd\",\n      \"sha256\": \"b3b855c5a80310168051164986855692d1bdb06e67619856177965cd87c6774f\",\n      \"sizeBytes\": 67108864,\n      \"sourcePath\": \"/usr/share/AAVMF/AAVMF_VARS.fd\",\n      \"sourcePathSymlink\": false\n    }\n  },\n  \"guestMeshValidated\": false,\n  \"image\": {\n    \"sha256\": \"2eaec7286c49fdea713dddabcf5012cafa7097a658e916acb48f4bc5fdc8e419\",\n    \"sizeBytes\": 618098176,\n    \"url\": \"https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img\"\n  },\n  \"lab\": {\n    \"memoryMiB\": 2048,\n    \"qemuCommand\": [\n      \"/usr/bin/qemu-system-aarch64\",\n      \"-name\",\n      \"nodehost-h02a\",\n      \"-machine\",\n      \"virt\",\n      \"-cpu\",\n      \"max\",\n      \"-accel\",\n      \"tcg,thread=multi\",\n      \"-smp\",\n      \"2\",\n      \"-m\",\n      \"2048\",\n      \"-nographic\",\n      \"-nodefaults\",\n      \"-no-user-config\",\n      \"-drive\",\n      \"if=pflash,format=raw,readonly=on,file=$STATE/AAVMF_CODE.fd\",\n      \"-drive\",\n      \"if=pflash,format=raw,file=$STATE/AAVMF_VARS.fd\",\n      \"-drive\",\n      \"if=none,id=system,format=qcow2,file=$STATE/system.qcow2\",\n      \"-device\",\n      \"virtio-blk-pci,drive=system\",\n      \"-drive\",\n      \"if=none,id=data,format=raw,file=$STATE/data.raw\",\n      \"-device\",\n      \"virtio-blk-pci,drive=data\",\n      \"-drive\",\n      \"if=none,id=seed,format=raw,readonly=on,file=$STATE/seed.img\",\n      \"-device\",\n      \"virtio-blk-pci,drive=seed\",\n      \"-netdev\",\n      \"user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22\",\n      \"-device\",\n      \"virtio-net-pci,netdev=net0,romfile=\",\n      \"-qmp\",\n      \"unix:$STATE/qmp.sock,server=on,wait=off\",\n      \"-monitor\",\n      \"none\",\n      \"-serial\",\n      \"file:$STATE/serial.log\"\n    ],\n    \"sshHost\": \"127.0.0.1\",\n    \"sshPort\": 2222,\n    \"systemDiskMode\": \"copied-writable\",\n    \"vcpus\": 2\n  },\n  \"physicalGateEligible\": false,\n  \"profile\": {\n    \"id\": \"ubuntu-2404-arm64-uefi\",\n    \"path\": \"profiles/ubuntu-2404-arm64-uefi/profile.json\",\n    \"sha256\": \"d0b8ef228d3a44a5dfad073d5ff18a0b0d907f41fb4791ffba111c2a3cd3fb8f\"\n  },\n  \"schemaVersion\": 1,\n  \"source\": {\n    \"commit\": \"55f6a3119d32656c7ee0f5c53bc46b4f6564b216\",\n    \"dirtyTracked\": false\n  },\n  \"testUserData\": {\n    \"format\": \"text/x-shellscript\",\n    \"qualificationSudo\": \"nodeadmin-nopasswd-test-only\",\n    \"sha256\": \"36d9835d87d2c4d9a80aa7f3499373696755c9ed386272a3ae21d3f19b60cbef\"\n  },\n  \"tools\": {\n    \"cloudLocalds\": {\n      \"exitCode\": 0,\n      \"path\": \"/usr/bin/cloud-localds\",\n      \"version\": \"Usage: cloud-localds [ options ] output user-data [meta-data]\"\n    },\n    \"qemu\": {\n      \"exitCode\": 0,\n      \"path\": \"/usr/bin/qemu-system-aarch64\",\n      \"version\": \"QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.17)\"\n    },\n    \"qemuImg\": {\n      \"exitCode\": 0,\n      \"path\": \"/usr/bin/qemu-img\",\n      \"version\": \"qemu-img version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.17)\"\n    }\n  },\n  \"vendorData\": {\n    \"path\": \"profiles/guest-init/ubuntu/vendor-data.yaml\",\n    \"renderedSha256\": \"b3be7c2868885e397a309ae9aed404687c7916d4f9c08350c9cd853c6e190292\"\n  }\n}\nstarted canonical H02A host-QEMU lab pid=3190 ssh=127.0.0.1:2222\nSSH did not become ready within 900s\nH02A failed; diagnostic state retained under /home/runner/work/salvagenet-mvp/salvagenet-mvp/source/.local/qemu-lab\nmake: *** [Makefile:208: qemu-lab-e2e] Error 1\n",
+  "schemaVersion": 1,
+  "sourceCommit": "55f6a3119d32656c7ee0f5c53bc46b4f6564b216",
+  "status": "FAIL",
+  "workflowRunId": "30632887361"
+}
