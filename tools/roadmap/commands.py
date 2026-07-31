@@ -3,20 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import os
 from pathlib import Path
 import sys
 
 from roadmap import GitHubClient, RoadmapError, bootstrap, load_seed, validate_seed
-
-
-def normalized_seed() -> dict:
-    seed = copy.deepcopy(load_seed())
-    for item in seed["items"]:
-        item["contextPaths"] = [value.rstrip("/") for value in item["contextPaths"]]
-    return seed
 
 
 def main() -> int:
@@ -28,7 +20,7 @@ def main() -> int:
     apply_parser.add_argument("--state-output", type=Path)
     args = parser.parse_args()
 
-    seed = normalized_seed()
+    seed = load_seed()
     if args.command == "validate-seed":
         print(json.dumps(validate_seed(seed), indent=2, sort_keys=True))
         return 0
