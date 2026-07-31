@@ -1,0 +1,202 @@
+name: h02a-fix-cloud-final-deadlock
+
+on:
+  push:
+    branches:
+      - automation/H02A-cloud-final-deadlock
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: 953070de36e3f6d724ed2393327b0c7dfab2b511
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+  CONTROL_BRANCH: automation/H02A-cloud-final-deadlock
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out control branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - name: Check out exact PR branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Apply, validate, and record exact fix
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-cloud-final-deadlock.log"
+          set +e
+          (
+            set -euo pipefail
+            cd source
+            test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+            python3 - <<'PY'
+          from pathlib import Path
+
+          def load(path: str) -> str:
+              return Path(path).read_text(encoding='utf-8')
+
+          def save(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding='utf-8')
+
+          def once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          path = 'profiles/guest-init/ubuntu/vendor-data.yaml'
+          text = load(path)
+          text = once(
+              text,
+              '  - [systemctl, enable, --now, nodehost-bootstrap.service]\n',
+              '  - [systemctl, enable, nodehost-bootstrap.service]\n  - [systemctl, start, --no-block, nodehost-bootstrap.service]\n',
+              'nonblocking bootstrap start',
+          )
+          save(path, text)
+
+          path = 'lab/qemu/scripts/h02a-prepare.py'
+          text = load(path)
+          marker = '''    if canonical_user not in text or "ssh_authorized_keys:" in text:
+              raise LabError("canonical vendor-data nodeadmin contract changed")
+              return destination
+          '''
+          replacement = '''    if canonical_user not in text or "ssh_authorized_keys:" in text:
+              raise LabError("canonical vendor-data nodeadmin contract changed")
+              required_bootstrap_commands = (
+                  "- [systemctl, enable, nodehost-bootstrap.service]",
+                  "- [systemctl, start, --no-block, nodehost-bootstrap.service]",
+              )
+              if "- [systemctl, enable, --now, nodehost-bootstrap.service]" in text:
+                  raise LabError("canonical vendor-data deadlocks cloud-final with enable --now")
+              missing = [command for command in required_bootstrap_commands if command not in text]
+              if missing:
+                  raise LabError(f"canonical vendor-data lost nonblocking bootstrap activation: {missing}")
+              return destination
+          '''
+          text = once(text, marker, replacement, 'vendor activation validation')
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_lab.py'
+          text = load(path)
+          marker = '''        helper = HELPER.read_text(encoding="utf-8")
+              self.assertNotIn("/current/", pin)
+          '''
+          replacement = '''        helper = HELPER.read_text(encoding="utf-8")
+              vendor = (ROOT / "profiles/guest-init/ubuntu/vendor-data.yaml").read_text(encoding="utf-8")
+              self.assertNotIn("/current/", pin)
+          '''
+          text = once(text, marker, replacement, 'vendor fixture')
+          marker = '''        self.assertIn('"virtio-net-pci,netdev=net0,romfile="', helper)
+              for script in (
+          '''
+          replacement = '''        self.assertIn('"virtio-net-pci,netdev=net0,romfile="', helper)
+              self.assertIn("- [systemctl, enable, nodehost-bootstrap.service]", vendor)
+              self.assertIn("- [systemctl, start, --no-block, nodehost-bootstrap.service]", vendor)
+              self.assertNotIn("enable, --now, nodehost-bootstrap.service", vendor)
+              self.assertIn("deadlocks cloud-final with enable --now", helper)
+              for script in (
+          '''
+          text = once(text, marker, replacement, 'deadlock regression assertions')
+          save(path, text)
+
+          path = 'agents/tasks/H02A/task.md'
+          text = load(path)
+          marker = '''- The explicitly test-only user-data is deterministic multipart MIME: a `users`-only cloud-config part mirrors canonical `nodeadmin`, installs the ephemeral key during the config stage, and changes only the disposable qualification account from a locked password to the non-authenticating `NP` sentinel. A final shell part adds qualification-only sudo, SSH hardening, and readiness. It must not override canonical vendor package, `write_files`, or `runcmd` work.
+          '''
+          replacement = marker + '''- Canonical vendor-data must not synchronously start `nodehost-bootstrap.service` from `cloud-final.service` while the unit is ordered `After=cloud-final.service`. It enables the unit and queues a separate `systemctl start --no-block`, preserving same-boot activation without an ordering deadlock.
+          '''
+          text = once(text, marker, replacement, 'task phase finding')
+          marker = '''- NoCloud uses canonical rendered vendor-data plus explicitly test-only two-part MIME data. The `users`-only cloud-config part installs the ephemeral SSH key during the config stage and uses `lock_passwd: false` plus the non-authenticating `NP` sentinel only for the disposable qualification account, without replacing vendor package, `write_files`, or `runcmd` work. The final shell part applies qualification-only hardening/readiness. `cloud-init status --wait` completes and no unresolved template markers remain.
+          '''
+          replacement = marker + '''- Canonical bootstrap activation cannot block cloud-final: the service is enabled persistently and its same-boot start is queued with `systemctl start --no-block`; `systemctl enable --now` is rejected by H02A preflight validation.
+          '''
+          text = once(text, marker, replacement, 'task acceptance criterion')
+          save(path, text)
+
+          path = 'docs/research/experiments/H02A.md'
+          text = load(path)
+          marker = '''- Canonical package/final work can continue beyond initial SSH availability. The ephemeral key therefore lives in a `users`-only config-stage MIME part, while the host waits separately for cloud-init final completion before requiring final hardening/readiness.
+          '''
+          replacement = marker + '''- The exact-head serial diagnostic proved SSH and the ephemeral key were already working. Cloud-init instead deadlocked after `systemctl enable --now nodehost-bootstrap.service`: the command ran inside `cloud-final.service`, while the unit was ordered `After=cloud-final.service`. Canonical vendor-data now enables the unit and queues `systemctl start --no-block`, and preparation rejects the deadlocking form.
+          '''
+          text = once(text, marker, replacement, 'experiment serial finding')
+          save(path, text)
+
+          path = 'lab/qemu/README.md'
+          text = load(path)
+          marker = '''- renders canonical Ubuntu vendor-data with the production renderer;
+          '''
+          replacement = marker + '''- verifies canonical bootstrap activation cannot deadlock cloud-final: the unit is enabled persistently and started through a separate nonblocking request;
+          '''
+          text = once(text, marker, replacement, 'lab preparation contract')
+          marker = '''`make qemu-lab-start` executes the recorded `qemu-command.json`. It verifies that the command still matches preflight and refuses stale PID files that point at an unrelated process.
+          '''
+          replacement = '''The canonical bootstrap unit declares `After=cloud-final.service`, so vendor-data must never call `systemctl enable --now` from cloud-final's own `runcmd`. The laboratory requires `systemctl enable` followed by `systemctl start --no-block`; the request returns immediately and systemd may start the conditioned unit after cloud-final has completed.
+
+          ''' + marker
+          text = once(text, marker, replacement, 'lab deadlock explanation')
+          save(path, text)
+          PY
+            make validate
+            make test-guest
+            python3 tools/agents/verify-scope.py H02A
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          new_head="$EXPECTED_HEAD"
+          if [[ $rc -eq 0 ]]; then
+            cd source
+            expected=(
+              agents/tasks/H02A/task.md
+              docs/research/experiments/H02A.md
+              lab/qemu/README.md
+              lab/qemu/scripts/h02a-prepare.py
+              profiles/guest-init/ubuntu/vendor-data.yaml
+              tests/guest/test_h02a_lab.py
+            )
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'guest(H02A): avoid cloud-final bootstrap deadlock'
+            git push origin "HEAD:$TARGET_BRANCH"
+            new_head=$(git rev-parse HEAD)
+            cd ..
+          fi
+
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          log = Path(sys.argv[1])
+          result = {
+              'schemaVersion': 1,
+              'exitCode': int(sys.argv[2]),
+              'productHead': sys.argv[3],
+              'logTail': log.read_bytes()[-32768:].decode('utf-8', 'replace'),
+          }
+          target = Path('control/automation/h02a-cloud-final-deadlock-result.json')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-cloud-final-deadlock-result.json
+          git -C control commit -m 'automation: record H02A cloud-final fix result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
