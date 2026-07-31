@@ -21,6 +21,7 @@ BOOT_IDS = {
     "guest-reboot": "22222222-2222-2222-2222-222222222222",
     "qemu-restart": "33333333-3333-3333-3333-333333333333",
 }
+HOST_KEY = "256 SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA [127.0.0.1]:2222 (ED25519)"
 
 
 class H02AEvidenceTests(unittest.TestCase):
@@ -40,10 +41,37 @@ class H02AEvidenceTests(unittest.TestCase):
             "physicalGateEligible": False,
             "guestMeshValidated": False,
             "source": {"commit": self.commit, "dirtyTracked": False},
+            "profile": {
+                "id": "ubuntu-2404-arm64-uefi",
+                "path": "profiles/ubuntu-2404-arm64-uefi/profile.json",
+                "sha256": "1" * 64,
+            },
+            "vendorData": {
+                "path": "profiles/guest-init/ubuntu/vendor-data.yaml",
+                "renderedSha256": "2" * 64,
+            },
+            "testUserData": {"format": "text/x-shellscript", "sha256": "3" * 64},
             "image": {
-                "url": "https://example.invalid/immutable.img",
+                "url": "https://example.invalid/releases/20260725/immutable.img",
                 "sha256": evidence.sha256_file(self.base),
                 "sizeBytes": self.base.stat().st_size,
+            },
+            "firmware": {
+                "code": {"sourcePath": "/usr/share/AAVMF/AAVMF_CODE.fd", "sha256": "4" * 64, "sizeBytes": 4096},
+                "vars": {"sourcePath": "/usr/share/AAVMF/AAVMF_VARS.fd", "sha256": "5" * 64, "sizeBytes": 4096},
+            },
+            "tools": {
+                "qemu": {"path": "/usr/bin/qemu-system-aarch64", "version": "qemu", "exitCode": 0},
+                "qemuImg": {"path": "/usr/bin/qemu-img", "version": "qemu-img", "exitCode": 0},
+                "cloudLocalds": {"path": "/usr/bin/cloud-localds", "version": "cloud-localds", "exitCode": 0},
+            },
+            "lab": {
+                "memoryMiB": 2048,
+                "vcpus": 2,
+                "sshHost": "127.0.0.1",
+                "sshPort": 2222,
+                "systemDiskMode": "copied-writable",
+                "qemuCommand": ["/usr/bin/qemu-system-aarch64", "-name", "nodehost-h02a"],
             },
         }
         (self.state / "preflight.json").write_text(json.dumps(preflight), encoding="utf-8")
@@ -60,6 +88,8 @@ class H02AEvidenceTests(unittest.TestCase):
                     {
                         "keyOnlyLoopbackSsh": True,
                         "rootKeyLoginRejected": True,
+                        "passwordOnlyClientRejected": True,
+                        "keyboardInteractiveOnlyClientRejected": True,
                         "passwordAuthenticationDisabled": True,
                         "keyboardInteractiveDisabled": True,
                         "rootLoginDisabled": True,
@@ -74,9 +104,14 @@ class H02AEvidenceTests(unittest.TestCase):
             )
             (self.state / f"readiness-{stage}.txt").write_text("h02a-ready\n", encoding="utf-8")
             (self.state / f"boot-id-{stage}.txt").write_text(boot_id + "\n", encoding="utf-8")
-            (self.state / f"serial-{stage}.log").write_text(
-                "safe log tskey-auth-AAAAAAAAAAAAAAAA\n", encoding="utf-8"
+            (self.state / f"host-key-{stage}.txt").write_text(HOST_KEY + "\n", encoding="utf-8")
+            (self.state / f"guest-tools-{stage}.txt").write_text(
+                "cloud-init: cloud-init 24.1\nopenssh-client: OpenSSH_9.6\nkernel: Linux 6.8 aarch64\n",
+                encoding="utf-8",
             )
+            for name in evidence.LOG_NAMES:
+                content = "safe log tskey-auth-AAAAAAAAAAAAAAAA\n" if name == "serial" else ""
+                (self.state / f"{name}-{stage}.log").write_text(content, encoding="utf-8")
 
     def create(self) -> Path:
         with mock.patch.object(evidence.dt, "datetime", wraps=evidence.dt.datetime) as clock:
@@ -90,12 +125,24 @@ class H02AEvidenceTests(unittest.TestCase):
         self.assertFalse(value["androidHardwareValidated"])
         self.assertTrue(value["restartChecks"]["guestRebootChangedBootId"])
         self.assertTrue(value["restartChecks"]["qemuStopStartChangedBootId"])
+        self.assertTrue(value["restartChecks"]["sshHostKeyStableAcrossRestarts"])
+        self.assertEqual(9, len(value["logs"]))
         self.assertIn("[REDACTED]", value["logs"]["initial:serial"]["tail"])
         self.assertNotIn("tskey-auth-", value["logs"]["initial:serial"]["tail"])
 
     def test_duplicate_boot_id_is_rejected(self) -> None:
         (self.state / "boot-id-qemu-restart.txt").write_text(BOOT_IDS["guest-reboot"] + "\n", encoding="utf-8")
         with self.assertRaisesRegex(evidence.EvidenceError, "distinct boot IDs"):
+            evidence.create_evidence(self.state)
+
+    def test_changed_host_key_is_rejected(self) -> None:
+        (self.state / "host-key-qemu-restart.txt").write_text(HOST_KEY.replace("AAAA", "BBBB") + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(evidence.EvidenceError, "host key changed"):
+            evidence.create_evidence(self.state)
+
+    def test_missing_stage_log_is_rejected(self) -> None:
+        (self.state / "qemu.stderr-guest-reboot.log").unlink()
+        with self.assertRaisesRegex(evidence.EvidenceError, "log path is missing"):
             evidence.create_evidence(self.state)
 
     def test_inferred_auth_or_unbounded_scan_is_rejected(self) -> None:
@@ -125,6 +172,13 @@ class H02AEvidenceTests(unittest.TestCase):
         value = json.loads(path.read_text(encoding="utf-8"))
         self.assertTrue(value["cleanup"]["completed"])
         self.assertEqual(evidence.sha256_file(self.base), value["cleanup"]["baseImageSha256"])
+
+    def test_symlinked_evidence_path_is_rejected(self) -> None:
+        path = self.create()
+        link = self.state / "evidence-link.json"
+        link.symlink_to(path)
+        with self.assertRaisesRegex(evidence.EvidenceError, "must not be a symlink"):
+            evidence.finalize_cleanup(self.state, link)
 
     def test_dirty_preflight_is_not_reviewable(self) -> None:
         value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
