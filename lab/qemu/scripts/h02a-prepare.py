@@ -220,7 +220,8 @@ users:
   - name: nodeadmin
     groups: [sudo]
     shell: /bin/bash
-    lock_passwd: true
+    lock_passwd: false
+    hashed_passwd: "NP"
     ssh_authorized_keys:
       - {key}
 """
@@ -558,6 +559,7 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
             "format": "multipart/mixed",
             "parts": ["text/cloud-config", "text/x-shellscript"],
             "earlySshKey": True,
+            "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",
             "sha256": sha256_file(user),
             "qualificationSudo": "nodeadmin-nopasswd-test-only",
         },

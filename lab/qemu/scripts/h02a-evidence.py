@@ -217,6 +217,7 @@ def validate_preflight(preflight: Any) -> dict[str, Any]:
         or user.get("format") != "multipart/mixed"
         or user.get("parts") != ["text/cloud-config", "text/x-shellscript"]
         or user.get("earlySshKey") is not True
+        or user.get("qualificationAccountPassword") != "unlocked-non-authenticating-NP-sentinel"
         or user.get("qualificationSudo") != "nodeadmin-nopasswd-test-only"
     ):
         raise EvidenceError("preflight test user-data contract is invalid")

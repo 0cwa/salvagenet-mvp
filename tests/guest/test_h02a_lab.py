@@ -111,7 +111,8 @@ class H02ALabTests(unittest.TestCase):
             "name: nodeadmin",
             "groups: [sudo]",
             "shell: /bin/bash",
-            "lock_passwd: true",
+            "lock_passwd: false",
+            'hashed_passwd: "NP"',
             "ssh_authorized_keys:",
             key,
         ):
@@ -181,6 +182,7 @@ class H02ALabTests(unittest.TestCase):
         self.assertIn("sha256_file(system) != lock", helper)
         self.assertIn('"format": "multipart/mixed"', helper)
         self.assertIn('"earlySshKey": True', helper)
+        self.assertIn('"qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel"', helper)
         self.assertIn('"qualificationSudo": "nodeadmin-nopasswd-test-only"', helper)
         self.assertIn('"virtio-net-pci,netdev=net0,romfile="', helper)
         for script in (

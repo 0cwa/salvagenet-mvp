@@ -54,6 +54,7 @@ class H02AEvidenceTests(unittest.TestCase):
                 "format": "multipart/mixed",
                 "parts": ["text/cloud-config", "text/x-shellscript"],
                 "earlySshKey": True,
+                "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",
                 "sha256": "3" * 64,
                 "qualificationSudo": "nodeadmin-nopasswd-test-only",
             },
@@ -179,12 +180,16 @@ class H02AEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(evidence.EvidenceError, "closed contract"):
             evidence.create_evidence(self.state)
 
-    def test_unrecorded_qualification_sudo_is_rejected(self) -> None:
-        value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
-        value["testUserData"].pop("qualificationSudo")
-        (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
-        with self.assertRaisesRegex(evidence.EvidenceError, "user-data contract"):
-            evidence.create_evidence(self.state)
+    def test_unrecorded_qualification_contract_is_rejected(self) -> None:
+        original = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
+        for field in ("qualificationSudo", "qualificationAccountPassword"):
+            with self.subTest(field=field):
+                value = json.loads(json.dumps(original))
+                value["testUserData"].pop(field)
+                (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")
+                with self.assertRaisesRegex(evidence.EvidenceError, "user-data contract"):
+                    evidence.create_evidence(self.state)
+        (self.state / "preflight.json").write_text(json.dumps(original), encoding="utf-8")
 
     def test_missing_resolved_firmware_path_is_rejected(self) -> None:
         value = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))
