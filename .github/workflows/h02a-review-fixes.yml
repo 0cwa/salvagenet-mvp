@@ -1,0 +1,501 @@
+name: h02a-review-fixes
+
+on:
+  push:
+    branches:
+      - automation/H02A-review-fixes
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: cea72d1d6d6593912f2e4045f7f45b8c2ed227cd
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+  CONTROL_BRANCH: automation/H02A-review-fixes
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out control branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - name: Check out exact product branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Apply review fixes, validate, and record
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-review-fixes.log"
+          set +e
+          (
+            set -euo pipefail
+            cd source
+            test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+            python3 - <<'PY'
+          from pathlib import Path
+
+          def load(path: str) -> str:
+              return Path(path).read_text(encoding='utf-8')
+
+          def save(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding='utf-8')
+
+          def once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          # Canonical base-10 port parsing and a boot-ID based reboot handshake.
+          path = 'lab/qemu/scripts/common.sh'
+          text = load(path)
+          text = once(
+              text,
+              '''if [[ ! $ssh_port =~ ^[0-9]+$ ]] || (( ssh_port < 1024 || ssh_port > 65535 )); then
+            echo "NODEHOST_QEMU_LAB_SSH_PORT must be in 1024..65535" >&2
+            exit 2
+          fi
+          ''',
+              '''if [[ ! $ssh_port =~ ^[1-9][0-9]*$ ]]; then
+            echo "NODEHOST_QEMU_LAB_SSH_PORT must be one canonical decimal integer" >&2
+            exit 2
+          fi
+          ssh_port=$((10#$ssh_port))
+          if (( ssh_port < 1024 || ssh_port > 65535 )); then
+            echo "NODEHOST_QEMU_LAB_SSH_PORT must be in 1024..65535" >&2
+            exit 2
+          fi
+          ''',
+              'SSH port validation',
+          )
+          boot_wait = '''wait_for_boot_id_change() {
+            local previous=$1 timeout_seconds=${2:-$ssh_wait_seconds}
+            local deadline=$((SECONDS + timeout_seconds)) current
+            while (( SECONDS < deadline )); do
+              current=$(ssh_nodeadmin 15 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null || true)
+              if [[ $current =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ && $current != "$previous" ]]; then
+                printf '%s\n' "$current"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "guest boot ID did not change within ${timeout_seconds}s" >&2
+            return 1
+          }
+
+          '''
+          text = once(text, 'read_qemu_pid() {\n', boot_wait + 'read_qemu_pid() {\n', 'boot ID wait helper')
+          save(path, text)
+
+          path = 'lab/qemu/scripts/e2e.sh'
+          text = load(path)
+          text = once(
+              text,
+              '''ssh_nodeadmin 15 'sudo -n systemctl reboot' >/dev/null 2>&1 || true
+          wait_for_ssh_down 90
+          wait_for_ssh "$ssh_wait_seconds"
+          "$(dirname "$0")/smoke.sh" guest-reboot
+          guest_reboot=$(cat "$state/boot-id-guest-reboot.txt")
+          [[ $guest_reboot != "$initial_boot" ]] || {
+            echo "guest reboot did not change the boot ID" >&2
+            exit 1
+          }
+          ''',
+              '''ssh_nodeadmin 15 'sudo -n systemctl --no-block reboot' >/dev/null
+          guest_reboot=$(wait_for_boot_id_change "$initial_boot" "$ssh_wait_seconds")
+          "$(dirname "$0")/smoke.sh" guest-reboot
+          recorded_guest_reboot=$(cat "$state/boot-id-guest-reboot.txt")
+          [[ $recorded_guest_reboot == "$guest_reboot" ]] || {
+            echo "guest reboot boot ID changed during stage verification" >&2
+            exit 1
+          }
+          ''',
+              'deterministic reboot handshake',
+          )
+          text = once(
+              text,
+              '''ssh_nodeadmin 15 'sudo -n systemctl poweroff' >/dev/null 2>&1 || true
+          wait_for_ssh_down 90 || true
+          wait_for_qemu_exit 180
+          ''',
+              '''ssh_nodeadmin 15 'sudo -n systemctl --no-block poweroff' >/dev/null
+          wait_for_qemu_exit 180
+          ''',
+              'deterministic poweroff request',
+          )
+          save(path, text)
+
+          # Malformed evidence must fail through EvidenceError, never traceback.
+          path = 'lab/qemu/scripts/h02a-evidence.py'
+          text = once(
+              load(path),
+              '''    evidence = read_json(evidence_path)
+              preflight = validate_preflight(evidence.get("preflight"))
+          ''',
+              '''    evidence = read_json(evidence_path)
+              if not isinstance(evidence, dict):
+                  raise EvidenceError("evidence document is not an object")
+              preflight = validate_preflight(evidence.get("preflight"))
+          ''',
+              'evidence object guard',
+          )
+          save(path, text)
+
+          # Explicit remote scopes and safe stdin execution.
+          path = 'lab/qemu/scripts/h02a-scan.py'
+          text = load(path)
+          text = once(
+              text,
+              '''SCRIPT_PATH = Path(__file__).resolve()
+          ROOT = SCRIPT_PATH.parents[3] if len(SCRIPT_PATH.parents) > 3 else Path.cwd()
+          ''',
+              '''SOURCE_NAME = globals().get("__file__")
+          SCRIPT_PATH = (
+              Path(SOURCE_NAME).resolve()
+              if isinstance(SOURCE_NAME, str) and SOURCE_NAME not in {"<stdin>", "-"}
+              else None
+          )
+          ROOT = SCRIPT_PATH.parents[3] if SCRIPT_PATH is not None and len(SCRIPT_PATH.parents) > 3 else Path.cwd()
+          ''',
+              'stdin source fallback',
+          )
+          text = once(
+              text,
+              '''REMOTE_SCANNED_PATHS = (
+              "/var/lib/cloud",
+              "/var/log/cloud-init.log",
+              "/var/log/cloud-init-output.log",
+              "/run",
+              "/tmp",
+              "/proc/*/environ",
+              "/proc/*/comm",
+          )
+          ''',
+              '''REMOTE_WALKED_ROOTS = (
+              "/var/lib/cloud",
+              "/var/log/cloud-init.log",
+              "/var/log/cloud-init-output.log",
+              "/run",
+              "/tmp",
+          )
+          REMOTE_PROCESS_SCOPES = ("/proc/*/environ", "/proc/*/comm")
+          REMOTE_SCANNED_PATHS = REMOTE_WALKED_ROOTS + REMOTE_PROCESS_SCOPES
+          ''',
+              'named remote scan scopes',
+          )
+          text = once(
+              text,
+              '    roots = [Path(value) for value in REMOTE_SCANNED_PATHS[:5]]\n',
+              '    roots = [Path(value) for value in REMOTE_WALKED_ROOTS]\n',
+              'walked remote roots',
+          )
+          save(path, text)
+
+          # Tie serialized SSH-auth facts to the checks that actually ran.
+          path = 'lab/qemu/scripts/smoke.sh'
+          text = load(path)
+          text = once(
+              text,
+              '''wait_for_ssh "$ssh_wait_seconds"
+          ssh_nodeadmin "$cloud_init_wait_seconds" 'cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
+          ssh_nodeadmin 15 'sudo -n true'
+
+          ''',
+              '''auth_checks="$state/ssh-auth-checks-$stage.env"
+          : > "$auth_checks"
+          chmod 0600 "$auth_checks"
+          record_check() { printf '%s=true\n' "$1" >> "$auth_checks"; }
+
+          wait_for_ssh "$ssh_wait_seconds"
+          record_check keyOnlyLoopbackSsh
+          ssh_nodeadmin "$cloud_init_wait_seconds" 'cloud-init status --wait --long' > "$state/cloud-init-$stage.txt"
+          ssh_nodeadmin 15 'sudo -n true'
+          record_check qualificationSudoNoninteractive
+
+          ''',
+              'SSH check recorder setup',
+          )
+          text = once(
+              text,
+              '''if ssh_root 12 true >/dev/null 2>&1; then
+            echo "root key login unexpectedly succeeded" >&2
+            exit 1
+          fi
+          if ssh_single_method password 12 >/dev/null 2>&1; then
+            echo "password-only SSH unexpectedly succeeded" >&2
+            exit 1
+          fi
+          if ssh_single_method keyboard-interactive 12 >/dev/null 2>&1; then
+            echo "keyboard-interactive-only SSH unexpectedly succeeded" >&2
+            exit 1
+          fi
+          ''',
+              '''if ssh_root 12 true >/dev/null 2>&1; then
+            echo "root key login unexpectedly succeeded" >&2
+            exit 1
+          fi
+          record_check rootKeyLoginRejected
+          if ssh_single_method password 12 >/dev/null 2>&1; then
+            echo "password-only SSH unexpectedly succeeded" >&2
+            exit 1
+          fi
+          record_check passwordOnlyClientRejected
+          if ssh_single_method keyboard-interactive 12 >/dev/null 2>&1; then
+            echo "keyboard-interactive-only SSH unexpectedly succeeded" >&2
+            exit 1
+          fi
+          record_check keyboardInteractiveOnlyClientRejected
+          ''',
+              'record rejected SSH methods',
+          )
+          text = once(
+              text,
+              'python3 - "$state/sshd-$stage.txt" "$state/ssh-auth-$stage.json" <<\'PY\'\n',
+              'python3 - "$state/sshd-$stage.txt" "$state/ssh-auth-$stage.json" "$auth_checks" <<\'PY\'\n',
+              'pass recorded checks to JSON writer',
+          )
+          old_result = '''result = {
+              'keyOnlyLoopbackSsh': True,
+              'rootKeyLoginRejected': True,
+              'passwordOnlyClientRejected': True,
+              'keyboardInteractiveOnlyClientRejected': True,
+              'passwordAuthenticationDisabled': True,
+              'keyboardInteractiveDisabled': True,
+              'rootLoginDisabled': True,
+              'qualificationSudoNoninteractive': True,
+          }
+          '''
+          new_result = '''observed = dict(
+              line.split('=', 1)
+              for line in Path(sys.argv[3]).read_text(encoding='utf-8').splitlines()
+              if line.strip()
+          )
+          required = (
+              'keyOnlyLoopbackSsh',
+              'rootKeyLoginRejected',
+              'passwordOnlyClientRejected',
+              'keyboardInteractiveOnlyClientRejected',
+              'qualificationSudoNoninteractive',
+          )
+          missing = [name for name in required if observed.get(name) != 'true']
+          if missing:
+              raise SystemExit(f'H02A SSH checks were not recorded: {missing}')
+          result = {name: True for name in required}
+          result.update(
+              {
+                  'passwordAuthenticationDisabled': 'passwordauthentication no' in policy,
+                  'keyboardInteractiveDisabled': 'kbdinteractiveauthentication no' in policy,
+                  'rootLoginDisabled': 'permitrootlogin no' in policy,
+              }
+          )
+          '''
+          text = once(text, old_result, new_result, 'measured SSH auth JSON')
+          text = once(text, 'PY\n\nremote_scan=', 'PY\nrm -f "$auth_checks"\n\nremote_scan=', 'remove transient check record')
+          save(path, text)
+
+          # Verify quiescence before discarding the PID and revalidate deletion confinement.
+          path = 'lab/qemu/scripts/stop.sh'
+          text = load(path)
+          text = once(
+              text,
+              '''rm -f "$state/qemu.pid" "$state/qmp.sock"
+          qemu_running && { echo "QEMU remains live after stop" >&2; exit 1; }
+
+          if [[ $cleanup == true ]]; then
+            python3 - "$state" "$evidence_path" <<'PY'
+          ''',
+              '''if [[ -f "$state/qemu.pid" && ! -L "$state/qemu.pid" ]]; then
+            final_pid=$(read_qemu_pid) || { echo "invalid final H02A QEMU pid file" >&2; exit 2; }
+            if kill -0 "$final_pid" 2>/dev/null; then
+              qemu_pid_matches "$final_pid" || {
+                echo "live process identity differs before cleanup" >&2
+                exit 2
+              }
+              echo "QEMU remains live after stop" >&2
+              exit 1
+            fi
+          fi
+          rm -f "$state/qemu.pid" "$state/qmp.sock"
+
+          if [[ $cleanup == true ]]; then
+            python3 - "$root" "$state" "$evidence_path" <<'PY'
+          ''',
+              'quiescence before PID removal',
+          )
+          text = once(
+              text,
+              '''state = Path(sys.argv[1]).resolve(strict=True)
+          raw_evidence = Path(sys.argv[2]).expanduser()
+          ''',
+              '''root = Path(sys.argv[1]).resolve(strict=True)
+          local_root_path = root / '.local'
+          if local_root_path.is_symlink():
+              raise SystemExit('repository .local directory must not be a symlink')
+          local_root = local_root_path.resolve(strict=True)
+          raw_state = Path(sys.argv[2]).expanduser()
+          if not raw_state.is_absolute():
+              raw_state = Path.cwd() / raw_state
+          if raw_state.is_symlink():
+              raise SystemExit('cleanup state directory must not be a symlink')
+          state = raw_state.resolve(strict=True)
+          try:
+              relative = state.relative_to(local_root)
+          except ValueError:
+              raise SystemExit(f'refusing to clean a state directory outside {local_root}: {state}')
+          if not relative.parts:
+              raise SystemExit('refusing to clean the repository .local root')
+          raw_evidence = Path(sys.argv[3]).expanduser()
+          ''',
+              'cleanup state confinement',
+          )
+          save(path, text)
+
+          # Regression coverage.
+          path = 'tests/guest/test_h02a_scan.py'
+          text = load(path)
+          text = once(text, 'import json\n', 'import json\nimport subprocess\nimport sys\n', 'scan subprocess imports')
+          marker = '    def test_combine_scans_exact_seed_sources_and_remote_result(self) -> None:\n'
+          test = '''    def test_remote_subcommand_runs_from_stdin_without_a_source_path(self) -> None:
+              completed = subprocess.run(
+                  [sys.executable, "-", "remote"],
+                  input=HELPER.read_text(encoding="utf-8"),
+                  cwd=ROOT,
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  timeout=30,
+                  check=False,
+              )
+              self.assertEqual(0, completed.returncode, completed.stderr)
+              value = json.loads(completed.stdout)
+              self.assertEqual(list(scan.REMOTE_SCANNED_PATHS), value["scannedPaths"])
+              self.assertEqual({"bytes", "files", "processes"}, set(value["stats"]))
+
+          '''
+          text = once(text, marker, test + marker, 'stdin remote scan test')
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_evidence.py'
+          text = load(path)
+          marker = '    def test_symlinked_evidence_path_is_rejected(self) -> None:\n'
+          test = '''    def test_non_object_evidence_is_rejected_without_a_traceback(self) -> None:
+              path = self.create()
+              path.write_text("[]\\n", encoding="utf-8")
+              with self.assertRaisesRegex(evidence.EvidenceError, "not an object"):
+                  evidence.finalize_cleanup(self.state, path)
+
+          '''
+          text = once(text, marker, test + marker, 'non-object evidence test')
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_shell.py'
+          text = load(path)
+          marker = '    def test_start_refuses_unrelated_live_pid(self) -> None:\n'
+          test = '''    def test_ssh_port_rejects_leading_zero_without_octal_arithmetic(self) -> None:
+              environment = self.environment.copy()
+              environment["NODEHOST_QEMU_LAB_SSH_PORT"] = "02222"
+              completed = subprocess.run(
+                  ["bash", "-c", 'source "$1"', "bash", str(SCRIPTS / "common.sh")],
+                  cwd=ROOT,
+                  env=environment,
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  timeout=15,
+                  check=False,
+              )
+              self.assertEqual(2, completed.returncode)
+              self.assertIn("canonical decimal integer", completed.stderr)
+              self.assertNotIn("value too great for base", completed.stderr)
+
+          '''
+          text = once(text, marker, test + marker, 'canonical SSH port test')
+          text = once(
+              text,
+              '        self.assertIn("sudo -n systemctl reboot", e2e)\n',
+              '        self.assertIn("sudo -n systemctl --no-block reboot", e2e)\n        self.assertIn("wait_for_boot_id_change", e2e)\n        self.assertNotIn("wait_for_ssh_down 90", e2e)\n',
+              'reboot source assertions',
+          )
+          text = once(
+              text,
+              '        self.assertIn("sudo -n systemctl poweroff", e2e)\n',
+              '        self.assertIn("sudo -n systemctl --no-block poweroff", e2e)\n',
+              'poweroff source assertion',
+          )
+          text = once(
+              text,
+              '        self.assertIn("qualificationSudoNoninteractive", smoke)\n',
+              '        self.assertIn("qualificationSudoNoninteractive", smoke)\n        self.assertIn("record_check keyOnlyLoopbackSsh", smoke)\n        self.assertIn("H02A SSH checks were not recorded", smoke)\n',
+              'measured auth source assertions',
+          )
+          text = once(
+              text,
+              '        self.assertIn("sudo -n systemctl poweroff", stop)\n',
+              '        self.assertIn("sudo -n systemctl poweroff", stop)\n        self.assertLess(stop.index("QEMU remains live after stop"), stop.index(\'rm -f "$state/qemu.pid" "$state/qmp.sock"\'))\n        self.assertIn("state.relative_to(local_root)", stop)\n',
+              'cleanup source assertions',
+          )
+          save(path, text)
+          PY
+            make validate
+            make test-guest
+            python3 tools/agents/verify-scope.py H02A
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          new_head="$EXPECTED_HEAD"
+          if [[ $rc -eq 0 ]]; then
+            cd source
+            expected=(
+              lab/qemu/scripts/common.sh
+              lab/qemu/scripts/e2e.sh
+              lab/qemu/scripts/h02a-evidence.py
+              lab/qemu/scripts/h02a-scan.py
+              lab/qemu/scripts/smoke.sh
+              lab/qemu/scripts/stop.sh
+              tests/guest/test_h02a_evidence.py
+              tests/guest/test_h02a_scan.py
+              tests/guest/test_h02a_shell.py
+            )
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'lab(H02A): address runtime qualification review findings'
+            git push origin "HEAD:$TARGET_BRANCH"
+            new_head=$(git rev-parse HEAD)
+            cd ..
+          fi
+
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          result = {
+              'schemaVersion': 1,
+              'exitCode': int(sys.argv[2]),
+              'productHead': sys.argv[3],
+              'logTail': Path(sys.argv[1]).read_bytes()[-32768:].decode('utf-8', 'replace'),
+          }
+          target = Path('control/automation/h02a-review-fixes-result.json')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-review-fixes-result.json
+          git -C control commit -m 'automation: record H02A review-fix result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
