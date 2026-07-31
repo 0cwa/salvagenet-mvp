@@ -11,6 +11,7 @@ lab/qemu/scripts/report.py
 lab/qemu/scripts/h02a-*.sh
 lab/qemu/scripts/h02a-*.py
 tests/guest/**
+tests/tools/test_qemu_lab_report.py
 profiles/locks/images.lock.json
 tools/profiles/pin-ubuntu-image.sh
 Makefile
