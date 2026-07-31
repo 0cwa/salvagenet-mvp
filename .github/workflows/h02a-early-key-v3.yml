@@ -1,0 +1,111 @@
+name: h02a-early-key-v3
+
+on:
+  push:
+    branches:
+      - automation/H02A-early-key-v3
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: 55f6a3119d32656c7ee0f5c53bc46b4f6564b216
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+  CONTROL_BRANCH: automation/H02A-early-key-v3
+  PATCH_BRANCH: automation/H02A-early-ssh-key
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.PATCH_BRANCH }}
+          path: patch-control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Apply, validate, publish, and record
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-early-key-v3.log"
+          set +e
+          (
+            set -euo pipefail
+            test "$(git -C source rev-parse HEAD)" = "$EXPECTED_HEAD"
+            python3 - <<'PY'
+          from pathlib import Path
+          workflow = Path('patch-control/.github/workflows/h02a-apply-early-key.yml').read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(workflow) if line.strip() == "python3 - <<'PY'") + 1
+          end = next(i for i in range(start, len(workflow)) if workflow[i].strip() == 'PY')
+          code_lines = []
+          for line in workflow[start:end]:
+              if line == '':
+                  code_lines.append('')
+              elif line.startswith('          '):
+                  code_lines.append(line[10:])
+              else:
+                  raise SystemExit(f'unexpected patch indentation: {line!r}')
+          Path('/tmp/h02a-early-key-patch.py').write_text('\n'.join(code_lines) + '\n', encoding='utf-8')
+          PY
+            cd source
+            python3 /tmp/h02a-early-key-patch.py
+            make validate
+            make test-guest
+            python3 tools/agents/verify-scope.py H02A
+            expected=(
+              lab/qemu/scripts/common.sh
+              lab/qemu/scripts/h02a-evidence.py
+              lab/qemu/scripts/h02a-prepare.py
+              lab/qemu/scripts/smoke.sh
+              tests/guest/test_h02a_evidence.py
+              tests/guest/test_h02a_lab.py
+              tests/guest/test_h02a_shell.py
+            )
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'lab(H02A): install qualification SSH key before cloud final'
+            git push origin "HEAD:$TARGET_BRANCH"
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            new_head=$(git -C source rev-parse HEAD)
+          else
+            new_head="$EXPECTED_HEAD"
+          fi
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          result = {
+              'schemaVersion': 1,
+              'exitCode': int(sys.argv[2]),
+              'productHead': sys.argv[3],
+              'logTail': Path(sys.argv[1]).read_bytes()[-32768:].decode('utf-8', 'replace'),
+          }
+          path = Path('control/automation/h02a-early-key-v3-result.json')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-early-key-v3-result.json
+          git -C control commit -m 'automation: record H02A early-key v3 result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
