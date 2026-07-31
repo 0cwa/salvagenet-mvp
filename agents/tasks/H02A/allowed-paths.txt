@@ -16,4 +16,5 @@ profiles/locks/images.lock.json
 tools/profiles/pin-ubuntu-image.sh
 Makefile
 docs/research/experiments/H02A.md
+# Serial evidence proved H02A must repair the canonical cloud-final activation contract.
 profiles/guest-init/ubuntu/vendor-data.yaml
