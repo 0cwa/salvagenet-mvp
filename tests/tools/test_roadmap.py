@@ -4,6 +4,7 @@ import copy
 from pathlib import Path
 import sys
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/roadmap"))
@@ -16,7 +17,7 @@ import sync  # noqa: E402
 
 class RoadmapTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.seed = commands.normalized_seed()
+        self.seed = roadmap.load_seed()
 
     def test_reviewed_seed_is_complete(self) -> None:
         result = roadmap.validate_seed(self.seed)
@@ -35,8 +36,10 @@ class RoadmapTests(unittest.TestCase):
     def test_dependency_cycle_is_rejected(self) -> None:
         altered = copy.deepcopy(self.seed)
         by_id = {item["id"]: item for item in altered["items"]}
+        by_id["FND-01"]["milestone"] = by_id["WEB-04"]["milestone"]
         by_id["FND-01"]["blockedBy"] = ["WEB-04"]
-        with self.assertRaisesRegex(roadmap.RoadmapError, "later-milestone|cycle"):
+        by_id["WEB-04"]["blockedBy"] = ["FND-01"]
+        with self.assertRaisesRegex(roadmap.RoadmapError, "roadmap dependency cycle"):
             roadmap.validate_seed(altered)
 
     def test_live_projection_keeps_authorization_and_acceptance_separate(self) -> None:
@@ -125,6 +128,11 @@ Something useful happens.
         with self.assertRaises(roadmap.RoadmapError) as caught:
             live.validate_graph(graph)
         self.assertNotIsInstance(caught.exception, live.RoadmapTransportError)
+
+    def test_check_rejects_seed_only_projection(self) -> None:
+        with mock.patch.object(sys, "argv", ["sync.py", "--check", "--seed-only"]):
+            with self.assertRaisesRegex(roadmap.RoadmapError, "cannot be combined"):
+                sync.main()
 
 
 if __name__ == "__main__":
