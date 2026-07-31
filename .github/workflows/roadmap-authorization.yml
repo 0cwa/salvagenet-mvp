@@ -11,6 +11,8 @@ on:
       - tools/roadmap/authorization.py
       - tools/roadmap/catalog.py
       - tools/roadmap/roadmap.py
+  issues:
+    types: [labeled, unlabeled, closed, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -23,6 +25,11 @@ permissions:
 
 jobs:
   synchronize:
+    if: >-
+      github.event_name != 'issues' ||
+      github.event.action == 'closed' ||
+      github.event.action == 'reopened' ||
+      startsWith(github.event.label.name, 'agent:')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
