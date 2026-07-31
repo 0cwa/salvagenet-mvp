@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "updates": [
+    {
+      "id": "validated-mvp",
+      "fromTitles": [
+        "M1 — Validated MVP"
+      ],
+      "title": "M1 — Validated stock-node substrate",
+      "description": "Complete one-phone Android, Linux guest, private-network, recovery, and durability proof without yet claiming turnkey attachment to an upstream orchestrator.",
+      "state": "open"
+    }
+  ]
+}

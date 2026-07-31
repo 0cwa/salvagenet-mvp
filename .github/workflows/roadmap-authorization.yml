@@ -1,0 +1,54 @@
+name: roadmap-authorization
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - agents/task-dag.json
+      - agents/task-registry.json
+      - .github/roadmap/seed.v1.json
+      - .github/roadmap/expansion.v1.json
+      - .github/roadmap/milestone-updates.v1.json
+      - tools/roadmap/authorization.py
+      - tools/roadmap/catalog.py
+      - tools/roadmap/roadmap.py
+  issues:
+    types: [edited, labeled, unlabeled, closed, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: roadmap-authorization
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  synchronize:
+    if: >-
+      github.event_name != 'issues' ||
+      github.event.action == 'edited' ||
+      github.event.action == 'closed' ||
+      github.event.action == 'reopened' ||
+      startsWith(github.event.label.name, 'agent:')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Validate composed roadmap catalog
+        run: python3 tools/roadmap/commands.py validate-seed
+      - name: Apply task-DAG authorization labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/roadmap/authorization.py --apply
+      - name: Verify labels now agree with the DAG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/roadmap/authorization.py
