@@ -134,7 +134,8 @@ class H02ALabTests(unittest.TestCase):
         self.assertIn("hostfwd=tcp:127.0.0.1:2222-:22", joined)
         self.assertIn("virtio-blk-pci,drive=system", joined)
         self.assertIn("virtio-blk-pci,drive=data", joined)
-        self.assertIn("virtio-net-pci,netdev=net0", joined)
+        self.assertIn("virtio-net-pci,netdev=net0,romfile=", command)
+        self.assertNotIn("virtio-net-pci,netdev=net0", command)
         self.assertNotIn("backing", joined)
         self.assertNotIn("-kernel", command)
         self.assertNotIn("-append", command)
@@ -157,6 +158,7 @@ class H02ALabTests(unittest.TestCase):
         self.assertIn('"resolvedPath": str(resolved)', helper)
         self.assertIn("sha256_file(system) != lock", helper)
         self.assertIn('"qualificationSudo": "nodeadmin-nopasswd-test-only"', helper)
+        self.assertIn('"virtio-net-pci,netdev=net0,romfile="', helper)
         for script in (
             ROOT / "tools/profiles/pin-ubuntu-image.sh",
             ROOT / "lab/qemu/scripts/prepare.sh",
