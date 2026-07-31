@@ -3,9 +3,9 @@ set -euo pipefail
 # shellcheck source=lab/qemu/scripts/common.sh
 source "$(dirname "$0")/common.sh"
 
-stage=${1:-}
+stage=${1:-initial}
 [[ $stage =~ ^(initial|guest-reboot|qemu-restart)$ ]] || {
-  echo "usage: $0 initial|guest-reboot|qemu-restart" >&2
+  echo "usage: $0 [initial|guest-reboot|qemu-restart]" >&2
   exit 2
 }
 for file in id_ed25519 preflight.json qemu-command.json; do
