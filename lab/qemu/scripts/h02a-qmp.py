@@ -143,13 +143,14 @@ def wait_for_status(socket_path: Path, timeout_seconds: float, require_running: 
 
 
 def atomic_output(path: Path, encoded: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.is_symlink():
-        raise QmpError("QMP output path must not be a symlink")
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if path.parent.is_symlink() or path.is_symlink():
+        raise QmpError("QMP output path must not traverse a symlink")
     temporary = path.with_name(path.name + ".tmp")
     if temporary.is_symlink():
         raise QmpError("QMP temporary output path must not be a symlink")
     temporary.write_text(encoded, encoding="utf-8")
+    temporary.chmod(0o600)
     temporary.replace(path)
 
 
