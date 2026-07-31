@@ -111,19 +111,32 @@ All tiers generate a device key in Android Keystore where available. Evidence ma
 - Device Owner/managed-policy facts;
 - current APK and backend versions.
 
-Suggested public classes:
+Android evidence uses the platform-wide canonical boot-trust classes from `platform-strategy.md`:
 
 ```text
-stock-vendor-verified
-managed-stock-vendor-verified
-whitelisted-vendor-verified
-custom-key-locked
-custom-unlocked-measured
+hardware-vendor-verified-locked
+hardware-custom-key-verified-locked
+hardware-custom-unlocked-measured
 software-measured
 unattested
 ```
 
-Class names describe evidence, not moral trust or workload authorization. Admission policy remains configurable by the cluster/community authority.
+Deployment tier is reported separately:
+
+```text
+deploymentTier: ordinary-stock | managed-stock | whitelisted-stock | avb-patched
+bootTrustClass: hardware-vendor-verified-locked | hardware-custom-key-verified-locked | hardware-custom-unlocked-measured | software-measured | unattested
+```
+
+The mapping is explicit:
+
+- ordinary, managed, and whitelisted stock Android normally map to `hardware-vendor-verified-locked` when hardware evidence proves the vendor boot chain is locked and verified;
+- an AVB-patched build locked to a recognized custom key maps to `hardware-custom-key-verified-locked`;
+- a known custom build with an unlocked bootloader maps to `hardware-custom-unlocked-measured` when measurements are available;
+- software-only measurement maps to `software-measured`;
+- missing or unusable evidence maps to `unattested`.
+
+Managed policy or a whitelisted APK does not independently raise the boot-trust class. Those facts remain separate inputs to admission policy. Class names describe evidence, not moral trust or workload authorization; admission remains configurable by the cluster/community authority.
 
 ## Configuration precedence
 
