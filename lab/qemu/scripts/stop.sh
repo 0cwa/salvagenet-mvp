@@ -31,16 +31,34 @@ if [[ $cleanup == false && -n $evidence_path ]]; then
   exit 2
 fi
 
-if qemu_running; then
-  ssh_nodeadmin 15 'sudo systemctl poweroff' >/dev/null 2>&1 || true
-  if ! wait_for_qemu_exit 150; then
-    pid=$(read_qemu_pid)
-    kill "$pid" 2>/dev/null || true
-    if ! wait_for_qemu_exit 15; then
-      pid=$(read_qemu_pid)
-      kill -KILL "$pid" 2>/dev/null || true
-      wait_for_qemu_exit 15
+if [[ -e "$state/qemu.pid" ]]; then
+  pid=$(read_qemu_pid) || {
+    echo "invalid H02A QEMU pid file; refusing to signal any process" >&2
+    exit 2
+  }
+  if kill -0 "$pid" 2>/dev/null; then
+    qemu_pid_matches "$pid" || {
+      echo "refusing to signal pid $pid: process identity differs from H02A QEMU" >&2
+      exit 2
+    }
+    ssh_nodeadmin 15 'sudo systemctl poweroff' >/dev/null 2>&1 || true
+    if ! wait_for_qemu_exit 150; then
+      pid=$(live_qemu_pid) || {
+        echo "H02A QEMU identity was lost while stopping" >&2
+        exit 1
+      }
+      kill "$pid" 2>/dev/null || true
+      if ! wait_for_qemu_exit 15; then
+        pid=$(live_qemu_pid) || {
+          echo "H02A QEMU identity was lost before forced stop" >&2
+          exit 1
+        }
+        kill -KILL "$pid" 2>/dev/null || true
+        wait_for_qemu_exit 15
+      fi
     fi
+  else
+    rm -f "$state/qemu.pid" "$state/qmp.sock"
   fi
 fi
 rm -f "$state/qemu.pid" "$state/qmp.sock"
@@ -56,13 +74,21 @@ import stat
 import sys
 
 state = Path(sys.argv[1]).resolve(strict=True)
-evidence = Path(sys.argv[2]).resolve(strict=True)
-evidence_root = (state / 'evidence').resolve(strict=True)
+raw_evidence = Path(sys.argv[2]).expanduser()
+if not raw_evidence.is_absolute():
+    raw_evidence = Path.cwd() / raw_evidence
+if raw_evidence.is_symlink():
+    raise SystemExit('evidence path must not be a symlink')
+evidence = raw_evidence.resolve(strict=True)
+evidence_root_path = state / 'evidence'
+if evidence_root_path.is_symlink():
+    raise SystemExit('retained evidence directory must not be a symlink')
+evidence_root = evidence_root_path.resolve(strict=True)
 try:
     evidence.relative_to(evidence_root)
 except ValueError:
     raise SystemExit('evidence path is outside the retained evidence directory')
-if evidence.name != 'evidence.json' or evidence.is_symlink() or not evidence.is_file():
+if evidence.name != 'evidence.json' or not evidence.is_file():
     raise SystemExit('evidence path is missing or unsafe')
 base_name = 'ubuntu-24.04-server-cloudimg-arm64.img'
 retained = sorted([base_name, 'evidence'])
@@ -93,7 +119,7 @@ actual = sorted(path.name for path in state.iterdir())
 if actual != retained:
     raise SystemExit(f'cleanup retained unexpected state: {actual}')
 base = state / base_name
-if base.is_symlink() or not base.is_file() or evidence_root.is_symlink() or not evidence_root.is_dir():
+if base.is_symlink() or not base.is_file() or not evidence_root_path.is_dir():
     raise SystemExit('cleanup retained unsafe base or evidence state')
 receipt = {
     'schemaVersion': 1,
@@ -103,7 +129,7 @@ receipt = {
 }
 path = evidence.parent / 'cleanup.json'
 temporary = path.with_name(path.name + '.tmp')
-if path.is_symlink() or temporary.is_symlink():
+if path.is_symlink() or path.parent.is_symlink() or temporary.is_symlink():
     raise SystemExit('cleanup receipt path is unsafe')
 temporary.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
 temporary.chmod(0o600)
