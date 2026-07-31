@@ -19,6 +19,7 @@ Agents should begin with the durable product direction, bounded milestone, activ
 - `architecture/overview.md` — current Android/QEMU system shape and implementation caveats.
 - `architecture/turnkey-cluster-boundary.md` — provisioning capsule, native orchestrator attachments, Nix/OpenTofu composition, networking planes, and offline behavior.
 - `architecture/platform-strategy.md` — stock Android, patched Android, SBC, Linux, appliance, WSL, generic execution environments, and attestation.
+- `architecture/android-deployment-tiers.md` — ordinary APK, managed stock, whitelisted/preconfigured build, and AVB-patched Android capability and trust tiers.
 - `architecture/classification.md` — core, adopted, MVP-hack, test-only, and MVP+ classification for the current implementation.
 - `architecture/module-map.md` — current module ownership and dependency rules.
 - `architecture/layers-and-events.md` — onion layers, reconciliation, events, and side effects.
