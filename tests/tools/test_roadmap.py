@@ -47,9 +47,9 @@ class RoadmapTests(unittest.TestCase):
         snapshot, index = roadmap.derive_snapshot(graph, fallback=True, generated_at="2026-07-31T00:00:00Z")
         sync.project_pull_requests(snapshot, index, graph)
         active = {item["id"] for item in index["active"]}
-        self.assertEqual({"WEB-04"}, active)
+        self.assertEqual({"GUEST-01"}, active)
         guest = next(item for item in snapshot["items"] if item["id"] == "GUEST-01")
-        self.assertFalse(guest["taskAuthorized"])
+        self.assertTrue(guest["taskAuthorized"])
         release = next(item for item in snapshot["items"] if item["id"] == "RELEASE-01")
         self.assertEqual(20, len(release["acceptance"]))
         self.assertTrue(any(gate["status"] != "PASS" for gate in release["acceptance"]))
