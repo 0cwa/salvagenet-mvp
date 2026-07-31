@@ -8,6 +8,7 @@ lab/qemu/scripts/smoke.sh
 lab/qemu/scripts/stop.sh
 lab/qemu/scripts/e2e.sh
 lab/qemu/scripts/h02a-*.sh
+lab/qemu/scripts/h02a-*.py
 tests/guest/**
 profiles/locks/images.lock.json
 tools/profiles/pin-ubuntu-image.sh
