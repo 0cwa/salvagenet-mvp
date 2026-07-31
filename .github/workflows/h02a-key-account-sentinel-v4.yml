@@ -1,0 +1,153 @@
+name: h02a-key-account-sentinel-v4
+
+on:
+  push:
+    branches:
+      - automation/H02A-key-account-sentinel-v4
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: 3e4840dd7990168a2ff0c23e429ca7279fd778a2
+  TARGET_BRANCH: agent/H02A-runtime-qualification
+  CONTROL_BRANCH: automation/H02A-key-account-sentinel-v4
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: source
+      - name: Apply, validate, and record
+        shell: bash
+        run: |
+          set -uo pipefail
+          log="$RUNNER_TEMP/h02a-key-account-sentinel-v4.log"
+          set +e
+          (
+            set -euo pipefail
+            cd source
+            test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+            python3 - <<'PY'
+          from pathlib import Path
+
+          def load(path: str) -> str:
+              return Path(path).read_text(encoding='utf-8')
+          def save(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding='utf-8')
+          def once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+          def section(text: str, start: str, end: str, replacement: str, label: str) -> str:
+              first = text.find(start)
+              second = text.find(end, first + 1)
+              if first < 0 or second < 0:
+                  raise SystemExit(f'{label}: marker missing')
+              return text[:first] + replacement + text[second:]
+          def lines(*values: str) -> str:
+              return '\n'.join(values) + '\n'
+
+          path = 'lab/qemu/scripts/h02a-prepare.py'
+          text = load(path)
+          text = once(text,
+              '    lock_passwd: true\n    ssh_authorized_keys:\n',
+              '    lock_passwd: false\n    hashed_passwd: "NP"\n    ssh_authorized_keys:\n',
+              'test-only account sentinel')
+          marker = '            "earlySshKey": True,\n'
+          text = once(text, marker,
+              marker + '            "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",\n',
+              'preflight account sentinel')
+          save(path, text)
+
+          path = 'lab/qemu/scripts/h02a-evidence.py'
+          text = once(load(path),
+              '        or user.get("earlySshKey") is not True\n',
+              '        or user.get("earlySshKey") is not True\n        or user.get("qualificationAccountPassword") != "unlocked-non-authenticating-NP-sentinel"\n',
+              'evidence account sentinel')
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_lab.py'
+          text = load(path)
+          text = once(text,
+              '            "lock_passwd: true",\n            "ssh_authorized_keys:",\n',
+              '            "lock_passwd: false",\n            \'hashed_passwd: "NP"\',\n            "ssh_authorized_keys:",\n',
+              'multipart account test')
+          text = once(text,
+              '        self.assertIn(\'"earlySshKey": True\', helper)\n',
+              '        self.assertIn(\'"earlySshKey": True\', helper)\n        self.assertIn(\'"qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel"\', helper)\n',
+              'source account contract test')
+          save(path, text)
+
+          path = 'tests/guest/test_h02a_evidence.py'
+          text = load(path)
+          text = once(text,
+              '                "earlySshKey": True,\n',
+              '                "earlySshKey": True,\n                "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",\n',
+              'evidence fixture sentinel')
+          replacement = lines(
+              '    def test_unrecorded_qualification_contract_is_rejected(self) -> None:',
+              '        original = json.loads((self.state / "preflight.json").read_text(encoding="utf-8"))',
+              '        for field in ("qualificationSudo", "qualificationAccountPassword"):',
+              '            with self.subTest(field=field):',
+              '                value = json.loads(json.dumps(original))',
+              '                value["testUserData"].pop(field)',
+              '                (self.state / "preflight.json").write_text(json.dumps(value), encoding="utf-8")',
+              '                with self.assertRaisesRegex(evidence.EvidenceError, "user-data contract"):',
+              '                    evidence.create_evidence(self.state)',
+              '        (self.state / "preflight.json").write_text(json.dumps(original), encoding="utf-8")',
+              '',
+          )
+          text = section(text,
+              '    def test_unrecorded_qualification_sudo_is_rejected(self) -> None:\n',
+              '    def test_missing_resolved_firmware_path_is_rejected(self) -> None:\n',
+              replacement,
+              'qualification evidence contract test')
+          save(path, text)
+          PY
+            make validate
+            make test-guest
+            python3 tools/agents/verify-scope.py H02A
+          ) 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          new_head="$EXPECTED_HEAD"
+          if [[ $rc -eq 0 ]]; then
+            cd source
+            expected=(lab/qemu/scripts/h02a-evidence.py lab/qemu/scripts/h02a-prepare.py tests/guest/test_h02a_evidence.py tests/guest/test_h02a_lab.py)
+            mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+            mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sort)
+            diff -u <(printf '%s\n' "${wanted[@]}") <(printf '%s\n' "${changed[@]}")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "${expected[@]}"
+            git commit -m 'lab(H02A): keep qualification account key-accessible'
+            git push origin "HEAD:$TARGET_BRANCH"
+            new_head=$(git rev-parse HEAD)
+            cd ..
+          fi
+          python3 - "$log" "$rc" "$new_head" <<'PY'
+          from pathlib import Path
+          import json, sys
+          target = Path('control/automation/h02a-key-account-sentinel-v4-result.json')
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text(json.dumps({'schemaVersion': 1, 'exitCode': int(sys.argv[2]), 'productHead': sys.argv[3], 'logTail': Path(sys.argv[1]).read_bytes()[-32768:].decode('utf-8','replace')}, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add automation/h02a-key-account-sentinel-v4-result.json
+          git -C control commit -m 'automation: record H02A account-sentinel v4 result'
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$rc"
