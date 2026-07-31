@@ -1,0 +1,159 @@
+name: h02a-auth-diagnostic
+
+on:
+  push:
+    branches:
+      - research/H02A-auth-diagnostic-3e4840dd
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_SHA: 3e4840dd7990168a2ff0c23e429ca7279fd778a2
+  CONTROL_BRANCH: research/H02A-auth-diagnostic-3e4840dd
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+          path: source
+      - name: Boot, stop, inspect guest disk, and record
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            cloud-image-utils curl jq openssh-client qemu-efi-aarch64 \
+            qemu-system-arm qemu-utils
+          cd source
+          make qemu-lab-prepare
+          make qemu-lab-start
+          # shellcheck source=/dev/null
+          source lab/qemu/scripts/common.sh
+          qmp_rc=0
+          python3 lab/qemu/scripts/h02a-qmp.py \
+            --socket "$state/qmp.sock" --wait 300 --output "$state/qmp-diagnostic.json" || qmp_rc=$?
+          ssh_rc=0
+          wait_for_ssh "$ssh_wait_seconds" || ssh_rc=$?
+          lab/qemu/scripts/stop.sh >/dev/null 2>&1 || true
+
+          sudo modprobe nbd max_part=16
+          sudo qemu-nbd --read-only --connect=/dev/nbd0 "$state/system.qcow2"
+          cleanup() {
+            mountpoint -q "$RUNNER_TEMP/h02a-root" && sudo umount "$RUNNER_TEMP/h02a-root" || true
+            sudo qemu-nbd --disconnect /dev/nbd0 >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          sleep 3
+          sudo partprobe /dev/nbd0
+          root_device=$(lsblk -lnpo NAME,FSTYPE,TYPE /dev/nbd0 | awk '$2 == "ext4" && $3 == "part" {print $1; exit}')
+          test -n "$root_device"
+          mkdir -p "$RUNNER_TEMP/h02a-root"
+          sudo mount -o ro,noload "$root_device" "$RUNNER_TEMP/h02a-root"
+
+          cd "$GITHUB_WORKSPACE/control"
+          result_dir="research/h02a-auth-diagnostic/$SOURCE_SHA"
+          mkdir -p "$result_dir"
+          sudo python3 - \
+            "$GITHUB_WORKSPACE/source" \
+            "$RUNNER_TEMP/h02a-root" \
+            "$result_dir/diagnostic.json" \
+            "$SOURCE_SHA" "$GITHUB_RUN_ID" "$qmp_rc" "$ssh_rc" <<'PY'
+          from __future__ import annotations
+          import hashlib
+          import json
+          from pathlib import Path
+          import re
+          import stat
+          import sys
+
+          source = Path(sys.argv[1])
+          root = Path(sys.argv[2])
+          output = Path(sys.argv[3])
+          source_sha, run_id = sys.argv[4], sys.argv[5]
+          qmp_rc, ssh_rc = int(sys.argv[6]), int(sys.argv[7])
+          secret = re.compile(
+              r'(?:tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}|hskey-[A-Za-z0-9_-]{12,}|'
+              r'(?i:bootstrap[_-]?token)[=:][A-Za-z0-9._-]{8,}|'
+              r'(?i:callback[_-]?capability)[=:][A-Za-z0-9._-]{8,})'
+          )
+          def sha256(data: bytes) -> str:
+              return hashlib.sha256(data).hexdigest()
+          def inspect(relative: str, *, tail: int = 65536, include_text: bool = True) -> dict[str, object]:
+              path = root / relative.lstrip('/')
+              result: dict[str, object] = {'path': relative, 'exists': path.exists(), 'symlink': path.is_symlink()}
+              if not path.exists() or path.is_symlink() or not path.is_file():
+                  return result
+              raw = path.read_bytes()
+              metadata = path.stat()
+              result.update({
+                  'sizeBytes': len(raw),
+                  'sha256': sha256(raw),
+                  'mode': oct(stat.S_IMODE(metadata.st_mode)),
+                  'uid': metadata.st_uid,
+                  'gid': metadata.st_gid,
+              })
+              if include_text:
+                  text = raw[-tail:].decode('utf-8', 'replace')
+                  result['tail'] = secret.sub('[REDACTED]', text)
+                  result['truncatedToTail'] = len(raw) > tail
+              return result
+
+          passwd = (root / 'etc/passwd').read_text(encoding='utf-8', errors='replace').splitlines()
+          shadow = (root / 'etc/shadow').read_text(encoding='utf-8', errors='replace').splitlines()
+          user_passwd = next((line for line in passwd if line.startswith('nodeadmin:')), None)
+          user_shadow = next((line for line in shadow if line.startswith('nodeadmin:')), None)
+          shadow_status = None
+          if user_shadow is not None:
+              password_field = user_shadow.split(':', 2)[1]
+              shadow_status = {
+                  'locked': password_field.startswith(('!', '*')),
+                  'passwordFieldPrefix': password_field[:2],
+              }
+          state = source / '.local/qemu-lab'
+          value = {
+              'schemaVersion': 1,
+              'sourceCommit': source_sha,
+              'workflowRunId': run_id,
+              'qmpExitCode': qmp_rc,
+              'sshWaitExitCode': ssh_rc,
+              'nodeadminPasswd': user_passwd,
+              'nodeadminShadowStatus': shadow_status,
+              'files': {
+                  'authorizedKeys': inspect('/home/nodeadmin/.ssh/authorized_keys'),
+                  'userData': inspect('/var/lib/cloud/instance/user-data.txt'),
+                  'userDataProcessed': inspect('/var/lib/cloud/instance/user-data.txt.i'),
+                  'cloudConfig': inspect('/var/lib/cloud/instance/cloud-config.txt'),
+                  'cloudInitLog': inspect('/var/log/cloud-init.log'),
+                  'cloudInitOutput': inspect('/var/log/cloud-init-output.log'),
+                  'sshdDropIn': inspect('/etc/ssh/sshd_config.d/99-nodehost-h02a.conf'),
+                  'readiness': inspect('/var/lib/nodehost/h02a-ready'),
+                  'serial': {
+                      'path': str(state / 'serial.log'),
+                      'exists': (state / 'serial.log').is_file(),
+                      'sizeBytes': (state / 'serial.log').stat().st_size if (state / 'serial.log').is_file() else None,
+                      'sha256': hashlib.sha256((state / 'serial.log').read_bytes()).hexdigest() if (state / 'serial.log').is_file() else None,
+                      'tail': secret.sub('[REDACTED]', (state / 'serial.log').read_bytes()[-131072:].decode('utf-8', 'replace')) if (state / 'serial.log').is_file() else None,
+                  },
+              },
+          }
+          output.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          output.chmod(0o600)
+          PY
+          sudo chown -R "$(id -u):$(id -g)" "$result_dir"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$result_dir"
+          git commit -m "research: record H02A SSH authorization diagnostic $SOURCE_SHA"
+          git push origin "HEAD:$CONTROL_BRANCH"
