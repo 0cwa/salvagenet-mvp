@@ -1,0 +1,127 @@
+name: h02a-host-qualification
+
+on:
+  push:
+    branches:
+      - research/H02A-host-qualification-3e4840dd
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_SHA: 3e4840dd7990168a2ff0c23e429ca7279fd778a2
+  CONTROL_BRANCH: research/H02A-host-qualification-3e4840dd
+
+jobs:
+  qualify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          ref: ${{ env.SOURCE_SHA }}
+          path: source
+      - name: Install, qualify, and record exact result
+        shell: bash
+        run: |
+          set -uo pipefail
+          result_dir="$GITHUB_WORKSPACE/control/research/h02a-host-result/$SOURCE_SHA"
+          mkdir -p "$result_dir"
+          qualification_log="$RUNNER_TEMP/h02a-qualification.log"
+          set +e
+          (
+            set -euo pipefail
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              cloud-image-utils curl jq openssh-client \
+              qemu-efi-aarch64 qemu-system-arm qemu-utils
+            qemu-system-aarch64 --version
+            qemu-img --version
+            cloud-localds --help | head -n 1
+            test -e /usr/share/AAVMF/AAVMF_CODE.fd
+            test -e /usr/share/AAVMF/AAVMF_VARS.fd
+            cd "$GITHUB_WORKSPACE/source"
+            make qemu-lab-e2e
+          ) 2>&1 | tee "$qualification_log"
+          qualification_rc=${PIPESTATUS[0]}
+          set -e
+          python3 - "$GITHUB_WORKSPACE/source" "$result_dir" "$qualification_log" "$SOURCE_SHA" "$GITHUB_RUN_ID" "$qualification_rc" <<'PY'
+          from __future__ import annotations
+          import hashlib, json, re, shutil, sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          result_dir = Path(sys.argv[2])
+          log_path = Path(sys.argv[3])
+          source_sha, run_id, exit_code = sys.argv[4], sys.argv[5], int(sys.argv[6])
+          state = source / '.local/qemu-lab'
+          secret = re.compile(
+              r'(?:tskey-(?:auth|client)-[A-Za-z0-9_-]{12,}|hskey-[A-Za-z0-9_-]{12,}|'
+              r'(?i:bootstrap[_-]?token)[=:][A-Za-z0-9._-]{8,}|'
+              r'(?i:callback[_-]?capability)[=:][A-Za-z0-9._-]{8,})'
+          )
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open('rb') as handle:
+                  while chunk := handle.read(1024 * 1024):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          result: dict[str, object] = {
+              'schemaVersion': 1,
+              'status': 'PASS' if exit_code == 0 else 'FAIL',
+              'sourceCommit': source_sha,
+              'workflowRunId': run_id,
+              'qualificationExitCode': exit_code,
+              'evidenceClass': 'host-qemu',
+              'androidHardwareValidated': False,
+              'physicalGateEligible': False,
+              'guestMeshValidated': False,
+          }
+          evidence_paths = sorted(state.glob('evidence/*/evidence.json')) if state.exists() else []
+          if exit_code == 0:
+              if len(evidence_paths) != 1:
+                  raise SystemExit(f'expected one evidence file, found {len(evidence_paths)}')
+              evidence_path = evidence_paths[0]
+              cleanup_path = evidence_path.with_name('cleanup.json')
+              evidence = json.loads(evidence_path.read_text(encoding='utf-8'))
+              if evidence.get('evidenceClass') != 'host-qemu':
+                  raise SystemExit('evidence class differs')
+              if evidence.get('preflight', {}).get('source', {}).get('commit') != source_sha:
+                  raise SystemExit('evidence source differs')
+              if evidence.get('cleanup', {}).get('completed') is not True:
+                  raise SystemExit('evidence cleanup is incomplete')
+              if any(evidence.get(field) is not False for field in ('androidHardwareValidated', 'physicalGateEligible', 'guestMeshValidated')):
+                  raise SystemExit('evidence classification differs')
+              shutil.copy2(evidence_path, result_dir / 'evidence.json')
+              shutil.copy2(cleanup_path, result_dir / 'cleanup.json')
+              result['evidenceSha256'] = sha256(result_dir / 'evidence.json')
+              result['cleanupSha256'] = sha256(result_dir / 'cleanup.json')
+          else:
+              result['qualificationLogTail'] = secret.sub('[REDACTED]', log_path.read_bytes()[-32768:].decode('utf-8', 'replace'))
+              result['diagnosticState'] = [
+                  {
+                      'name': path.name[:256],
+                      'kind': 'symlink' if path.is_symlink() else ('directory' if path.is_dir() else 'file'),
+                      'sizeBytes': path.stat().st_size if path.is_file() and not path.is_symlink() else None,
+                  }
+                  for path in sorted(state.iterdir(), key=lambda value: value.name)
+              ][:256] if state.exists() else []
+          temporary = result_dir / 'result.json.tmp'
+          temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          temporary.chmod(0o600)
+          temporary.replace(result_dir / 'result.json')
+          PY
+          git -C control config user.name 'github-actions[bot]'
+          git -C control config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C control add "research/h02a-host-result/$SOURCE_SHA"
+          git -C control commit -m "research: record H02A host qualification $SOURCE_SHA"
+          git -C control push origin "HEAD:$CONTROL_BRANCH"
+          exit "$qualification_rc"
