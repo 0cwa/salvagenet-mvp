@@ -12,7 +12,16 @@ This directory will contain the static public site for `salvage.network`.
 - build-time project data from repository truth;
 - exact-artifact deployment through GitHub Actions.
 
-Website implementation begins only after ADR-012 and the roadmap-governance contract are merged and the roadmap/agent-management foundation has produced a validated live issue graph and compact agent index.
+Website implementation begins only after ADR-012 and the roadmap-governance contract are merged and the roadmap/agent-management foundation has produced a validated live issue graph and compact agent index. Those prerequisites are now present. Website design and implementation may proceed in parallel with MVP runtime work; it must not become a gate for Android, guest, controller, or physical-device development.
+
+## Implementation handoff
+
+- `docs/design-implementation-brief.md` translates the supplied visual concepts into product-safe, accessible implementation constraints.
+- `docs/roadmap-integration.md` defines the roadmap data boundary, display semantics, Astro component split, freshness behaviour, and test matrix.
+- `schemas/roadmap.snapshot.v1.schema.json` is the framework-independent contract for the generated roadmap input.
+- `data/roadmap.snapshot.v1.json` is generated publication data and must not be edited by hand.
+
+The roadmap is one component of the public site, not a replacement for the site and not a browser-based project-management or node-control application.
 
 ## Public pages
 
@@ -111,7 +120,7 @@ The site must never infer a passed acceptance gate from a closed implementation 
 5. progressive enhancements;
 6. exact-artifact deployment and freshness automation.
 
-The issue-roadmap system is a development prerequisite, not a browser runtime dependency. The final site remains static and can build from a recent complete snapshot when GitHub is temporarily unavailable.
+The issue-roadmap system is a development prerequisite, not a browser runtime dependency. The final site remains static and can build from a recent complete snapshot when GitHub is temporarily unavailable. After the foundation exists, website work remains a parallel workstream rather than a prerequisite for unrelated MVP development.
 
 ## Design review route
 
