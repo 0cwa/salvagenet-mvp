@@ -54,17 +54,29 @@ Android lifecycle, QMP events, process exits, network changes, artifact progress
 
 The external Host API is resource-oriented request/response with durable operation resources. It is not an internal event bus and not an arbitrary command gateway.
 
-## Permanent cross-platform contracts
+## Contracts active during H02A and the stock-node milestone
 
-- stable node identity and controller authorization;
-- signed accepted intent and durable operation lifecycle;
-- desired/observed reconciliation independent of UI/controller lifetime;
-- replaceable runtime, overlay, bootstrap, and attachment adapters;
-- typed lifecycle and artifact operations;
+- stable host and guest identity with controller authorization;
+- desired/observed reconciliation independent of UI or controller lifetime;
+- durable typed lifecycle and artifact operations;
 - system/data ownership separation;
-- recovery route independent from workload/guest health;
-- normal native administration and orchestrator interfaces inside the execution environment;
-- bounded, redacted diagnostics and explicit trust/capability facts.
+- recovery independent from workload/guest overlay health;
+- ordinary native administration inside the guest;
+- bounded, redacted diagnostics and explicit current capability facts.
+
+These are current implementation requirements and may be used to judge H02A and later physical stock-node evidence.
+
+## Deferred target contracts
+
+The following are accepted product targets, not implementation requirements authorized during H02A:
+
+- one signed provisioning capsule or equivalent accepted-intent envelope across platforms;
+- generic execution-environment vocabulary beyond the current VM API;
+- replaceable runtime, overlay, bootstrap/discovery, and orchestrator-attachment adapters proven by structurally different backends;
+- portable trust/admission facts across stock Android, patched Android, Linux, SBC, appliance, and WSL hosts;
+- native upstream orchestrator attachment without importing workload desired state into SalvageNet.
+
+They may shape compatibility decisions, but no agent should implement them unless a reviewed phase transition places the corresponding task in `agents/task-dag.json`.
 
 ## Current VM-specific contracts
 
