@@ -2,18 +2,112 @@
 set -euo pipefail
 # shellcheck source=lab/qemu/scripts/common.sh
 source "$(dirname "$0")/common.sh"
-if [[ ! -f "$state/qemu.pid" ]]; then
-  echo "host-QEMU lab is not running"
-  exit 0
+
+cleanup=false
+evidence_path=
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --cleanup)
+      cleanup=true
+      shift
+      ;;
+    --evidence)
+      [[ $# -ge 2 && -z $evidence_path ]] || { echo "invalid --evidence" >&2; exit 2; }
+      evidence_path=$2
+      shift 2
+      ;;
+    *)
+      echo "usage: $0 [--cleanup --evidence PATH]" >&2
+      exit 2
+      ;;
+  esac
+done
+if [[ $cleanup == true && -z $evidence_path ]]; then
+  echo "--cleanup requires --evidence PATH" >&2
+  exit 2
 fi
-pid=$(cat "$state/qemu.pid")
-if kill -0 "$pid" 2>/dev/null; then
-  kill "$pid"
-  for _ in $(seq 1 20); do
-    kill -0 "$pid" 2>/dev/null || break
-    sleep 0.25
-  done
-  kill -0 "$pid" 2>/dev/null && kill -9 "$pid"
+if [[ $cleanup == false && -n $evidence_path ]]; then
+  echo "--evidence requires --cleanup" >&2
+  exit 2
+fi
+
+if qemu_running; then
+  ssh_nodeadmin 15 'sudo systemctl poweroff' >/dev/null 2>&1 || true
+  if ! wait_for_qemu_exit 150; then
+    pid=$(read_qemu_pid)
+    kill "$pid" 2>/dev/null || true
+    if ! wait_for_qemu_exit 15; then
+      pid=$(read_qemu_pid)
+      kill -KILL "$pid" 2>/dev/null || true
+      wait_for_qemu_exit 15
+    fi
+  fi
 fi
 rm -f "$state/qemu.pid" "$state/qmp.sock"
-printf 'stopped host-QEMU lab\n'
+qemu_running && { echo "QEMU remains live after stop" >&2; exit 1; }
+
+if [[ $cleanup == true ]]; then
+  python3 - "$state" "$evidence_path" <<'PY'
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import stat
+import sys
+
+state = Path(sys.argv[1]).resolve(strict=True)
+evidence = Path(sys.argv[2]).resolve(strict=True)
+evidence_root = (state / 'evidence').resolve(strict=True)
+try:
+    evidence.relative_to(evidence_root)
+except ValueError:
+    raise SystemExit('evidence path is outside the retained evidence directory')
+if evidence.name != 'evidence.json' or evidence.is_symlink() or not evidence.is_file():
+    raise SystemExit('evidence path is missing or unsafe')
+base_name = 'ubuntu-24.04-server-cloudimg-arm64.img'
+retained = sorted([base_name, 'evidence'])
+removed: list[str] = []
+budget = 4096
+
+
+def delete(path: Path) -> None:
+    global budget
+    budget -= 1
+    if budget < 0:
+        raise SystemExit('cleanup exceeded the entry bound')
+    metadata = path.lstat()
+    if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+        for child in sorted(path.iterdir(), key=lambda value: value.name):
+            delete(child)
+        path.rmdir()
+    else:
+        path.unlink()
+
+
+for entry in sorted(state.iterdir(), key=lambda value: value.name):
+    if entry.name in retained:
+        continue
+    removed.append(entry.name)
+    delete(entry)
+actual = sorted(path.name for path in state.iterdir())
+if actual != retained:
+    raise SystemExit(f'cleanup retained unexpected state: {actual}')
+base = state / base_name
+if base.is_symlink() or not base.is_file() or evidence_root.is_symlink() or not evidence_root.is_dir():
+    raise SystemExit('cleanup retained unsafe base or evidence state')
+receipt = {
+    'schemaVersion': 1,
+    'qemuStopped': True,
+    'retained': retained,
+    'removed': removed,
+}
+path = evidence.parent / 'cleanup.json'
+temporary = path.with_name(path.name + '.tmp')
+if path.is_symlink() or temporary.is_symlink():
+    raise SystemExit('cleanup receipt path is unsafe')
+temporary.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+temporary.chmod(0o600)
+temporary.replace(path)
+PY
+fi
+printf 'host-QEMU lab stopped%s\n' "$( [[ $cleanup == true ]] && printf ' and cleaned' || true )"
