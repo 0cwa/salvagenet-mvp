@@ -1,0 +1,33 @@
+name: h02a-image-metadata-probe
+
+on:
+  push:
+    branches:
+      - research/H02A-ubuntu-image-metadata
+
+permissions: {}
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Inspect immutable Ubuntu ARM64 release image
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://cloud-images.ubuntu.com/releases/noble/release-20260725'
+          image='ubuntu-24.04-server-cloudimg-arm64.img'
+          headers="$(curl --fail --silent --show-error --location --head \
+            --proto '=https' --tlsv1.2 --connect-timeout 30 --max-time 120 \
+            "$base/$image")"
+          printf '%s\n' "$headers"
+          size="$(printf '%s\n' "$headers" | awk 'BEGIN{IGNORECASE=1} /^content-length:/ {gsub("\\r",""); value=$2} END{print value}')"
+          test -n "$size"
+          sums="$(curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 --connect-timeout 30 --max-time 120 \
+            "$base/SHA256SUMS")"
+          digest="$(printf '%s\n' "$sums" | awk -v name="$image" '$2 == "*" name {print $1}')"
+          test -n "$digest"
+          printf 'H02A_IMAGE_URL=%s/%s\n' "$base" "$image"
+          printf 'H02A_IMAGE_SIZE_BYTES=%s\n' "$size"
+          printf 'H02A_IMAGE_SHA256=%s\n' "$digest"
