@@ -26,7 +26,7 @@ initial_boot=$(cat "$state/boot-id-initial.txt")
 
 ssh_nodeadmin 15 'sudo -n systemctl reboot' >/dev/null 2>&1 || true
 wait_for_ssh_down 90
-wait_for_ssh 360
+wait_for_ssh "$ssh_wait_seconds"
 "$(dirname "$0")/smoke.sh" guest-reboot
 guest_reboot=$(cat "$state/boot-id-guest-reboot.txt")
 [[ $guest_reboot != "$initial_boot" ]] || {
