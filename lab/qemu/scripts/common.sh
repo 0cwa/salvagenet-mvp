@@ -5,6 +5,7 @@ umask 077
 root=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/../../.." && pwd))
 raw_state=${NODEHOST_QEMU_LAB_DIR:-$root/.local/qemu-lab}
 ssh_port=${NODEHOST_QEMU_LAB_SSH_PORT:-2222}
+readonly ssh_wait_seconds=900
 
 state=$(python3 - "$root" "$raw_state" <<'PY'
 from pathlib import Path
@@ -94,7 +95,7 @@ ssh_single_method() {
 }
 
 wait_for_ssh() {
-  local timeout_seconds=${1:-300}
+  local timeout_seconds=${1:-$ssh_wait_seconds}
   local deadline=$((SECONDS + timeout_seconds))
   while (( SECONDS < deadline )); do
     if ssh_nodeadmin 8 true >/dev/null 2>&1; then
