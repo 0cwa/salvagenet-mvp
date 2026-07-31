@@ -48,6 +48,6 @@ acceptance ledger and evidence     validated product claims
 website/agent snapshots            generated caches
 ```
 
-Bootstrap is stable-ID based and idempotent. After the generated state PR merges, reruns verify drift and do not overwrite issue bodies, state, dependencies, or planning notes legitimately refined by people or agents.
+Bootstrap is stable-ID-based and idempotent. After the generated state PR merges, reruns verify drift and do not overwrite issue bodies, state, dependencies, or planning notes legitimately refined by people or agents.
 
 Issue-form submissions remain unclassified proposals until a maintainer adds the hidden stable marker, required metadata, milestone, area/kind/visibility labels, and `roadmap` label.
