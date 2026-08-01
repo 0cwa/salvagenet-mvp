@@ -1,0 +1,107 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import ArtImage from '../components/ArtImage.astro';
+import { GITHUB_URL } from '../components/SiteHeader.astro';
+
+const stages = [
+  {
+    name: 'Foundation',
+    tag: 'Complete',
+    tagClass: 'route-tag--done',
+    nodeClass: 'route-node--done',
+    text: 'Build the host software, guest profiles, delivery path, and automated checks.',
+    current: false,
+    done: true,
+  },
+  {
+    name: 'Physical validation',
+    tag: 'Current focus',
+    tagClass: 'route-tag--current',
+    nodeClass: 'route-node--current',
+    text: 'Run the complete provisioning, networking, recovery, and lifecycle path on a real phone.',
+    current: true,
+    done: false,
+  },
+  {
+    name: 'Early access',
+    tag: 'Next',
+    tagClass: '',
+    nodeClass: '',
+    text: 'Publish reviewed downloads, setup and recovery guides, and initial device records.',
+    current: false,
+    done: false,
+  },
+  {
+    name: 'Reliability',
+    tag: 'Next',
+    tagClass: '',
+    nodeClass: '',
+    text: 'Build confidence in thermal, storage, network, lifecycle, and update behaviour.',
+    current: false,
+    done: false,
+  },
+  {
+    name: 'Broader platforms',
+    tag: 'Later',
+    tagClass: '',
+    nodeClass: '',
+    text: 'Extend the proven path to more Android tiers, SBCs, Linux, and other hosts.',
+    current: false,
+    done: false,
+  },
+] as const;
+---
+
+<BaseLayout
+  title="Roadmap — SalvageNet"
+  description="The path from SalvageNet's software foundation to real-device validation, early access, reliability, and broader platforms."
+  current="/roadmap"
+>
+  <div class="container inner-page">
+    <header class="page-head">
+      <p class="page-kicker">The path ahead</p>
+      <h1>From working software to useful devices.</h1>
+      <p class="lede">Five broad stages keep the destination clear and the details manageable.</p>
+    </header>
+
+    <section class="route" aria-label="Project stages">
+      <ol>
+        {
+          stages.map((stage, index) => (
+            <li class={stage.current ? 'is-current' : undefined}>
+              <span class={`route-node ${stage.nodeClass}`} aria-hidden="true">
+                {stage.done && <Icon name="check" />}
+              </span>
+              <span class="route-stage">Stage {String(index + 1).padStart(2, '0')}</span>
+              <div class="route-card">
+                <h2>{stage.name}</h2>
+                <span class={`route-tag ${stage.tagClass}`}>{stage.tag}</span>
+                <p>{stage.text}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <ArtImage
+      name="broader-platforms"
+      class="art-band inner-art-band roadmap-art"
+      width={1600}
+      height={480}
+      mobile={{ width: 900, height: 700 }}
+      alt="A phone, single-board computer, and desktop host connected by one growing circuit system"
+    />
+
+    <div class="panel link-panel circuit-panel">
+      <p>
+        <strong>Want the detailed plan?</strong> Milestones and sequencing live in the repository's
+        issue roadmap.
+      </p>
+      <a class="btn btn--ghost" href={`${GITHUB_URL}/issues`} rel="noopener">
+        <Icon name="github" /> Follow along on GitHub
+      </a>
+    </div>
+  </div>
+</BaseLayout>

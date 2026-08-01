@@ -1,0 +1,232 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import ArtImage from '../components/ArtImage.astro';
+import { GITHUB_URL } from '../components/SiteHeader.astro';
+
+const principles = [
+  { icon: 'sprout', label: 'Make hardware useful' },
+  { icon: 'lock', label: 'Keep control local' },
+  { icon: 'shield-check', label: 'Connect privately' },
+  { icon: 'puzzle', label: 'Use familiar tools' },
+] as const;
+
+const steps = [
+  {
+    icon: 'phone',
+    title: 'Choose a capable spare device.',
+    text: 'SalvageNet starts with retired Android phones, with more device types planned later.',
+  },
+  {
+    icon: 'server',
+    title: 'Prepare a managed Linux host.',
+    text: 'The host layer provisions Linux, connects it privately, and supervises its lifecycle.',
+  },
+  {
+    icon: 'boxes',
+    title: 'Bring the tools you already use.',
+    text: 'Docker, Kubernetes, Nomad, SSH, and other tools keep their native workflows.',
+  },
+] as const;
+
+const outcomes = [
+  {
+    icon: 'leaf',
+    title: 'Use what you own',
+    text: 'Give capable hardware a useful second role instead of leaving it in a drawer.',
+  },
+  {
+    icon: 'lock',
+    title: 'Keep it close',
+    text: 'Run services on hardware you control and connect to it through a private network.',
+  },
+  {
+    icon: 'puzzle',
+    title: 'Keep your stack',
+    text: 'Add a host layer without replacing the open-source tools that already work for you.',
+  },
+] as const;
+---
+
+<BaseLayout
+  title="SalvageNet — Give spare devices a useful second life"
+  description="SalvageNet is building a practical path from spare devices to private, manageable Linux hosts."
+  current="/"
+>
+  <section class="hero">
+    <div class="container">
+      <div class="hero-copy">
+        <p class="eyebrow">Useful hardware. New purpose.</p>
+        <h1 class="hero-title">
+          Turn spare devices into useful <span class="accent no-break">self-hosting</span> nodes.
+        </h1>
+        <p class="hero-lede">
+          SalvageNet is building a practical path from spare Android hardware to private,
+          manageable Linux hosts. Reuse what you own and keep using the tools you know.
+        </p>
+        <p class="hero-note">
+          <span aria-hidden="true"></span>
+          Real-device validation is the current milestone.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn--primary" href="#how-it-works">
+            See how it works
+            <Icon name="arrow-right" />
+          </a>
+          <a class="btn btn--ghost" href="/status/">
+            View project status
+            <Icon name="arrow-right" />
+          </a>
+        </div>
+      </div>
+      <div class="hero-art">
+        <img
+          src="/assets/hero-illustration.webp"
+          width="700"
+          height="352"
+          alt="A laptop, desktop tower, monitor, and small servers connected by circuit lines and growing leaves"
+          fetchpriority="high"
+        />
+        <p class="hero-art-tag">
+          <span aria-hidden="true"></span>
+          Spare device <strong>→</strong> private Linux host
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="principles" aria-label="What SalvageNet makes possible">
+    <div class="container">
+      <ul>
+        {
+          principles.map((principle, index) => (
+            <li>
+              <span class="principle-index">0{index + 1}</span>
+              <span class="icon-badge"><Icon name={principle.icon} /></span>
+              {principle.label}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section why" aria-labelledby="why-title">
+    <div class="container">
+      <header class="section-heading">
+        <span class="section-index" aria-hidden="true">01</span>
+        <div>
+          <p class="section-label">Why SalvageNet</p>
+          <h2 id="why-title">More life from hardware you already own.</h2>
+          <p>Useful infrastructure does not have to begin with another new box.</p>
+        </div>
+      </header>
+      <ArtImage
+        name="node-garden"
+        class="art-band art-feature"
+        width={1536}
+        height={700}
+        alt="Two small servers growing among plants, with roots becoming colorful circuit lines"
+      />
+      <ul class="why-grid">
+        {
+          outcomes.map((outcome) => (
+            <li>
+              <div class="step-icon"><Icon name={outcome.icon} /></div>
+              <h3>{outcome.title}</h3>
+              <p>{outcome.text}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section-band" id="how-it-works" aria-labelledby="how-title">
+    <div class="container">
+      <header class="section-heading">
+        <span class="section-index" aria-hidden="true">02</span>
+        <div>
+          <p class="section-label">How it works</p>
+          <h2 id="how-title">One small host layer. Familiar tools above it.</h2>
+        </div>
+      </header>
+      <div class="panel circuit-panel process-panel">
+        <ol class="steps">
+          {
+            steps.map((step, index) => (
+              <>
+                <li>
+                  <span class="step-num" aria-hidden="true">{index + 1}</span>
+                  <div>
+                    <div class="step-icon"><Icon name={step.icon} /></div>
+                    <h3 class="step-title">{step.title}</h3>
+                    <p class="step-text">{step.text}</p>
+                  </div>
+                </li>
+                {index < steps.length - 1 && (
+                  <li class="step-arrow" aria-hidden="true"><Icon name="arrow-right" /></li>
+                )}
+              </>
+            ))
+          }
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section status-home" aria-labelledby="status-title">
+    <div class="container">
+      <header class="section-heading section-heading--compact">
+        <span class="section-index" aria-hidden="true">03</span>
+        <div>
+          <p class="section-label">Where it is going</p>
+          <h2 id="status-title">Software foundation first. Real devices next.</h2>
+        </div>
+      </header>
+      <div class="panel panel--surface status-panel circuit-panel">
+        <div class="status-grid">
+          <div class="status-item">
+            <h3>Foundation in place</h3>
+            <p>Provisioning, private connectivity, recovery, and automated checks exist.</p>
+          </div>
+          <div class="status-item status-item--pending">
+            <h3>Next milestone</h3>
+            <p>Prove the complete managed-Linux path on one physical Android phone.</p>
+          </div>
+          <div class="status-item status-item--now">
+            <h3>In progress</h3>
+            <p>Qualify the Linux guest, then run the first supervised on-device path.</p>
+          </div>
+        </div>
+        <div class="status-links">
+          <a class="text-link" href="/status/">Explore the status <Icon name="arrow-right" /></a>
+          <a class="text-link" href="/roadmap/">See what comes next <Icon name="arrow-right" /></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing" aria-labelledby="closing-label">
+    <div class="container">
+      <div class="panel closing-panel circuit-panel">
+        <div class="closing-copy">
+          <span class="icon-badge"><Icon name="sprout" /></span>
+          <div>
+            <p class="eyebrow">Built in the open</p>
+            <h2 id="closing-label">Help turn useful hardware into useful infrastructure.</h2>
+            <p>Follow the code, roadmap, and first real-device milestones.</p>
+          </div>
+        </div>
+        <div class="closing-actions">
+          <a class="btn btn--primary" href={GITHUB_URL} rel="noopener">
+            <Icon name="github" /> GitHub
+          </a>
+          <a class="btn btn--ghost" href="/roadmap/">
+            Roadmap <Icon name="arrow-right" />
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

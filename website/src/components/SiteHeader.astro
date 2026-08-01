@@ -1,0 +1,97 @@
+---
+import Icon from './Icon.astro';
+
+interface Props {
+  current: '/' | '/status' | '/roadmap' | '/about';
+}
+
+const { current } = Astro.props;
+
+export const GITHUB_URL = 'https://github.com/0cwa/salvagenet-mvp';
+
+const nav = [
+  { href: '/#how-it-works', label: 'How it works', key: null },
+  { href: '/status/', label: 'Status', key: '/status' },
+  { href: '/roadmap/', label: 'Roadmap', key: '/roadmap' },
+  { href: '/about/', label: 'About', key: '/about' },
+] as const;
+---
+
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/" aria-label="SalvageNet — home">
+      <img
+        class="logo-light"
+        src="/assets/logo-lockup.webp"
+        width="436"
+        height="166"
+        alt="SalvageNet — local tech. Revived. Reused. Reconnected."
+        fetchpriority="high"
+      />
+      <img
+        class="logo-dark"
+        src="/assets/logo-lockup-dark.webp"
+        width="436"
+        height="166"
+        alt=""
+        aria-hidden="true"
+        fetchpriority="high"
+      />
+    </a>
+
+    <nav class="site-nav" aria-label="Main">
+      <ul>
+        {
+          nav.map((item) => (
+            <li>
+              <a
+                class="nav-link"
+                href={item.href}
+                aria-current={item.key === current ? 'page' : undefined}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+        <li>
+          <a class="nav-github" href={GITHUB_URL} rel="noopener">
+            <Icon name="github" />
+            GitHub
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="theme-control theme-control--desktop" role="group" aria-label="Color theme" hidden>
+      <button type="button" data-theme-choice="system">System</button>
+      <button type="button" data-theme-choice="light">Light</button>
+      <button type="button" data-theme-choice="dark">Dark</button>
+    </div>
+
+    <details class="nav-toggle">
+      <summary aria-label="Open menu">Menu</summary>
+      <nav class="nav-panel" aria-label="Main">
+        <ul>
+          {
+            nav.map((item) => (
+              <li>
+                <a href={item.href} aria-current={item.key === current ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+          <li>
+            <a href={GITHUB_URL} rel="noopener">GitHub</a>
+          </li>
+        </ul>
+        <div class="theme-control theme-control--mobile" role="group" aria-label="Color theme" hidden>
+          <button type="button" data-theme-choice="system">System</button>
+          <button type="button" data-theme-choice="light">Light</button>
+          <button type="button" data-theme-choice="dark">Dark</button>
+        </div>
+      </nav>
+    </details>
+  </div>
+</header>

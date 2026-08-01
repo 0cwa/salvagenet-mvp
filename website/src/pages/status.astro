@@ -1,0 +1,91 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import ArtImage from '../components/ArtImage.astro';
+
+const STATUS_DOC_URL = 'https://github.com/0cwa/salvagenet-mvp/blob/main/docs/STATUS.md';
+---
+
+<BaseLayout
+  title="Project status — SalvageNet"
+  description="What exists in SalvageNet today, the current real-device milestone, and the work underway now."
+  current="/status"
+>
+  <div class="container inner-page">
+    <header class="page-head">
+      <p class="page-kicker">Build progress</p>
+      <h1>Project status</h1>
+      <p class="lede">
+        The software foundation is in place. The next milestone is proving the complete path on one
+        physical Android device.
+      </p>
+      <p class="meta">Last reviewed: July 2026</p>
+    </header>
+
+    <ArtImage
+      name="recovery-route"
+      class="art-band inner-art-band"
+      width={1600}
+      height={440}
+      mobile={{ width: 900, height: 600 }}
+      alt="A recovery route branching around a managed device, with circuit junctions and growing leaves"
+    />
+
+    <div class="detail-grid">
+      <section class="prose-section detail-card" aria-labelledby="exists">
+        <span class="detail-index" aria-hidden="true">01</span>
+        <h2 id="exists">
+          <span class="step-icon"><Icon name="check" /></span>
+          Ready in software
+        </h2>
+        <p>The core software path is implemented and tested:</p>
+        <ul>
+          <li>An Android host app that prepares and supervises Linux guests.</li>
+          <li>Packaged Alpine and Ubuntu guest profiles.</li>
+          <li>A typed, authenticated host API and controller client.</li>
+          <li>Private host and guest networking with a recovery route.</li>
+          <li>Automated packaging, security, and software checks.</li>
+        </ul>
+      </section>
+
+      <section class="prose-section detail-card" aria-labelledby="next">
+        <span class="detail-index" aria-hidden="true">02</span>
+        <h2 id="next">
+          <span class="step-icon"><Icon name="sprout" /></span>
+          Next milestone
+        </h2>
+        <p>Complete one end-to-end run on physical ARM64 Android hardware:</p>
+        <ul>
+          <li>Boot the known-good Linux guest on-device.</li>
+          <li>Join host and guest to the private network.</li>
+          <li>Deploy remotely and connect with ordinary SSH.</li>
+          <li>Recover when private networking is unavailable.</li>
+          <li>Survive reboots, restarts, and controller disconnects.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="prose-section prose-section--accent" aria-labelledby="now">
+      <p class="page-kicker">In progress now</p>
+      <h2 id="now">
+        <span class="step-icon"><Icon name="server" /></span>
+        Qualifying the Linux guest
+      </h2>
+      <p>
+        Current work focuses on deterministic Ubuntu ARM64 boot, key-only access, clean restarts,
+        and secret hygiene. Physical validation follows with the project's hardware-in-the-loop
+        runner on one exact phone and build.
+      </p>
+    </section>
+
+    <div class="panel panel--surface link-panel circuit-panel">
+      <p>
+        <strong>Need the engineering detail?</strong> The canonical status document contains the
+        gate-level record.
+      </p>
+      <a class="btn btn--ghost" href={STATUS_DOC_URL} rel="noopener">
+        Open docs/STATUS.md <Icon name="arrow-right" />
+      </a>
+    </div>
+  </div>
+</BaseLayout>

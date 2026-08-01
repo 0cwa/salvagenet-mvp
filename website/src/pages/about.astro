@@ -1,0 +1,95 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import ArtImage from '../components/ArtImage.astro';
+import { GITHUB_URL } from '../components/SiteHeader.astro';
+---
+
+<BaseLayout
+  title="About — SalvageNet"
+  description="Why SalvageNet gives capable hardware another role and works with the open-source tools people already use."
+  current="/about"
+>
+  <div class="container inner-page">
+    <header class="page-head split">
+      <div>
+        <p class="page-kicker">Why SalvageNet</p>
+        <h1>Useful hardware can do more.</h1>
+        <p class="lede">Local tech. Revived. Reused. Reconnected.</p>
+      </div>
+      <ArtImage
+        name="reuse-workbench"
+        class="spot-art"
+        width={1280}
+        height={900}
+        alt="A spare phone, circuit board, and box of components growing into connected plant-like circuits"
+      />
+    </header>
+
+    <section class="prose-section prose-section--lead" aria-labelledby="life">
+      <h2 id="life">
+        <span class="step-icon"><Icon name="leaf" /></span>
+        Useful hardware, useful again
+      </h2>
+      <p>
+        Phones, laptops, and small computers are often shelved while they still have capable
+        processors, memory, and years of service left.
+      </p>
+      <p>
+        SalvageNet is building a way to give that capacity a practical second role: infrastructure
+        you can reach, manage, and keep under your control.
+      </p>
+    </section>
+
+    <section class="prose-section split feature-split" aria-labelledby="integrate">
+      <div>
+        <p class="page-kicker">Fits your stack</p>
+        <h2 id="integrate">
+          <span class="step-icon"><Icon name="puzzle" /></span>
+          Integration, not reinvention
+        </h2>
+        <p>
+          SalvageNet prepares a spare device to be a good Linux host and connects it to a private
+          network. It does not replace the workload tools above it.
+        </p>
+        <p>
+          Docker, Kubernetes, Nomad, Ansible, OpenTofu, Nix, and SSH keep their native formats and
+          responsibilities. SalvageNet gets the device ready, then stays out of the way.
+        </p>
+      </div>
+      <ArtImage
+        name="tools-integration"
+        class="spot-art"
+        width={1280}
+        height={850}
+        alt="A host layer connecting a small server, software cube, and terminal monitor"
+      />
+    </section>
+
+    <section class="prose-section prose-section--accent" aria-labelledby="open">
+      <p class="page-kicker">Open from the foundation</p>
+      <h2 id="open">
+        <span class="step-icon"><Icon name="code" /></span>
+        Built to be understood
+      </h2>
+      <p>
+        The code, milestones, and technical records are public. You can see what exists, what comes
+        next, and how each part fits into the larger path.
+      </p>
+      <p>
+        Start with the <a href="/status/">project status</a>, explore{' '}
+        <a href="/roadmap/">the roadmap</a>, or go directly to the repository.
+      </p>
+    </section>
+
+    <div class="panel panel--surface link-panel circuit-panel">
+      <p>
+        <strong>Build with us.</strong> Follow the code and help shape a practical future for useful
+        hardware.
+      </p>
+      <a class="btn btn--primary" href={GITHUB_URL} rel="noopener">
+        <Icon name="github" /> Visit the repository
+      </a>
+    </div>
+  </div>
+</BaseLayout>

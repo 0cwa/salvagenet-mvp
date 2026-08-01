@@ -1,0 +1,95 @@
+/* ------------------------------------------------------------------
+   SalvageNet design tokens — single source of truth.
+   Palette and type follow the approved brand board
+   (salvage-design-final.png), with paired light and dark canvases.
+------------------------------------------------------------------ */
+
+:root {
+  /* Palette (approved) */
+  --canvas: #f7f4ee; /* warm paper, dominates every page      */
+  --surface: #e6f0ec; /* soft panel wash                    */
+  --ink: #0c4b4f; /* dark teal: text, borders, buttons    */
+  --moss: #6b8a72; /* softens the system                   */
+  --amber: #fac145; /* small highlight                      */
+  --copper: #ff684a; /* small highlight                      */
+  --signal: #2283a9; /* small accent                         */
+
+  /* Derived tints (kept close to the board) */
+  --panel: #fdfbf6; /* card fill, a lift above canvas     */
+  --ink-muted: #47696d; /* secondary text                   */
+  --ink-faint: #6d8284; /* tertiary text, metadata          */
+  --line: #ddd6c7; /* hairline on cream                    */
+  --line-teal: #bfd2cc; /* hairline on surface panels       */
+  --ink-deep: #093a3d; /* button hover                       */
+  --moss-deep: #5c7a64;
+  --amber-soft: #fdf0d3; /* current-stage tint               */
+  --focus: #2283a9;
+
+  /* Typography */
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1.0625rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: clamp(1.65rem, 1.2rem + 1.8vw, 2.25rem);
+  --text-hero: clamp(2.4rem, 1.6rem + 3.6vw, 3.75rem);
+
+  /* Shape & line */
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --hairline: 1px;
+  --stroke: 1.5px;
+
+  /* Rhythm */
+  --maxw: 71rem; /* ~1136px content column       */
+  --gutter: clamp(1.25rem, 4vw, 2.5rem);
+  --section-gap: clamp(4rem, 8vw, 7.5rem);
+
+  /* Page frame */
+  --frame-inset: 12px;
+  --frame-width: 1.5px;
+}
+
+/* Dark theme — deep teal night derived from the approved dark logo board.
+   Applied via explicit data-theme, or via system preference when no
+   explicit choice has been made (no-JS path). */
+:root[data-theme='dark'] {
+  --canvas: #02232b;
+  --surface: #07323c;
+  --panel: #062c35;
+  --ink: #ece7d8;
+  --ink-deep: #f9f5e9;
+  --ink-muted: #a3bab6;
+  --ink-faint: #7d968f;
+  --line: #16444e;
+  --line-teal: #1a525d;
+  --moss: #8eaa93;
+  --moss-deep: #a8c2ad;
+  --signal: #55a9cf;
+  --amber-soft: #2e3320;
+  --focus: #55a9cf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --canvas: #02232b;
+    --surface: #07323c;
+    --panel: #062c35;
+    --ink: #ece7d8;
+    --ink-deep: #f9f5e9;
+    --ink-muted: #a3bab6;
+    --ink-faint: #7d968f;
+    --line: #16444e;
+    --line-teal: #1a525d;
+    --moss: #8eaa93;
+    --moss-deep: #a8c2ad;
+    --signal: #55a9cf;
+    --amber-soft: #2e3320;
+    --focus: #55a9cf;
+  }
+}

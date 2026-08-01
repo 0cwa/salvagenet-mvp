@@ -1,0 +1,41 @@
+---
+import { GITHUB_URL } from './SiteHeader.astro';
+import ArtImage from './ArtImage.astro';
+---
+
+<footer class="site-footer">
+  <ArtImage
+    name="circuit-divider"
+    class="footer-divider"
+    width={1600}
+    height={280}
+    alt=""
+  />
+  <div class="container">
+    <img
+      class="logo-light"
+      src="/assets/logo-lockup.webp"
+      width="436"
+      height="166"
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+    />
+    <img
+      class="logo-dark"
+      src="/assets/logo-lockup-dark.webp"
+      width="436"
+      height="166"
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+    />
+    <p class="footer-note">Useful hardware. New purpose.</p>
+    <ul class="footer-nav">
+      <li><a href="/status/">Status</a></li>
+      <li><a href="/roadmap/">Roadmap</a></li>
+      <li><a href="/about/">About</a></li>
+      <li><a href={GITHUB_URL} rel="noopener">GitHub</a></li>
+    </ul>
+  </div>
+</footer>
