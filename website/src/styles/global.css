@@ -419,7 +419,7 @@ main {
 
 .hero .container {
   display: grid;
-  grid-template-columns: minmax(0, 33rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 36rem) minmax(0, 1fr);
   align-items: center;
   gap: clamp(1.5rem, 4vw, 3rem);
 }
@@ -453,6 +453,12 @@ main {
 
 .hero-art img {
   width: 100%;
+}
+
+@media (max-width: 1100px) and (min-width: 881px) {
+  .hero .container {
+    grid-template-columns: minmax(0, 30rem) minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 880px) {
@@ -1253,11 +1259,11 @@ main {
 }
 
 .brand {
-  width: 190px;
+  width: 205px;
 }
 
 .brand img {
-  width: 190px;
+  width: 205px;
 }
 
 .site-header .container {
@@ -1564,7 +1570,8 @@ main {
 
 .page-head h1 {
   margin-top: 0.65rem;
-  max-width: 48rem;
+  max-width: 54rem;
+  font-size: clamp(2rem, 1.45rem + 2vw, 3rem);
 }
 
 .page-head .lede {
@@ -1573,13 +1580,14 @@ main {
 }
 
 .page-head.split {
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 29rem);
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 32rem);
+  gap: clamp(3rem, 7vw, 6rem);
 }
 
 .spot-art {
   justify-self: end;
   width: 100%;
-  max-width: 31rem;
+  max-width: 33rem;
 }
 
 .inner-art-band {
@@ -1623,7 +1631,8 @@ main {
 }
 
 .prose-section--accent {
-  max-width: 49rem;
+  max-width: 52rem;
+  margin-inline: auto;
   padding: clamp(1.5rem, 3vw, 2.2rem);
   border-left: 3px solid var(--signal);
   border-radius: 0 var(--radius) var(--radius) 0;
@@ -1641,6 +1650,10 @@ main {
 
 .link-panel {
   margin-top: clamp(3rem, 6vw, 5rem);
+}
+
+.inner-page > .link-panel {
+  margin-inline: auto;
 }
 
 /* Footer is a quiet finish, not another full section. */
@@ -1690,9 +1703,42 @@ main {
   }
 }
 
-@media (min-width: 761px) {
+@media (min-width: 981px) {
   .theme-control--mobile {
     display: none !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .site-nav {
+    display: none;
+  }
+
+  .nav-toggle {
+    display: block;
+  }
+
+  .theme-control--desktop {
+    display: none !important;
+  }
+
+  .theme-control--mobile:not([hidden]) {
+    display: flex !important;
+  }
+
+  .nav-toggle .nav-panel {
+    top: calc(100% + 0.7rem);
+    right: 0;
+    width: min(20rem, calc(100vw - 2 * var(--gutter)));
+    margin-top: 0;
+  }
+
+  .brand {
+    width: 175px;
+  }
+
+  .brand img {
+    width: 175px;
   }
 }
 
