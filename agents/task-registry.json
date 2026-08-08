@@ -16,7 +16,8 @@
     "H02B": "QUEUED_REVIEW",
     "H03": "QUEUED_REVIEW",
     "H04": "MERGED",
-    "WEB04": "PLANNED"
+    "WEB04": "PLANNED",
+    "P01": "PLANNED"
   },
   "tasks": [
     {
@@ -86,6 +87,13 @@
       "name": "Issue roadmap and human-aware agent index",
       "dependsOn": [],
       "packet": "agents/tasks/WEB04/task.md",
+      "status": "PLANNED"
+    },
+    {
+      "id": "P01",
+      "name": "Model and reasoning provenance ledger",
+      "dependsOn": [],
+      "packet": "agents/tasks/P01/task.md",
       "status": "PLANNED"
     }
   ]

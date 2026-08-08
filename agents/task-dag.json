@@ -3,7 +3,7 @@
   "integrationBranch": "integration/roadmap-foundation-1",
   "phase": {
     "id": "roadmap-foundation-1",
-    "objective": "Bootstrap the complete GitHub issue roadmap and compact human-aware agent state before website implementation, while preserving H02A as the next product-critical qualification phase.",
+    "objective": "Bootstrap the complete GitHub issue roadmap, compact human-aware agent state, and minimal cross-harness model/reasoning provenance before website implementation, while preserving H02A as the next product-critical qualification phase.",
     "entryCriteria": [
       "PR #19 merged at b42c35ac17793fb1621baf19905a0eacea9b3521 and accepted the Podroid-MVP alignment, roadmap truth, static-site, theme, and human-aware planning contracts.",
       "GitHub Issues are enabled, but the reviewed roadmap has not yet been materialized as labels, milestones, stable-ID issues, dependency links, snapshots, or agent commands.",
@@ -13,9 +13,11 @@
     ],
     "exitCriteria": [
       "A complete reviewed seed covers all roadmap outcomes, B01-B20, U01-U04, release-blocking debt, accepted post-MVP directions, current pull requests, and task-packet mappings.",
+      "The provenance slice is limited to Git trailers, a deterministic Git-range report, isolated PR CI, and focused tests; it has no product/runtime coupling or mandatory hook dependency.",
       "An idempotent dry-run/apply bootstrap creates or verifies GitHub labels, milestones, stable-ID issues, and complete issue-dependency links without overwriting live refinements.",
       "The normalized live graph generates a bounded last-known-good public snapshot and compact agent index with source hash, freshness, fallback, and partial-graph protections.",
       "Bounded status, freshness, sync, and per-issue context entry points are tested and documented with human-visible state and disagreement reporting.",
+      "New project-owned commits in a validated pull-request range carry explicit model, reasoning, run, task, and mode metadata, and PR CI publishes a bounded deterministic report without mutating the repository tree.",
       "All WEB04 criteria and normal repository checks pass, and no website page or product implementation is introduced.",
       "A phase-end review normally reactivates H02A and may authorize WEB01 in parallel only when paths remain disjoint and the live roadmap/index is healthy."
     ]
@@ -26,6 +28,13 @@
       "slug": "issue-roadmap-and-human-aware-agent-index",
       "dependsOn": [],
       "parallelGroup": 1,
+      "mvpPlus": false
+    },
+    {
+      "id": "P01",
+      "slug": "model-reasoning-provenance-ledger",
+      "dependsOn": [],
+      "parallelGroup": 2,
       "mvpPlus": false
     }
   ]

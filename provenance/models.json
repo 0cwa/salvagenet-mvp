@@ -1,14 +1,53 @@
 {
-  "schemaVersion": 1,
-  "policy": "Record the exact runtime-reported model identifier. Never infer, normalize, or substitute a marketing family.",
+  "schemaVersion": 2,
+  "policy": "Record the exact runtime-reported model identifier and all other metadata exactly as supplied by the harness. Never infer, normalize, or substitute a value; use unknown or not-applicable when appropriate rather than relying on a helper default.",
+  "requiredMetadata": [
+    {
+      "trailer": "Agent-Model",
+      "environment": "AGENT_MODEL"
+    },
+    {
+      "trailer": "Agent-Run-ID",
+      "environment": "AGENT_RUN_ID"
+    },
+    {
+      "trailer": "Agent-Task-ID",
+      "environment": "AGENT_TASK_ID"
+    },
+    {
+      "trailer": "Agent-Mode",
+      "environment": "AGENT_MODE"
+    },
+    {
+      "trailer": "Agent-Reasoning",
+      "environment": "AGENT_REASONING"
+    }
+  ],
+  "explicitUnavailableValues": [
+    "unknown",
+    "not-applicable"
+  ],
   "examples": [
-    "<exact-runtime-reported-model>",
-    "human"
+    {
+      "AGENT_MODEL": "<exact-runtime-reported-model>",
+      "AGENT_RUN_ID": "run-2026-08-08T120000Z",
+      "AGENT_TASK_ID": "P01",
+      "AGENT_MODE": "goal",
+      "AGENT_REASONING": "direct"
+    },
+    {
+      "AGENT_MODEL": "human",
+      "AGENT_RUN_ID": "review-2026-08-08",
+      "AGENT_TASK_ID": "P01",
+      "AGENT_MODE": "human-review",
+      "AGENT_REASONING": "not-applicable"
+    }
   ],
   "requiredTrailers": [
     "Agent-Model",
     "Agent-Run-ID",
     "Agent-Task-ID",
-    "Agent-Mode"
+    "Agent-Mode",
+    "Agent-Reasoning"
   ]
 }
