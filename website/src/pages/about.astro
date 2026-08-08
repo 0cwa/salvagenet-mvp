@@ -1,95 +1,80 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import Icon from '../components/Icon.astro';
 import ArtImage from '../components/ArtImage.astro';
-import { GITHUB_URL } from '../components/SiteHeader.astro';
 ---
 
 <BaseLayout
   title="About — SalvageNet"
-  description="Why SalvageNet gives capable hardware another role and works with the open-source tools people already use."
+  description="SalvageNet is a host layer for turning spare Android phones into Linux-capable nodes without replacing the tools that run above them."
   current="/about"
 >
-  <div class="container inner-page">
+  <div class="container inner-page about-page">
     <header class="page-head split">
       <div>
-        <p class="page-kicker">Why SalvageNet</p>
-        <h1>Useful hardware can do more.</h1>
-        <p class="lede">Local tech. Revived. Reused. Reconnected.</p>
-      </div>
-      <ArtImage
-        name="reuse-workbench"
-        class="spot-art"
-        width={1280}
-        height={900}
-        alt="A spare phone, circuit board, and box of components growing into connected plant-like circuits"
-      />
-    </header>
-
-    <section class="prose-section prose-section--lead" aria-labelledby="life">
-      <h2 id="life">
-        <span class="step-icon"><Icon name="leaf" /></span>
-        Useful hardware, useful again
-      </h2>
-      <p>
-        Phones, laptops, and small computers are often shelved while they still have capable
-        processors, memory, and years of service left.
-      </p>
-      <p>
-        SalvageNet is building a way to give that capacity a practical second role: infrastructure
-        you can reach, manage, and keep under your control.
-      </p>
-    </section>
-
-    <section class="prose-section split feature-split" aria-labelledby="integrate">
-      <div>
-        <p class="page-kicker">Fits your stack</p>
-        <h2 id="integrate">
-          <span class="step-icon"><Icon name="puzzle" /></span>
-          Integration, not reinvention
-        </h2>
-        <p>
-          SalvageNet prepares a spare device to be a good Linux host and connects it to a private
-          network. It does not replace the workload tools above it.
-        </p>
-        <p>
-          Docker, Kubernetes, Nomad, Ansible, OpenTofu, Nix, and SSH keep their native formats and
-          responsibilities. SalvageNet gets the device ready, then stays out of the way.
+        <h1>SalvageNet turns spare phones into Linux hosts.</h1>
+        <p class="lede">
+          The goal is practical: give an old Android phone a controlled second job, without asking
+          the software above it to change.
         </p>
       </div>
       <ArtImage
         name="tools-integration"
         class="spot-art"
         width={1280}
-        height={850}
-        alt="A host layer connecting a small server, software cube, and terminal monitor"
+        height={900}
+        alt="A Linux host layer connecting a small server, software cube, and terminal monitor"
       />
+    </header>
+
+    <section class="about-intro" aria-labelledby="what-it-is">
+      <p class="page-kicker">What it is</p>
+      <h2 id="what-it-is">A host layer, not a new way to run everything.</h2>
+      <p>
+        SalvageNet is an open-source device-enablement layer. On a supported phone, it manages the
+        host, runs a Linux guest through the Android-native QEMU path, keeps desired state across
+        restarts, and provides private connectivity and recovery paths.
+      </p>
+      <p>
+        It is not a workload scheduler, a replacement for Docker or Kubernetes, or a custom Linux
+        distribution. Those tools remain responsible for the work they already do.
+      </p>
     </section>
 
-    <section class="prose-section prose-section--accent" aria-labelledby="open">
-      <p class="page-kicker">Open from the foundation</p>
-      <h2 id="open">
-        <span class="step-icon"><Icon name="code" /></span>
-        Built to be understood
-      </h2>
-      <p>
-        The code, milestones, and technical records are public. You can see what exists, what comes
-        next, and how each part fits into the larger path.
-      </p>
-      <p>
-        Start with the <a href="/status/">project status</a>, explore{' '}
-        <a href="/roadmap/">the roadmap</a>, or go directly to the repository.
-      </p>
+    <section class="about-grid" aria-label="What SalvageNet handles">
+      <article class="about-card">
+        <p class="page-kicker">SalvageNet handles</p>
+        <h2>The device layer</h2>
+        <ul>
+          <li>Provisioning and profile-driven Linux guests</li>
+          <li>Host and guest lifecycle</li>
+          <li>Private host and guest connectivity</li>
+          <li>Recovery when the normal guest path fails</li>
+        </ul>
+      </article>
+      <article class="about-card">
+        <p class="page-kicker">You keep</p>
+        <h2>Your existing tools</h2>
+        <ul>
+          <li>Normal Linux userspace and SSH</li>
+          <li>Docker, Kubernetes, Nomad, and similar tools</li>
+          <li>Your own hardware and network boundary</li>
+          <li>Open formats instead of a closed service</li>
+        </ul>
+      </article>
     </section>
 
-    <div class="panel panel--surface link-panel circuit-panel">
+    <section class="about-status" aria-labelledby="current-boundary">
+      <p class="page-kicker">Next steps</p>
+      <h2 id="current-boundary">Build, test, repeat.</h2>
       <p>
-        <strong>Build with us.</strong> Follow the code and help shape a practical future for useful
-        hardware.
+        The core software, packaging, security, and evidence checks are in place. The next phase is
+        to run the same path on more devices, finish the remaining features, and document what
+        works in practice.
       </p>
-      <a class="btn btn--primary" href={GITHUB_URL} rel="noopener">
-        <Icon name="github" /> Visit the repository
-      </a>
-    </div>
+      <p>
+        The <a href="/roadmap/">roadmap</a> tracks that work from controlled tests to a dependable
+        release.
+      </p>
+    </section>
   </div>
 </BaseLayout>

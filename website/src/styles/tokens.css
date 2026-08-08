@@ -5,25 +5,24 @@
 ------------------------------------------------------------------ */
 
 :root {
-  /* Palette (approved) */
-  --canvas: #f7f4ee; /* warm paper, dominates every page      */
-  --surface: #e6f0ec; /* soft panel wash                    */
-  --ink: #0c4b4f; /* dark teal: text, borders, buttons    */
-  --moss: #6b8a72; /* softens the system                   */
-  --amber: #fac145; /* small highlight                      */
-  --copper: #ff684a; /* small highlight                      */
-  --signal: #2283a9; /* small accent                         */
+  /* Permanent dark palette */
+  --canvas: #02232b;
+  --surface: #07323c;
+  --panel: #062c35;
+  --ink: #ece7d8;
+  --moss: #8eaa93;
+  --amber: #fac145;
+  --copper: #ff684a;
+  --signal: #55a9cf;
 
-  /* Derived tints (kept close to the board) */
-  --panel: #fdfbf6; /* card fill, a lift above canvas     */
-  --ink-muted: #47696d; /* secondary text                   */
-  --ink-faint: #6d8284; /* tertiary text, metadata          */
-  --line: #ddd6c7; /* hairline on cream                    */
-  --line-teal: #bfd2cc; /* hairline on surface panels       */
-  --ink-deep: #093a3d; /* button hover                       */
-  --moss-deep: #5c7a64;
-  --amber-soft: #fdf0d3; /* current-stage tint               */
-  --focus: #2283a9;
+  --ink-deep: #f9f5e9;
+  --ink-muted: #a3bab6;
+  --ink-faint: #7d968f;
+  --line: #16444e;
+  --line-teal: #1a525d;
+  --moss-deep: #a8c2ad;
+  --amber-soft: #2e3320;
+  --focus: #55a9cf;
 
   /* Typography */
   --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
@@ -31,8 +30,8 @@
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
-  --text-base: 1.0625rem;
-  --text-md: 1.125rem;
+  --text-base: 1.125rem;
+  --text-md: 1.2rem;
   --text-lg: 1.25rem;
   --text-xl: 1.5rem;
   --text-2xl: clamp(1.65rem, 1.2rem + 1.8vw, 2.25rem);
@@ -46,50 +45,7 @@
   --stroke: 1.5px;
 
   /* Rhythm */
-  --maxw: 80rem; /* broad editorial shell; gutters preserve the page frame */
-  --gutter: clamp(1.25rem, 4vw, 2.5rem);
+  --maxw: 96rem; /* broad shell keeps the content closer to the viewport edges */
+  --gutter: clamp(1.25rem, 3vw, 2rem);
   --section-gap: clamp(4rem, 8vw, 7.5rem);
-
-  /* Page frame */
-  --frame-inset: 12px;
-  --frame-width: 1.5px;
-}
-
-/* Dark theme — deep teal night derived from the approved dark logo board.
-   Applied via explicit data-theme, or via system preference when no
-   explicit choice has been made (no-JS path). */
-:root[data-theme='dark'] {
-  --canvas: #02232b;
-  --surface: #07323c;
-  --panel: #062c35;
-  --ink: #ece7d8;
-  --ink-deep: #f9f5e9;
-  --ink-muted: #a3bab6;
-  --ink-faint: #7d968f;
-  --line: #16444e;
-  --line-teal: #1a525d;
-  --moss: #8eaa93;
-  --moss-deep: #a8c2ad;
-  --signal: #55a9cf;
-  --amber-soft: #2e3320;
-  --focus: #55a9cf;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --canvas: #02232b;
-    --surface: #07323c;
-    --panel: #062c35;
-    --ink: #ece7d8;
-    --ink-deep: #f9f5e9;
-    --ink-muted: #a3bab6;
-    --ink-faint: #7d968f;
-    --line: #16444e;
-    --line-teal: #1a525d;
-    --moss: #8eaa93;
-    --moss-deep: #a8c2ad;
-    --signal: #55a9cf;
-    --amber-soft: #2e3320;
-    --focus: #55a9cf;
-  }
 }

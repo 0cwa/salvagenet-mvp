@@ -2,7 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 import ArtImage from '../components/ArtImage.astro';
-import { GITHUB_URL } from '../components/SiteHeader.astro';
 
 const stages = [
   {
@@ -10,16 +9,16 @@ const stages = [
     tag: 'Complete',
     tagClass: 'route-tag--done',
     nodeClass: 'route-node--done',
-    text: 'Build the host software, guest profiles, delivery path, and automated checks.',
+    text: 'Build the host software, Linux guest profiles, delivery path, and automated checks.',
     current: false,
     done: true,
   },
   {
-    name: 'Physical validation',
-    tag: 'Current focus',
+    name: 'Further testing and implementation',
+    tag: 'Current work',
     tagClass: 'route-tag--current',
     nodeClass: 'route-node--current',
-    text: 'Run the complete provisioning, networking, recovery, and lifecycle path on a real phone.',
+    text: 'Test the host on more devices while implementing the features needed for a dependable release.',
     current: true,
     done: false,
   },
@@ -28,7 +27,7 @@ const stages = [
     tag: 'Next',
     tagClass: '',
     nodeClass: '',
-    text: 'Publish reviewed downloads, setup and recovery guides, and initial device records.',
+    text: 'Publish reviewed downloads, practical setup guidance, and the first device records.',
     current: false,
     done: false,
   },
@@ -37,7 +36,7 @@ const stages = [
     tag: 'Next',
     tagClass: '',
     nodeClass: '',
-    text: 'Build confidence in thermal, storage, network, lifecycle, and update behaviour.',
+    text: 'Test heat, storage, networking, recovery, lifecycle, and updates over time.',
     current: false,
     done: false,
   },
@@ -46,7 +45,7 @@ const stages = [
     tag: 'Later',
     tagClass: '',
     nodeClass: '',
-    text: 'Extend the proven path to more Android tiers, SBCs, Linux, and other hosts.',
+    text: 'Carry the proven approach to more Android devices, small computers, and Linux hosts.',
     current: false,
     done: false,
   },
@@ -60,9 +59,11 @@ const stages = [
 >
   <div class="container inner-page">
     <header class="page-head">
-      <p class="page-kicker">The path ahead</p>
-      <h1>From working software to useful devices.</h1>
-      <p class="lede">Five broad stages keep the destination clear and the details manageable.</p>
+      <h1>Start with one device. Prove the whole path.</h1>
+      <p class="lede">
+        The foundation is in place. The next work combines device testing with feature
+        implementation.
+      </p>
     </header>
 
     <section class="route" aria-label="Project stages">
@@ -93,15 +94,5 @@ const stages = [
       mobile={{ width: 900, height: 700 }}
       alt="A phone, single-board computer, and desktop host connected by one growing circuit system"
     />
-
-    <div class="panel link-panel circuit-panel">
-      <p>
-        <strong>Want the detailed plan?</strong> Milestones and sequencing live in the repository's
-        issue roadmap.
-      </p>
-      <a class="btn btn--ghost" href={`${GITHUB_URL}/issues`} rel="noopener">
-        <Icon name="github" /> Follow along on GitHub
-      </a>
-    </div>
   </div>
 </BaseLayout>

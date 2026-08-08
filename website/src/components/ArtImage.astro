@@ -26,40 +26,20 @@ const {
 } = Astro.props;
 ---
 
-<span class:list={['art', klass]}>
-  <picture class="art-light">
-    {mobile && (
-      <source
-        media="(max-width: 600px)"
-        srcset={`/assets/art-${name}-mobile-light.webp`}
-        width={mobile.width}
-        height={mobile.height}
-      />
-    )}
-    <img
-      src={`/assets/art-${name}-light.webp`}
-      width={width}
-      height={height}
-      alt={alt}
-      loading={loading}
+<picture class:list={['art', klass]}>
+  {mobile && (
+    <source
+      media="(max-width: 600px)"
+      srcset={`/assets/art-${name}-mobile-dark.webp`}
+      width={mobile.width}
+      height={mobile.height}
     />
-  </picture>
-  <picture class="art-dark">
-    {mobile && (
-      <source
-        media="(max-width: 600px)"
-        srcset={`/assets/art-${name}-mobile-dark.webp`}
-        width={mobile.width}
-        height={mobile.height}
-      />
-    )}
-    <img
-      src={`/assets/art-${name}-dark.webp`}
-      width={width}
-      height={height}
-      alt=""
-      aria-hidden="true"
-      loading={loading}
-    />
-  </picture>
-</span>
+  )}
+  <img
+    src={`/assets/art-${name}-dark.webp`}
+    width={width}
+    height={height}
+    alt={alt}
+    loading={loading}
+  />
+</picture>
