@@ -14,17 +14,18 @@ fail() {
 case $# in
   1)
     range=$1
+    [[ -n $range ]] || fail "the Git range must not be empty"
+    [[ $range != -* ]] || fail "the Git range must be explicit and must not begin with '-'"
     ;;
   2)
+    [[ -n $1 && -n $2 ]] || fail "the base and head must not be empty"
+    [[ $1 != -* && $2 != -* ]] || fail "the base and head must not begin with '-'"
     range="$1..$2"
     ;;
   *)
     usage
     ;;
 esac
-
-[[ -n $range ]] || fail "the Git range must not be empty"
-[[ $range != -* ]] || fail "the Git range must be explicit and must not begin with '-'"
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || \
   fail "could not locate the Git repository"
@@ -44,6 +45,8 @@ REQUIRED_TRAILERS = (
 )
 MAX_COMMITS = 256
 MAX_FILES_PER_COMMIT = 2000
+MAX_TEXT_BYTES = 4096
+MAX_REPORT_BYTES = 8 * 1024 * 1024
 
 
 class ReportError(Exception):
@@ -76,7 +79,12 @@ def parse_trailers(repo, sha):
         key, value = line.split(":", 1)
         name = canonical.get(key.strip().casefold())
         if name is not None:
-            values[name].append(value.strip())
+            value = value.strip()
+            if len(value.encode("utf-8", "surrogateescape")) > MAX_TEXT_BYTES:
+                raise ReportError(
+                    f"commit {sha}: trailer {name} exceeds the {MAX_TEXT_BYTES}-byte limit"
+                )
+            values[name].append(value)
 
     for name in REQUIRED_TRAILERS:
         if not values[name] or any(not value for value in values[name]):
@@ -99,11 +107,17 @@ def changed_files(repo, sha):
         sha,
         "--",
     )
-    files = [path.decode("utf-8", "surrogateescape") for path in paths.split(b"\0") if path]
+    raw_files = [path for path in paths.split(b"\0") if path]
+    files = [path.decode("utf-8", "surrogateescape") for path in sorted(raw_files)]
     if len(files) > MAX_FILES_PER_COMMIT:
         raise ReportError(
             f"commit {sha}: changed-file limit exceeded ({len(files)} > {MAX_FILES_PER_COMMIT})"
         )
+    for path in raw_files:
+        if len(path) > MAX_TEXT_BYTES:
+            raise ReportError(
+                f"commit {sha}: changed path exceeds the {MAX_TEXT_BYTES}-byte limit"
+            )
     return files
 
 
@@ -126,6 +140,10 @@ def main(repo, range_spec):
             subject = git(repo, "show", "--no-patch", "--format=%s", sha, "--").decode(
                 "utf-8", "surrogateescape"
             ).rstrip("\n")
+            if len(subject.encode("utf-8", "surrogateescape")) > MAX_TEXT_BYTES:
+                raise ReportError(
+                    f"commit {sha}: subject exceeds the {MAX_TEXT_BYTES}-byte limit"
+                )
             trailers = parse_trailers(repo, sha)
             commits.append(
                 {
@@ -148,7 +166,14 @@ def main(repo, range_spec):
         "range": range_spec,
         "commits": commits,
     }
-    print(json.dumps(report, ensure_ascii=True, separators=(",", ":")))
+    encoded = json.dumps(report, ensure_ascii=True, separators=(",", ":"))
+    if len(encoded.encode("utf-8")) > MAX_REPORT_BYTES:
+        print(
+            f"report.sh: report exceeds the {MAX_REPORT_BYTES}-byte limit",
+            file=sys.stderr,
+        )
+        return 2
+    print(encoded)
     return 0
 
 

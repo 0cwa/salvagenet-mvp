@@ -25,7 +25,20 @@ tools/provenance/report.sh <base-sha> <head-sha>
 ```
 
 The report requires an explicit range. It is intentionally not a repository-wide
-history scan; older commits remain readable without being rewritten.
+history scan; older commits remain readable without being rewritten. The
+two-argument form is exactly `base..head`, so the base commit itself is not
+reported and the head is included. A one-argument `base..head` invocation has
+the same selection semantics. Empty, option-like, or unresolved endpoints fail
+before a partial report is emitted.
+
+The version-1 JSON report emits full commit IDs, subjects, all values for each
+required trailer, and deterministically sorted changed paths. It fails loudly
+for missing or blank required values and is bounded to 256 commits, 2,000 paths
+per commit, 4,096 bytes per textual field, and 8 MiB total. These limits keep a
+pull-request artifact reviewable; they are not evidence that the declarations
+are true. `Agent-Model` and `Agent-Reasoning` remain caller declarations, not
+independent provider or runtime attestations. A merge commit is reported once;
+its changed paths use Git's combined diff rather than a per-parent expansion.
 
 ## Why no prompt archive
 

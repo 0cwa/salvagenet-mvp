@@ -112,6 +112,41 @@ class ProvenanceReportTests(unittest.TestCase):
         self.assertEqual(document["commits"][0]["Agent-Run-ID"], ["run-2"])
         self.assertEqual(document["commits"][0]["changedFiles"], ["two.txt"])
 
+        repeated = self.report(f"{first}..{second}")
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertEqual(repeated.stdout, result.stdout)
+
+    def test_only_the_supplied_range_is_read(self) -> None:
+        outside = commit(self.repo, "outside range", "", "outside.txt", "outside")
+        target = commit(self.repo, "target", metadata(), "target.txt", "target")
+
+        result = self.report(outside, target)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = json.loads(result.stdout)
+        self.assertEqual([item["subject"] for item in document["commits"]], ["target"])
+
+    def test_changed_files_are_sorted_deterministically(self) -> None:
+        base = commit(self.repo, "base", metadata(), "base.txt", "base")
+        (self.repo / "z.txt").write_text("z", encoding="utf-8")
+        (self.repo / "a.txt").write_text("a", encoding="utf-8")
+        run_git(self.repo, "add", "z.txt", "a.txt")
+        run_git(
+            self.repo,
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-F",
+            "-",
+            input_text=f"paths\n\n{metadata()}\n",
+        )
+        target = run_git(self.repo, "rev-parse", "HEAD")
+
+        result = self.report(base, target)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout)["commits"][0]["changedFiles"], ["a.txt", "z.txt"]
+        )
+
     def test_missing_metadata_fails_loudly(self) -> None:
         first = commit(self.repo, "first", metadata(), "one.txt", "one")
         second = commit(
@@ -143,6 +178,7 @@ class ProvenanceReportTests(unittest.TestCase):
                     "Agent-Model: model-a",
                     "Agent-Model: model-b",
                     "Agent-Reasoning: unknown",
+                    "Agent-Reasoning: declared",
                     "Agent-Run-ID: run-1",
                     "Agent-Task-ID: P01",
                     "Agent-Mode: goal",
@@ -156,7 +192,31 @@ class ProvenanceReportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         document = json.loads(result.stdout)
         self.assertEqual(document["commits"][0]["Agent-Model"], ["model-a", "model-b"])
-        self.assertEqual(document["commits"][0]["Agent-Reasoning"], ["unknown"])
+        self.assertEqual(
+            document["commits"][0]["Agent-Reasoning"], ["unknown", "declared"]
+        )
+
+    def test_blank_metadata_fails_loudly(self) -> None:
+        base = commit(self.repo, "base", metadata(), "base.txt", "base")
+        target = commit(
+            self.repo,
+            "blank model",
+            "\n".join(
+                [
+                    "Agent-Model:",
+                    "Agent-Reasoning: declared",
+                    "Agent-Run-ID: run-2",
+                    "Agent-Task-ID: P01",
+                    "Agent-Mode: goal",
+                ]
+            ),
+            "one.txt",
+            "one",
+        )
+
+        result = self.report(base, target)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Agent-Model", result.stderr)
 
     def test_not_applicable_is_valid(self) -> None:
         base = commit(self.repo, "base", metadata(), "base.txt", "base")
@@ -184,6 +244,15 @@ class ProvenanceReportTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("usage:", result.stderr)
+
+    def test_rejects_empty_or_option_like_base_and_head(self) -> None:
+        empty_base = self.report("", "HEAD")
+        self.assertEqual(empty_base.returncode, 2)
+        self.assertIn("must not be empty", empty_base.stderr)
+
+        option_head = self.report("HEAD", "--all")
+        self.assertEqual(option_head.returncode, 2)
+        self.assertIn("must not begin with '-'", option_head.stderr)
 
     def test_commit_helper_requires_and_writes_reasoning(self) -> None:
         (self.repo / "helper.txt").write_text("helper", encoding="utf-8")
