@@ -1,0 +1,47 @@
+name: roadmap-bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Create missing roadmap labels, milestones, issues, and dependency edges"
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: "Type APPLY_ROADMAP_BOOTSTRAP only for an intentional apply"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+      - name: Validate reviewed seed
+        run: python3 tools/roadmap/validate_seed.py
+      - name: Bounded live dry-run
+        if: ${{ inputs.apply != true }}
+        run: python3 tools/roadmap/bootstrap.py --live
+      - name: Intentional apply
+        if: ${{ inputs.apply == true && inputs.confirmation == 'APPLY_ROADMAP_BOOTSTRAP' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 tools/roadmap/bootstrap.py --live --apply --confirm-apply APPLY_ROADMAP_BOOTSTRAP
+      - name: Refuse unconfirmed apply
+        if: ${{ inputs.apply == true && inputs.confirmation != 'APPLY_ROADMAP_BOOTSTRAP' }}
+        run: |
+          echo 'Apply requested without exact confirmation; no mutation was attempted.' >&2
+          exit 1
+      - name: Publish generated live views after apply
+        if: ${{ inputs.apply == true && inputs.confirmation == 'APPLY_ROADMAP_BOOTSTRAP' }}
+        run: python3 tools/roadmap/sync.py --live --no-cache

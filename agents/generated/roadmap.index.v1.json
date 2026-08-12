@@ -1,0 +1,727 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-12T00:00:00Z",
+  "source": {
+    "repository": "0cwa/salvagenet-mvp",
+    "sourceHash": "acab96386a03039ea84a1ac69a3e8a10f1233df692d7f42ae96a0cd564f9cb84",
+    "kind": "seed"
+  },
+  "freshness": {
+    "fallbackUsed": false,
+    "fallbackReason": null,
+    "maxAgeHours": 72
+  },
+  "currentMilestone": {
+    "id": "M0.5",
+    "title": "M0.5 — Public project surface",
+    "order": 1
+  },
+  "active": [
+    {
+      "stableId": "WEB-04",
+      "number": 108,
+      "title": "Issue roadmap and human-aware agent index",
+      "dependencies": [
+        "WEB-00"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": "agents/tasks/WEB04/task.md",
+      "workState": "active",
+      "dependencyState": "clear",
+      "authorizationState": "authorized",
+      "authorizedTaskIds": [
+        "P01",
+        "WEB04"
+      ]
+    }
+  ],
+  "ready": [],
+  "blocked": [
+    {
+      "stableId": "DEVICE-01",
+      "number": 116,
+      "title": "One-phone host runtime and mesh",
+      "dependencies": [
+        "FND-03",
+        "GUEST-01"
+      ],
+      "acceptanceIds": [
+        "B02",
+        "B08",
+        "B09"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "DEVICE-02",
+      "number": 117,
+      "title": "Controller-driven Ubuntu deployment",
+      "dependencies": [
+        "DEVICE-01",
+        "GUEST-02"
+      ],
+      "acceptanceIds": [
+        "B10",
+        "B11",
+        "B12"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "DEVICE-03",
+      "number": 118,
+      "title": "Host-mediated recovery SSH",
+      "dependencies": [
+        "DEVICE-02"
+      ],
+      "acceptanceIds": [
+        "B13"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "DEVICE-04",
+      "number": 119,
+      "title": "Lifecycle and outage resilience",
+      "dependencies": [
+        "DEVICE-01",
+        "DEVICE-03"
+      ],
+      "acceptanceIds": [
+        "B07",
+        "B14",
+        "B15",
+        "B16",
+        "B17"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "EA-01",
+      "number": 122,
+      "title": "Guided local setup",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "EA-02",
+      "number": 123,
+      "title": "First public device records",
+      "dependencies": [
+        "RELEASE-01",
+        "WEB-02",
+        "WEB-03"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "EA-03",
+      "number": 124,
+      "title": "Verified downloads",
+      "dependencies": [
+        "EA-00",
+        "RELEASE-01",
+        "WEB-06"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "EA-04",
+      "number": 125,
+      "title": "Tested installation and recovery guides",
+      "dependencies": [
+        "RELEASE-01",
+        "WEB-02"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "EA-05",
+      "number": 126,
+      "title": "Community test-day kit",
+      "dependencies": [
+        "EA-02",
+        "EA-04"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "EA-06",
+      "number": 127,
+      "title": "Diagnostics and support UX",
+      "dependencies": [
+        "EA-04",
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "GUEST-02",
+      "number": 115,
+      "title": "Guest mesh identity and recovery qualification",
+      "dependencies": [
+        "GUEST-01"
+      ],
+      "acceptanceIds": [
+        "B11",
+        "B12",
+        "B13"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-01",
+      "number": 134,
+      "title": "QEMU isolation and image threat model",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-02",
+      "number": 135,
+      "title": "Project-owned native reproducibility",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-03",
+      "number": 136,
+      "title": "Rust and Slint controller",
+      "dependencies": [
+        "RELEASE-01",
+        "WEB-00"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-04",
+      "number": 137,
+      "title": "Rust host service",
+      "dependencies": [
+        "PLAT-03",
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-05",
+      "number": 138,
+      "title": "Additional ARM64 profiles and K3s worker",
+      "dependencies": [
+        "PLAT-15",
+        "REL-03"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-06",
+      "number": 139,
+      "title": "Second mesh provider",
+      "dependencies": [
+        "REL-03",
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-07",
+      "number": 140,
+      "title": "Signed artifact distribution",
+      "dependencies": [
+        "PLAT-15",
+        "REL-06"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-08",
+      "number": 141,
+      "title": "Multiple VM isolation",
+      "dependencies": [
+        "PLAT-01",
+        "REL-05"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-09",
+      "number": 142,
+      "title": "Principal authorization and revocation",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-10",
+      "number": 143,
+      "title": "Docker and Swarm reference provisioning",
+      "dependencies": [
+        "REL-03",
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-11",
+      "number": 144,
+      "title": "Managed Android reliability tiers",
+      "dependencies": [
+        "REL-04",
+        "REL-05",
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-12",
+      "number": 145,
+      "title": "AVF runtime adapter",
+      "dependencies": [
+        "REL-04",
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-13",
+      "number": 146,
+      "title": "Delegated profile repository",
+      "dependencies": [
+        "PLAT-07"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-14",
+      "number": 147,
+      "title": "Local controller browser bridge",
+      "dependencies": [
+        "PLAT-03",
+        "WEB-06"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "PLAT-15",
+      "number": 148,
+      "title": "Guest class and image-source separation",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "REL-01",
+      "number": 128,
+      "title": "Sustained workload qualification",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "REL-02",
+      "number": 129,
+      "title": "Storage pressure and reset qualification",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "REL-03",
+      "number": 130,
+      "title": "Network interruption qualification",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "REL-04",
+      "number": 131,
+      "title": "Android lifecycle matrix",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "REL-05",
+      "number": 132,
+      "title": "Measured resource admission",
+      "dependencies": [
+        "REL-01",
+        "REL-02",
+        "REL-04"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "REL-06",
+      "number": 133,
+      "title": "Upgrade and rollback continuity",
+      "dependencies": [
+        "REL-02",
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "RELEASE-01",
+      "number": 120,
+      "title": "Base MVP evidence seal",
+      "dependencies": [
+        "DEVICE-01",
+        "DEVICE-02",
+        "DEVICE-03",
+        "DEVICE-04"
+      ],
+      "acceptanceIds": [
+        "B01",
+        "B02",
+        "B03",
+        "B04",
+        "B05",
+        "B06",
+        "B07",
+        "B08",
+        "B09",
+        "B10",
+        "B11",
+        "B12",
+        "B13",
+        "B14",
+        "B15",
+        "B16",
+        "B17",
+        "B18",
+        "B19",
+        "B20"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "USB-01",
+      "number": 149,
+      "title": "Android Open Accessory control link",
+      "dependencies": [
+        "RELEASE-01"
+      ],
+      "acceptanceIds": [
+        "U01"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "USB-02",
+      "number": 150,
+      "title": "QEMU USB stream NIC",
+      "dependencies": [
+        "USB-01"
+      ],
+      "acceptanceIds": [
+        "U02"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "USB-03",
+      "number": 151,
+      "title": "Linux TAP and NAT bridge",
+      "dependencies": [
+        "USB-02"
+      ],
+      "acceptanceIds": [
+        "U03"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "USB-04",
+      "number": 152,
+      "title": "USB routing fallback",
+      "dependencies": [
+        "USB-03"
+      ],
+      "acceptanceIds": [
+        "U04"
+      ],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "USB-05",
+      "number": 153,
+      "title": "Hardened USB protocol",
+      "dependencies": [
+        "PLAT-07",
+        "USB-04"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "WEB-01",
+      "number": 109,
+      "title": "Static website shell and theme",
+      "dependencies": [
+        "WEB-00",
+        "WEB-04"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "WEB-02",
+      "number": 110,
+      "title": "Public pages and honest copy",
+      "dependencies": [
+        "WEB-01"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "WEB-03",
+      "number": 111,
+      "title": "Generated status and evidence surface",
+      "dependencies": [
+        "WEB-01",
+        "WEB-04"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "WEB-05",
+      "number": 112,
+      "title": "Progressive roadmap and guide enhancements",
+      "dependencies": [
+        "WEB-01",
+        "WEB-02",
+        "WEB-04"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    },
+    {
+      "stableId": "WEB-06",
+      "number": 113,
+      "title": "Exact static artifact deployment",
+      "dependencies": [
+        "WEB-02",
+        "WEB-03",
+        "WEB-04"
+      ],
+      "acceptanceIds": [],
+      "taskPacket": null,
+      "workState": "planned",
+      "dependencyState": "blocked",
+      "authorizationState": "not-authorized",
+      "authorizedTaskIds": []
+    }
+  ],
+  "disagreements": []
+}

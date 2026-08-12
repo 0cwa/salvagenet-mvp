@@ -38,3 +38,27 @@ website/agent snapshots            generated caches
 ```
 
 The bootstrap process must be safe to check repeatedly, but it must not overwrite issue bodies, state, dependencies, or planning notes that agents and humans legitimately refined after bootstrap.
+
+## Repository commands
+
+The offline commands are deterministic and use the reviewed seed or a bounded fixture:
+
+```sh
+make roadmap-check
+make roadmap-status
+make roadmap-sync
+make roadmap-context ISSUE=WEB-04
+```
+
+`ROADMAP_LIVE=1 make roadmap-sync` performs a bounded read-only GitHub metadata
+fetch. It excludes comments and unnormalized proposals and refuses incomplete
+graphs. `python3 tools/roadmap/bootstrap.py` is a dry-run planner. Only the
+manual `roadmap-bootstrap` workflow may pass `--live --apply` with the exact
+`APPLY_ROADMAP_BOOTSTRAP` confirmation. The workflow checks out its triggering
+SHA, preserves existing issue refinements, and gives the mutation boundary
+`issues: write` permission; local tests never call GitHub.
+
+The committed `website/data/roadmap.snapshot.v1.json` and
+`agents/generated/roadmap.index.v1.json` contain bounded summaries only. The
+ignored `.agent-cache/roadmap/` directory stores the complete normalized graph
+needed for a fresh last-known-good fallback and no credentials.

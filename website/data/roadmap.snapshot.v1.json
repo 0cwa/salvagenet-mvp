@@ -1,0 +1,1063 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-12T00:00:00Z",
+  "newestIssueUpdatedAt": "2026-08-12T00:00:00Z",
+  "source": {
+    "repository": "0cwa/salvagenet-mvp",
+    "sourceHash": "acab96386a03039ea84a1ac69a3e8a10f1233df692d7f42ae96a0cd564f9cb84",
+    "kind": "seed"
+  },
+  "freshness": {
+    "fallbackUsed": false,
+    "fallbackReason": null,
+    "maxAgeHours": 72
+  },
+  "bounds": {
+    "maxIssues": 250,
+    "fullBodiesIncluded": false,
+    "commentsIncluded": false
+  },
+  "milestones": [
+    {
+      "id": "M0",
+      "title": "M0 — Foundation",
+      "order": 0,
+      "items": [
+        {
+          "stableId": "FND-01",
+          "number": 101,
+          "title": "Canonical profiles and artifact manifests",
+          "publicSummary": "Checked-in VM profiles and one strict artifact-manifest contract provide the production source of truth.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/101",
+          "area": "profiles",
+          "kind": "foundation",
+          "visibility": "public",
+          "dependencies": [],
+          "workState": "done",
+          "dependencyState": "clear",
+          "acceptanceIds": [
+            "B04",
+            "B05",
+            "B06",
+            "B18"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "FND-02",
+          "number": 102,
+          "title": "Authenticated resumable artifact upload",
+          "publicSummary": "A trusted controller can deliver large artifacts through bounded, authenticated, resumable, digest-verified upload.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/102",
+          "area": "artifacts",
+          "kind": "foundation",
+          "visibility": "public",
+          "dependencies": [],
+          "workState": "done",
+          "dependencyState": "clear",
+          "acceptanceIds": [
+            "B10"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "FND-03",
+          "number": 103,
+          "title": "Evidence-bound HIL runner",
+          "publicSummary": "One physical-device runner records exact device, commit, and APK identity for hardware scenarios.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/103",
+          "area": "testing",
+          "kind": "foundation",
+          "visibility": "public",
+          "dependencies": [],
+          "workState": "done",
+          "dependencyState": "clear",
+          "acceptanceIds": [
+            "B02",
+            "B08",
+            "B09",
+            "B20"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "FND-04",
+          "number": 104,
+          "title": "Deterministic Podroid provenance",
+          "publicSummary": "Podroid source, downstream patches, packaging hooks, and updates are deterministic and reviewable.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/104",
+          "area": "runtime",
+          "kind": "foundation",
+          "visibility": "public",
+          "dependencies": [],
+          "workState": "done",
+          "dependencyState": "clear",
+          "acceptanceIds": [
+            "B01",
+            "B03",
+            "B19"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "FND-05",
+          "number": 105,
+          "title": "Phase and alpha compatibility guardrails",
+          "publicSummary": "Task tooling enforces one authorized phase and a clean-break unreleased-alpha compatibility policy.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/105",
+          "area": "documentation",
+          "kind": "governance",
+          "visibility": "public",
+          "dependencies": [],
+          "workState": "done",
+          "dependencyState": "clear",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "FND-06",
+          "number": 106,
+          "title": "Supervised device-lab safety",
+          "publicSummary": "Serial-specific leases, expiring authorization, evidence classes, and exact-input records make device work human-visible.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/106",
+          "area": "testing",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [],
+          "workState": "review",
+          "dependencyState": "clear",
+          "acceptanceIds": [],
+          "pullRequestState": "review"
+        }
+      ]
+    },
+    {
+      "id": "M0.5",
+      "title": "M0.5 — Public project surface",
+      "order": 1,
+      "items": [
+        {
+          "stableId": "WEB-00",
+          "number": 107,
+          "title": "Accepted public-surface decisions",
+          "publicSummary": "Static-site, design-system, theme, roadmap-truth, Podroid alignment, and phase-replanning decisions are accepted.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/107",
+          "area": "website",
+          "kind": "governance",
+          "visibility": "public",
+          "dependencies": [],
+          "workState": "done",
+          "dependencyState": "clear",
+          "acceptanceIds": [],
+          "pullRequestState": "done"
+        },
+        {
+          "stableId": "WEB-01",
+          "number": 109,
+          "title": "Static website shell and theme",
+          "publicSummary": "Astro builds a component-based static shell with one token-driven CSS system and System/Light/Dark theme control.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/109",
+          "area": "website",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "WEB-00",
+            "WEB-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "WEB-02",
+          "number": 110,
+          "title": "Public pages and honest copy",
+          "publicSummary": "Agreed user- and community-facing pages are published from shared components and evidence-aligned copy.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/110",
+          "area": "website",
+          "kind": "documentation",
+          "visibility": "public",
+          "dependencies": [
+            "WEB-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "WEB-03",
+          "number": 111,
+          "title": "Generated status and evidence surface",
+          "publicSummary": "Acceptance, evidence, release, and roadmap data generate public status without hard-coded counts or candidate identities.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/111",
+          "area": "website",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "WEB-01",
+            "WEB-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "WEB-04",
+          "number": 108,
+          "title": "Issue roadmap and human-aware agent index",
+          "publicSummary": "GitHub issues and dependencies generate a bounded public roadmap, last-known-good snapshot, compact agent index, and per-issue context.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/108",
+          "area": "website",
+          "kind": "governance",
+          "visibility": "public",
+          "dependencies": [
+            "WEB-00"
+          ],
+          "workState": "active",
+          "dependencyState": "clear",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "WEB-05",
+          "number": 112,
+          "title": "Progressive roadmap and guide enhancements",
+          "publicSummary": "Roadmap filters, guide search, setup checklist, checksum verification, evidence drawers, and restrained motion progressively enhance static HTML.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/112",
+          "area": "website",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "WEB-01",
+            "WEB-02",
+            "WEB-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "WEB-06",
+          "number": 113,
+          "title": "Exact static artifact deployment",
+          "publicSummary": "GitHub Actions validates and deploys the exact static artifact with source hashes and stale-data protection.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/113",
+          "area": "website",
+          "kind": "release",
+          "visibility": "public",
+          "dependencies": [
+            "WEB-02",
+            "WEB-03",
+            "WEB-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        }
+      ]
+    },
+    {
+      "id": "M1",
+      "title": "M1 — Validated MVP",
+      "order": 2,
+      "items": [
+        {
+          "stableId": "DEVICE-01",
+          "number": 116,
+          "title": "One-phone host runtime and mesh",
+          "publicSummary": "APK-native QEMU boots on one exact ARM64 Android phone and host Headscale/API reachability is established.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/116",
+          "area": "android",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "FND-03",
+            "GUEST-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "B02",
+            "B08",
+            "B09"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "DEVICE-02",
+          "number": 117,
+          "title": "Controller-driven Ubuntu deployment",
+          "publicSummary": "The controller delivers Ubuntu artifacts, applies one generation, and reaches the separately enrolled guest with ordinary SSH.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/117",
+          "area": "controller",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "DEVICE-01",
+            "GUEST-02"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "B10",
+            "B11",
+            "B12"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "DEVICE-03",
+          "number": 118,
+          "title": "Host-mediated recovery SSH",
+          "publicSummary": "Recovery SSH works through the host when guest mesh is unavailable.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/118",
+          "area": "network",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "DEVICE-02"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "B13"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "DEVICE-04",
+          "number": 119,
+          "title": "Lifecycle and outage resilience",
+          "publicSummary": "Activity, service, process, reboot-after-unlock, and controller/network outage reconcile without duplicate QEMU processes.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/119",
+          "area": "runtime",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "DEVICE-01",
+            "DEVICE-03"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "B07",
+            "B14",
+            "B15",
+            "B16",
+            "B17"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "GUEST-01",
+          "number": 114,
+          "title": "Canonical Ubuntu guest boot qualification",
+          "publicSummary": "Ubuntu ARM64 UEFI boot, QMP, NoCloud, key-only loopback SSH, restart, and secret hygiene pass in one bounded host-QEMU run.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/114",
+          "area": "guest",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "FND-01",
+            "FND-02"
+          ],
+          "workState": "planned",
+          "dependencyState": "clear",
+          "acceptanceIds": [
+            "B04",
+            "B05",
+            "B06"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "GUEST-02",
+          "number": 115,
+          "title": "Guest mesh identity and recovery qualification",
+          "publicSummary": "One-use guest Headscale enrollment, separate identity, tailnet SSH, restart, interruption, and recovery are qualified without Android claims.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/115",
+          "area": "network",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "GUEST-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "B11",
+            "B12",
+            "B13"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "RELEASE-01",
+          "number": 120,
+          "title": "Base MVP evidence seal",
+          "publicSummary": "Every B01–B20 gate passes against one exact source commit, APK, device record, and reviewed evidence set.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/120",
+          "area": "release",
+          "kind": "release",
+          "visibility": "public",
+          "dependencies": [
+            "DEVICE-01",
+            "DEVICE-02",
+            "DEVICE-03",
+            "DEVICE-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B09",
+            "B10",
+            "B11",
+            "B12",
+            "B13",
+            "B14",
+            "B15",
+            "B16",
+            "B17",
+            "B18",
+            "B19",
+            "B20"
+          ],
+          "pullRequestState": "none"
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "title": "M2 — Early access",
+      "order": 3,
+      "items": [
+        {
+          "stableId": "EA-00",
+          "number": 121,
+          "title": "Release compliance review",
+          "publicSummary": "Licensing, notices, corresponding source, modification records, and exact binary/source relationship are reviewed before public APK distribution.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/121",
+          "area": "release",
+          "kind": "release",
+          "visibility": "public",
+          "dependencies": [
+            "FND-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "clear",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "EA-01",
+          "number": 122,
+          "title": "Guided local setup",
+          "publicSummary": "A guided local setup explains trust, permissions, profiles, progress, recovery, and current limits.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/122",
+          "area": "documentation",
+          "kind": "documentation",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "EA-02",
+          "number": 123,
+          "title": "First public device records",
+          "publicSummary": "First public device records bind model, Android version, build, profile, evidence, duration, thermal notes, and limitations.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/123",
+          "area": "community",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01",
+            "WEB-02",
+            "WEB-03"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "EA-03",
+          "number": 124,
+          "title": "Verified downloads",
+          "publicSummary": "Downloads publish an exact compliant APK, checksum, signing/source identity, and physical-validation status.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/124",
+          "area": "release",
+          "kind": "release",
+          "visibility": "public",
+          "dependencies": [
+            "EA-00",
+            "RELEASE-01",
+            "WEB-06"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "EA-04",
+          "number": 125,
+          "title": "Tested installation and recovery guides",
+          "publicSummary": "Installation, enrollment, deployment, SSH, recovery, reset, diagnostics, and removal guides identify tested builds and environments.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/125",
+          "area": "documentation",
+          "kind": "documentation",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01",
+            "WEB-02"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "EA-05",
+          "number": 126,
+          "title": "Community test-day kit",
+          "publicSummary": "A safe community test-day kit covers consent, battery checks, setup, evidence, redaction, and follow-up.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/126",
+          "area": "community",
+          "kind": "documentation",
+          "visibility": "public",
+          "dependencies": [
+            "EA-02",
+            "EA-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "EA-06",
+          "number": 127,
+          "title": "Diagnostics and support UX",
+          "publicSummary": "Diagnostics and support UX explain operation state and recovery without exposing credentials or guest data.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/127",
+          "area": "community",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "EA-04",
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "title": "M3 — Reliability",
+      "order": 4,
+      "items": [
+        {
+          "stableId": "REL-01",
+          "number": 128,
+          "title": "Sustained workload qualification",
+          "publicSummary": "Sustained workload classes have duration, charging, temperature, throttling, and stop-policy evidence.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/128",
+          "area": "testing",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "REL-02",
+          "number": 129,
+          "title": "Storage pressure and reset qualification",
+          "publicSummary": "Storage pressure, data export, reset, and uninstall behavior are bounded and documented.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/129",
+          "area": "runtime",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "REL-03",
+          "number": 130,
+          "title": "Network interruption qualification",
+          "publicSummary": "Host and guest behavior across network changes, relay paths, and Headscale interruption is qualified.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/130",
+          "area": "network",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "REL-04",
+          "number": 131,
+          "title": "Android lifecycle matrix",
+          "publicSummary": "Selected Android versions and OEMs have comparable lifecycle evidence.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/131",
+          "area": "android",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "REL-05",
+          "number": 132,
+          "title": "Measured resource admission",
+          "publicSummary": "Measured memory, storage, battery, and thermal facts drive resource admission and device classes.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/132",
+          "area": "android",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "REL-01",
+            "REL-02",
+            "REL-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "REL-06",
+          "number": 133,
+          "title": "Upgrade and rollback continuity",
+          "publicSummary": "App upgrade, rollback, and runtime continuity have a documented tested path.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/133",
+          "area": "android",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "REL-02",
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "title": "M4 — Platform expansion",
+      "order": 5,
+      "items": [
+        {
+          "stableId": "PLAT-01",
+          "number": 134,
+          "title": "QEMU isolation and image threat model",
+          "publicSummary": "QEMU is isolated from controller credentials through a proven boundary and arbitrary-image risk is modeled.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/134",
+          "area": "security",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-02",
+          "number": 135,
+          "title": "Project-owned native reproducibility",
+          "publicSummary": "QEMU, launcher, libslirp, kernel, initramfs, and profile artifacts are built from pinned project-owned sources.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/135",
+          "area": "runtime",
+          "kind": "foundation",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-03",
+          "number": 136,
+          "title": "Rust and Slint controller",
+          "publicSummary": "A Rust controller core and Slint desktop application replace the Python test client without changing host contracts.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/136",
+          "area": "controller",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01",
+            "WEB-00"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-04",
+          "number": 137,
+          "title": "Rust host service",
+          "publicSummary": "Linux, SBC, and WSL hosts implement the same host API and operation semantics through a Rust service.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/137",
+          "area": "controller",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "PLAT-03",
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-05",
+          "number": 138,
+          "title": "Additional ARM64 profiles and K3s worker",
+          "publicSummary": "Additional ARM64 profiles satisfy the guest contract and a real K3s worker joins, drains, leaves, and recovers under an external control plane.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/138",
+          "area": "profiles",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "PLAT-15",
+            "REL-03"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-06",
+          "number": 139,
+          "title": "Second mesh provider",
+          "publicSummary": "Nebula or another structurally different mesh adapter validates the host-mesh port.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/139",
+          "area": "network",
+          "kind": "research",
+          "visibility": "public",
+          "dependencies": [
+            "REL-03",
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-07",
+          "number": 140,
+          "title": "Signed artifact distribution",
+          "publicSummary": "TUF metadata and digest-addressed OCI/ORAS transport protect normalized bootable artifact distribution.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/140",
+          "area": "artifacts",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "PLAT-15",
+            "REL-06"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-08",
+          "number": 141,
+          "title": "Multiple VM isolation",
+          "publicSummary": "Multiple VM instances have isolated paths, identities, disks, operations, and measured admission.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/141",
+          "area": "runtime",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "PLAT-01",
+            "REL-05"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-09",
+          "number": 142,
+          "title": "Principal authorization and revocation",
+          "publicSummary": "The capability adapter is replaced by reviewed mTLS/principal authorization with bounded multi-controller recovery and revocation.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/142",
+          "area": "security",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-10",
+          "number": 143,
+          "title": "Docker and Swarm reference provisioning",
+          "publicSummary": "Docker and Swarm reference provisioning joins, drains, leaves, replaces, and recovers a phone worker without moving orchestrator state into the Host API.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/143",
+          "area": "controller",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "REL-03",
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-11",
+          "number": 144,
+          "title": "Managed Android reliability tiers",
+          "publicSummary": "Device Owner and narrowly patched Android deployments provide explicit managed reliability tiers without a general root shell.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/144",
+          "area": "android",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "REL-04",
+            "REL-05",
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-12",
+          "number": 145,
+          "title": "AVF runtime adapter",
+          "publicSummary": "AVF is implemented behind the same runtime contract and compared with QEMU on supported devices.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/145",
+          "area": "runtime",
+          "kind": "research",
+          "visibility": "public",
+          "dependencies": [
+            "REL-04",
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-13",
+          "number": 146,
+          "title": "Delegated profile repository",
+          "publicSummary": "A remote profile repository supports signed publication, controlled delegation, and reviewed profile-maintainer boundaries.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/146",
+          "area": "profiles",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "PLAT-07"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-14",
+          "number": 147,
+          "title": "Local controller browser bridge",
+          "publicSummary": "A browser interface works through a local controller bridge that keeps keys, SSH, tunnels, and native tools outside the browser.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/147",
+          "area": "controller",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "PLAT-03",
+            "WEB-06"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "PLAT-15",
+          "number": 148,
+          "title": "Guest class and image-source separation",
+          "publicSummary": "Guest class, immutable image identity, source provider, and distro bootstrap adapter are separated and proved by concrete families.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/148",
+          "area": "profiles",
+          "kind": "foundation",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        }
+      ]
+    },
+    {
+      "id": "MVP+",
+      "title": "MVP+ — USB physical link",
+      "order": 6,
+      "items": [
+        {
+          "stableId": "USB-01",
+          "number": 149,
+          "title": "Android Open Accessory control link",
+          "publicSummary": "Linux and Android establish a bounded, reconnectable Android Open Accessory control link.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/149",
+          "area": "network",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "RELEASE-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "U01"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "USB-02",
+          "number": 150,
+          "title": "QEMU USB stream NIC",
+          "publicSummary": "The guest receives a second QEMU NIC over the Android USB stream bridge while SLIRP remains available.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/150",
+          "area": "network",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "USB-01"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "U02"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "USB-03",
+          "number": 151,
+          "title": "Linux TAP and NAT bridge",
+          "publicSummary": "node-linkd provides bounded Linux TAP/NAT connectivity and reports link health.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/151",
+          "area": "network",
+          "kind": "feature",
+          "visibility": "public",
+          "dependencies": [
+            "USB-02"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "U03"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "USB-04",
+          "number": 152,
+          "title": "USB routing fallback",
+          "publicSummary": "Guest routing prefers healthy USB and returns to SLIRP after disconnect without losing recovery.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/152",
+          "area": "network",
+          "kind": "qualification",
+          "visibility": "public",
+          "dependencies": [
+            "USB-03"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [
+            "U04"
+          ],
+          "pullRequestState": "none"
+        },
+        {
+          "stableId": "USB-05",
+          "number": 153,
+          "title": "Hardened USB protocol",
+          "publicSummary": "The USB protocol supports optional bounded artifact transfer, version negotiation, diagnostics, and hardening without weakening fallback.",
+          "url": "https://github.com/0cwa/salvagenet-mvp/issues/153",
+          "area": "network",
+          "kind": "security",
+          "visibility": "public",
+          "dependencies": [
+            "PLAT-07",
+            "USB-04"
+          ],
+          "workState": "planned",
+          "dependencyState": "blocked",
+          "acceptanceIds": [],
+          "pullRequestState": "none"
+        }
+      ]
+    }
+  ],
+  "disagreements": []
+}

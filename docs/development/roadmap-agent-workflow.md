@@ -29,6 +29,14 @@ make context TASK=H02A
 
 Until those commands exist, `agents/task-dag.json`, the active packet, `docs/roadmap/podroid-mvp-alignment.md`, and `docs/roadmap/public-roadmap-governance.md` are the relevant sources.
 
+WEB04 provides these commands through `tools/roadmap/roadmap.py` and the
+Makefile. Offline seed validation and generation are the default so tests do
+not depend on GitHub. `ROADMAP_LIVE=1 make roadmap-sync` is a bounded,
+read-only fetch of normalized issue metadata. Bootstrap mutation is isolated to
+the manually dispatched `.github/workflows/roadmap-bootstrap.yml`, requires an
+explicit confirmation string, and never overwrites a stable-ID issue that
+already exists.
+
 ## Compact generated state
 
 The generator writes a small ignored local cache and a small committed/public snapshot.

@@ -11,7 +11,8 @@ endif
 
 .PHONY: help install-go doctor validate import-podroid wire-podroid podroid-import podroid-update podroid-verify podroid-diff context lab-up lab-down lab-keys lab-status \
         integration-worktree test-jvm test-android test-guest test-static test-emulator device-facts goal-preflight install-hooks \
-        provenance-report wave worktree integrate status mvp-status dev-plan dev-check dev-full new-task \
+	        provenance-report wave worktree integrate status mvp-status dev-plan dev-check dev-full new-task \
+	        roadmap-status roadmap-check roadmap-sync roadmap-context \
         hil-doctor hil-smoke hil-mvp hil-resilience hil-all emulator-install emulator-start emulator-stop \
         qemu-lab-prepare qemu-lab-start qemu-lab-smoke qemu-lab-e2e qemu-lab-stop package
 
@@ -35,6 +36,10 @@ help:
 	  'wave WAVE=1     create all worktrees for one dependency wave' \
 	  'status          summarize active task packets and worktrees' \
 	  'mvp-status      regenerate docs/STATUS.md and README acceptance summary' \
+	  'roadmap-status  show compact generated roadmap state' \
+	  'roadmap-check   validate seed and freshness' \
+	  'roadmap-sync    refresh offline seed snapshot (ROADMAP_LIVE=1 for bounded read-only fetch)' \
+	  'roadmap-context ISSUE=WEB-04  print bounded issue context' \
 	  'lab-up          start the local Headscale lab' \
 	  'lab-keys        mint one-use lab host/guest keys' \
 	  'lab-down        stop the local Headscale lab' \
@@ -124,6 +129,20 @@ status:
 
 mvp-status:
 	@python3 tools/status/generate.py --write
+
+roadmap-status:
+	@python3 tools/roadmap/roadmap.py status
+
+roadmap-check:
+	@python3 tools/roadmap/validate_seed.py
+	@python3 tools/roadmap/roadmap.py freshness
+
+roadmap-sync:
+	@python3 tools/roadmap/sync.py $(if $(filter 1,$(ROADMAP_LIVE)),--live --allow-fallback,)
+
+roadmap-context:
+	@test -n "$(ISSUE)" || (echo 'usage: make roadmap-context ISSUE=WEB-04' >&2; exit 2)
+	@python3 tools/roadmap/context.py "$(ISSUE)" $(if $(filter 1,$(ROADMAP_DEBUG_COMMENTS)),--debug-comments,)
 
 lab-up:
 	@lab/headscale/scripts/up.sh
