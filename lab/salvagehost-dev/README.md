@@ -60,33 +60,88 @@ The cloud-init profile installs the repository's development prerequisites,
 then invokes the repository-pinned Go and Android SDK installers. Container
 work happens in the Ubuntu guest using rootless Podman.
 
-For physical testing, attach the dedicated test phone as a USB host device to
-the VM, then run `make hil-doctor` in the guest:
+For physical testing, keep the dedicated phone's exact non-secret identity in
+a separate config file. Do not put it in `.env`, because that file can contain
+GitHub/OpenAI credentials:
 
 ```sh
-# Set the phone's own IDs in the ignored .env first.
-lsusb
-lab/salvagehost-dev/configure-usb-device.sh
+sudo install -m 0644 lab/salvagehost-dev/usb-device.conf.example \
+  /etc/salvagehost/nodehost-dev-usb.conf
+sudo lab/salvagehost-dev/install-usb-reconciler.sh \
+  --check --config /etc/salvagehost/nodehost-dev-usb.conf
+sudo lab/salvagehost-dev/install-usb-reconciler.sh \
+  --dry-run --config /etc/salvagehost/nodehost-dev-usb.conf
 ```
 
-The helper records a persistent libvirt USB host device by vendor/product,
-rather than a transient bus/device address. It attaches the device immediately
-when the VM is running and keeps the same definition for future VM starts.
-`SALVAGEHOST_USB_STARTUP_POLICY=optional` lets the VM start without the phone;
-rerun the helper after connecting a phone to attach it to an already-running
-VM. Use `mandatory` only when a VM should refuse to start without that device.
+The installer is intentionally explicit. The host apply sequence is documented
+in `install-usb-reconciler.sh --help`; it snapshots managed files for
+`--rollback`, installs the event monitor, removes any old persistent udev rule,
+and disables or removes the historical 30-second timer. A normal installation
+has no periodic timer and no persistent `/etc/udev` rule. The timer and udev
+templates remain only as manual/runtime references and are never enabled or
+installed as host-wide policy.
 
-Validate the real lifecycle before adding any more automation:
+Start the VM through the root-only activation boundary:
 
 ```sh
-adb reboot
-adb wait-for-device
-adb devices -l
-make hil-doctor
+sudo /usr/local/libexec/salvagehost/start-nodehost-dev-with-usb.sh
+```
+
+The start command validates the exact serial `5VT7N16607000293`, VID/PID
+`18d1:4ee7`, physical port `3-2`, `guest-usb` mode, `qemu:///system`, and the
+absence of competing `adb`/`adbd`. It creates a transient `/run` session
+marker, performs one bounded preflight, starts `nodehost-dev` if necessary,
+and performs one bounded post-start reconciliation. Repeating it while the VM
+is running is safe. The marker gates the qemu device permission and the
+event-driven monitor, so a stopped VM causes no periodic USB work and does not
+retain qemu ownership after cleanup. Plain `virsh start nodehost-dev` is
+unsupported for HIL: it does not establish this session boundary and may start
+the VM without the phone attached.
+
+The strict HIL boundary expects the physical phone hostdev to be absent from
+persistent libvirt XML. If an older setup left one behind, the start wrapper
+removes that exact matching hostdev before starting the VM; it never writes
+transient USB bus/device numbers to persistent XML. Do not use plain
+`virsh start` as a workaround.
+
+Stop it gracefully with:
+
+```sh
+sudo /usr/local/libexec/salvagehost/stop-nodehost-dev-with-usb.sh
+```
+
+The stop command never uses `virsh destroy`, kills ADB, or changes persistent
+libvirt identity XML. It waits for a bounded graceful shutdown, then removes
+the transient marker and re-evaluates the exact device under ordinary udev
+policy. A host reboot also clears the `/run` marker automatically.
+
+The installer does not place a udev rule under `/etc/udev/rules.d`. During an
+explicit start, the wrapper creates one exact, transient rule under
+`/run/udev/rules.d`, gated by the session marker, then starts the monitor. The
+monitor listens for exact-device add/change events and performs bounded live
+reconciliation; there is no `SYSTEMD_WANTS` trigger and no timer polling. It
+refuses stale sessions when the VM is stopped, never calls libvirt from a hook,
+and performs exact serial/VID/PID/physical-port checks plus ADB ownership
+refusal.
+
+Persistent XML contains no physical-phone USB hostdev. When the VM is running,
+the reconciler attaches the current bus/device address in `--live` XML held in
+a temporary file. Bus/device numbers are never written to persistent XML or
+status state. It never starts, stops, or kills ADB. The ordinary `virsh start`
+path is intentionally unsupported for HIL; use the wrapper so the qemu
+permission session is established first.
+
+After an explicitly authorized host apply, verify the target without changing
+ADB ownership:
+
+```sh
+lab/salvagehost-dev/reconcile-usb-device.sh \
+  --check --config /etc/salvagehost/nodehost-dev-usb.conf
+ssh ubuntu@<guest-ip> 'lsusb; adb -s 5VT7N16607000293 get-state'
 ```
 
 Device passthrough is local laboratory infrastructure; it does not enable the
-project's deferred USB/AOA product feature.
+project's deferred USB/AOA product feature or close a physical acceptance gate.
 
 ## Networking
 

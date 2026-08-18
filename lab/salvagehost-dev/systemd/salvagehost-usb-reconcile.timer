@@ -1,0 +1,11 @@
+# Manual legacy artifact only. The installer removes any installed copy and
+# verifies it is disabled/inactive. The normal path has no periodic timer.
+[Unit]
+Description=manual-only legacy USB reconciliation timer (never enabled)
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Persistent=true
+Unit=salvagehost-usb-reconcile.service

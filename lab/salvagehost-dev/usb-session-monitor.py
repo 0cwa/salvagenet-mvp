@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""Event-driven supervisor for one explicit nodehost-dev USB session.
+
+This process is started by the root-only VM wrapper and is never enabled as a
+timer.  It watches the exact USB udev stream and libvirt lifecycle events.  A
+matching USB re-enumeration invokes the reconciler's mutating event mode; a
+domain shutdown/crash removes the /run session so qemu access cannot outlive
+the VM under normal lifecycle paths.
+"""
+
+from __future__ import annotations
+
+import argparse
+import selectors
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+
+SERIAL = "5VT7N16607000293"
+VENDOR = "18d1"
+PRODUCT = "4ee7"
+PORT = "3-2"
+
+
+def read_config(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, separator, value = line.partition("=")
+        if not separator or not key.isupper() or key in values:
+            raise ValueError(f"invalid USB config line: {raw!r}")
+        values[key] = value
+    required = {
+        "SALVAGEHOST_USB_VM_NAME",
+        "SALVAGEHOST_USB_SERIAL",
+        "SALVAGEHOST_USB_VENDOR_ID",
+        "SALVAGEHOST_USB_PRODUCT_ID",
+        "SALVAGEHOST_USB_PHYSICAL_PORT",
+        "SALVAGEHOST_USB_LIBVIRT_URI",
+    }
+    missing = sorted(required - values.keys())
+    if missing:
+        raise ValueError(f"missing config keys: {', '.join(missing)}")
+    if (
+        values["SALVAGEHOST_USB_VM_NAME"] != "nodehost-dev"
+        or values["SALVAGEHOST_USB_SERIAL"] != SERIAL
+        or values["SALVAGEHOST_USB_VENDOR_ID"].lower() != VENDOR
+        or values["SALVAGEHOST_USB_PRODUCT_ID"].lower() != PRODUCT
+        or values["SALVAGEHOST_USB_PHYSICAL_PORT"] != PORT
+        or values["SALVAGEHOST_USB_LIBVIRT_URI"] != "qemu:///system"
+    ):
+        raise ValueError("config is not the authorized nodehost-dev HIL target")
+    return values
+
+
+def udev_event_matches(properties: dict[str, str]) -> bool:
+    devpath = properties.get("DEVPATH", "").rstrip("/")
+    return (
+        properties.get("ACTION") in {"add", "change"}
+        and properties.get("SUBSYSTEM") == "usb"
+        and properties.get("DEVTYPE") == "usb_device"
+        and properties.get("ID_VENDOR_ID", "").lower() == VENDOR
+        and properties.get("ID_MODEL_ID", "").lower() == PRODUCT
+        and properties.get("ID_SERIAL_SHORT") == SERIAL
+        and devpath.endswith(f"/{PORT}")
+    )
+
+
+def run_reconciler(reconciler: Path, config: Path) -> None:
+    command = [str(reconciler), "--event", "--config", str(config)]
+    try:
+        result = subprocess.run(command, check=False, timeout=60)
+    except subprocess.TimeoutExpired:
+        print("USB event reconciliation timed out", file=sys.stderr)
+        return
+    if result.returncode:
+        print(f"USB event reconciliation failed with exit {result.returncode}", file=sys.stderr)
+
+
+def cleanup(reconciler: Path, config: Path) -> None:
+    command = [str(reconciler), "--cleanup-session", "--config", str(config)]
+    try:
+        result = subprocess.run(command, check=False, timeout=30)
+    except subprocess.TimeoutExpired:
+        print("USB session cleanup timed out", file=sys.stderr)
+        return
+    if result.returncode:
+        print(f"USB session cleanup failed with exit {result.returncode}", file=sys.stderr)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--reconciler", type=Path, default=Path(__file__).with_name("reconcile-usb-device.sh"))
+    args = parser.parse_args()
+    try:
+        config = read_config(args.config)
+    except (OSError, ValueError) as exc:
+        print(f"usb-session-monitor: {exc}", file=sys.stderr)
+        return 2
+
+    marker = Path("/run/salvagehost/nodehost-dev-usb.active")
+    if not marker.exists():
+        return 0
+
+    stop = False
+
+    def request_stop(_signum: int, _frame: object) -> None:
+        nonlocal stop
+        stop = True
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+
+    udev = subprocess.Popen(
+        ["udevadm", "monitor", "--udev", "--property", "--subsystem-match=usb"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+    )
+    lifecycle = subprocess.Popen(
+        [
+            "virsh",
+            "-c",
+            config["SALVAGEHOST_USB_LIBVIRT_URI"],
+            "event",
+            "--domain",
+            config["SALVAGEHOST_USB_VM_NAME"],
+            "--event",
+            "lifecycle",
+            "--loop",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+    )
+    selector = selectors.DefaultSelector()
+    assert udev.stdout is not None
+    assert lifecycle.stdout is not None
+    selector.register(udev.stdout, selectors.EVENT_READ, "udev")
+    selector.register(lifecycle.stdout, selectors.EVENT_READ, "lifecycle")
+    properties: dict[str, str] = {}
+
+    try:
+        while not stop and marker.exists():
+            events = selector.select(timeout=1.0)
+            if not events:
+                if udev.poll() is not None or lifecycle.poll() is not None:
+                    break
+                continue
+            for key, _ in events:
+                line = key.fileobj.readline()
+                if line == "":
+                    continue
+                line = line.rstrip("\n")
+                if key.data == "lifecycle":
+                    lowered = line.lower()
+                    if any(word in lowered for word in ("shutdown", "destroyed", "crashed")):
+                        cleanup(args.reconciler, args.config)
+                        return 0
+                    continue
+                if not line:
+                    if udev_event_matches(properties) and marker.exists():
+                        run_reconciler(args.reconciler, args.config)
+                    properties = {}
+                    continue
+                if "=" in line:
+                    name, value = line.split("=", 1)
+                    properties[name] = value
+    finally:
+        selector.close()
+        for process in (udev, lifecycle):
+            if process.poll() is None:
+                process.terminate()
+        for process in (udev, lifecycle):
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

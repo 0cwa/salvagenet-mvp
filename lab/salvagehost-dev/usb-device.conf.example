@@ -1,0 +1,18 @@
+# Non-secret identity and policy for the dedicated physical HIL phone.
+# Keep this file separate from lab/salvagehost-dev/.env: the latter may contain
+# GitHub/OpenAI credentials and is never read by the USB reconciler.
+
+SALVAGEHOST_USB_VM_NAME=nodehost-dev
+SALVAGEHOST_USB_SERIAL=5VT7N16607000293
+SALVAGEHOST_USB_VENDOR_ID=18d1
+SALVAGEHOST_USB_PRODUCT_ID=4ee7
+SALVAGEHOST_USB_PHYSICAL_PORT=3-2
+SALVAGEHOST_USB_MODE=guest-usb
+SALVAGEHOST_USB_QEMU_GROUP=qemu
+SALVAGEHOST_USB_LIBVIRT_URI=qemu:///system
+SALVAGEHOST_USB_LOCK_FILE=/run/lock/salvagehost-nodehost-dev-usb.lock
+SALVAGEHOST_USB_SESSION_LOCK_FILE=/run/lock/salvagehost-nodehost-dev-usb-session.lock
+SALVAGEHOST_USB_STATE_DIR=/var/lib/salvagehost/usb/nodehost-dev
+SALVAGEHOST_USB_MAX_ATTEMPTS=3
+SALVAGEHOST_USB_RETRY_DELAY_SEC=2
+SALVAGEHOST_USB_STOP_TIMEOUT_SEC=60
