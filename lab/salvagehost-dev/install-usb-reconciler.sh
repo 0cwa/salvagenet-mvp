@@ -104,12 +104,13 @@ validate_config() {
   vendor=$(config_value SALVAGEHOST_USB_VENDOR_ID | tr '[:upper:]' '[:lower:]')
   product=$(config_value SALVAGEHOST_USB_PRODUCT_ID | tr '[:upper:]' '[:lower:]')
   port=$(config_value SALVAGEHOST_USB_PHYSICAL_PORT)
-  qemu_group=$(config_value SALVAGEHOST_USB_QEMU_GROUP)
+  qemu_group=$(awk -F= '$0 !~ /^[[:space:]]*#/ && $1 == "SALVAGEHOST_USB_QEMU_GROUP" { print substr($0, index($0, "=") + 1); found++ } END { if (found > 1) exit 1 }' "$config_file")
+  qemu_group=${qemu_group:-qemu}
   [[ $vm_name == nodehost-dev ]] || die "config must target nodehost-dev"
   [[ $vendor == 18d1 && $product == 4ee7 ]] || die "config must target 18d1:4ee7"
   [[ $serial == 5VT7N16607000293 ]] || die "config must target the authorized HIL phone"
   [[ $port == 3-2 ]] || die "config must target physical port 3-2"
-  [[ $qemu_group == qemu ]] || die "config must grant access to the qemu group"
+  getent group "$qemu_group" >/dev/null || die "configured qemu group does not exist: $qemu_group"
   [[ $config_file != */.env && $config_file != */.env.* ]] || die "credential-bearing .env is not a USB config"
   ! grep -Eq '^(GITHUB_TOKEN|OPENAI_API_KEY|AWS_SECRET_ACCESS_KEY|SSH_PRIVATE_KEY)=' "$config_file" || die "credential-like key found in USB config"
 }
@@ -157,7 +158,8 @@ disable_legacy_timer() {
 }
 
 check_dependencies() {
-  for command in awk bash grep install sed sha256sum systemctl tr udevadm; do
+  for command in awk bash basename cat cp date dirname flock getent grep head install mkdir mktemp mv \
+                 printf pwd python3 rm rmdir sed sha256sum sleep stat systemctl tr udevadm virsh; do
     command -v "$command" >/dev/null || die "missing required command $command"
   done
 }

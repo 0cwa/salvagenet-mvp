@@ -45,6 +45,14 @@ The guest login user is `ubuntu`; the configured public SSH key is installed
 for it. The checkout mounts at `/workspace/salvagenet-mvp` and is persisted in
 the guest's `/etc/fstab`.
 
+The USB helper is dedicated HIL infrastructure, not a general device manager.
+Its supported host boundary is systemd + udev + system libvirt
+(`qemu:///system`) for the authorized phone, physical USB port, and
+`nodehost-dev` VM. OpenRC, rootless or user-session libvirt, and arbitrary USB
+devices remain unsupported. `SALVAGEHOST_USB_QEMU_GROUP` may name an existing
+host group for the system libvirt/QEMU device node; if omitted, it defaults to
+`qemu`. The reconciler still verifies that the live USB node uses that group.
+
 ## Guest use
 
 ```sh

@@ -81,6 +81,9 @@ fi
 
 installer_output=$("$script_dir/install-usb-reconciler.sh" --dry-run \
   --config "$script_dir/usb-device.conf.example") || fail "installer dry-run failed"
+installer_check_output=$("$script_dir/install-usb-reconciler.sh" --check \
+  --config "$script_dir/usb-device.conf.example") || fail "installer check failed"
+grep -q 'source and config validation passed' <<<"$installer_check_output" || fail "installer check did not report validation"
 grep -q 'serial=5VT7N16607000293' <<<"$installer_output" || fail "exact serial missing from dry-run"
 grep -q '18d1:4ee7' <<<"$installer_output" || fail "exact VID/PID missing from dry-run"
 grep -q 'GROUP="qemu"' <<<"$installer_output" || fail "rendered qemu access missing from dry-run"
@@ -92,6 +95,29 @@ if grep -q 'SYSTEMD_WANTS' <<<"$installer_output"; then
 fi
 grep -q 'legacy timer source: .*not installed or enabled' <<<"$installer_output" || fail "dry-run does not prove timer is manual-only"
 grep -q 'managed target: .*usb-session-monitor.py' <<<"$installer_output" || fail "dry-run omits the event monitor"
+
+custom_group=$(id -gn)
+custom_group_config=$tmp_dir/custom-group.conf
+sed "s/^SALVAGEHOST_USB_QEMU_GROUP=.*/SALVAGEHOST_USB_QEMU_GROUP=$custom_group/" \
+  "$script_dir/usb-device.conf.example" > "$custom_group_config"
+custom_group_output=$("$script_dir/install-usb-reconciler.sh" --dry-run \
+  --config "$custom_group_config") || fail "installer rejected an existing configured device group"
+grep -q "GROUP=\"$custom_group\"" <<<"$custom_group_output" || fail "configured device group was not rendered"
+
+default_group_config=$tmp_dir/default-group.conf
+sed '/^SALVAGEHOST_USB_QEMU_GROUP=/d' \
+  "$script_dir/usb-device.conf.example" > "$default_group_config"
+"$script_dir/reconcile-usb-device.sh" --validate-config \
+  --config "$default_group_config" >/dev/null || fail "omitted qemu group did not default"
+
+missing_group_config=$tmp_dir/missing-group.conf
+sed 's/^SALVAGEHOST_USB_QEMU_GROUP=.*/SALVAGEHOST_USB_QEMU_GROUP=salvagenet-nonexistent-qemu-group/' \
+  "$script_dir/usb-device.conf.example" > "$missing_group_config"
+if "$script_dir/reconcile-usb-device.sh" --validate-config \
+  --config "$missing_group_config" >"$tmp_dir/missing-group.out" 2>&1; then
+  fail "reconciler accepted a missing configured device group"
+fi
+grep -q 'qemu group does not exist' "$tmp_dir/missing-group.out" || fail "missing group refusal was not explicit"
 
 if grep -Eq 'systemctl (enable|start) salvagehost-usb-reconcile\.timer' \
   "$script_dir/install-usb-reconciler.sh"; then

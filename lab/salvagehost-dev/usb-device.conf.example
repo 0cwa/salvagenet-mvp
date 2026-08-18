@@ -8,6 +8,8 @@ SALVAGEHOST_USB_VENDOR_ID=18d1
 SALVAGEHOST_USB_PRODUCT_ID=4ee7
 SALVAGEHOST_USB_PHYSICAL_PORT=3-2
 SALVAGEHOST_USB_MODE=guest-usb
+# Existing host group used by the system libvirt/QEMU USB node. If omitted,
+# the reconciler defaults to qemu and fails closed unless that group exists.
 SALVAGEHOST_USB_QEMU_GROUP=qemu
 SALVAGEHOST_USB_LIBVIRT_URI=qemu:///system
 SALVAGEHOST_USB_LOCK_FILE=/run/lock/salvagehost-nodehost-dev-usb.lock

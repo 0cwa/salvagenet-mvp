@@ -110,7 +110,6 @@ done < "$config_file"
 : "${SALVAGEHOST_USB_PRODUCT_ID:?SALVAGEHOST_USB_PRODUCT_ID is required}"
 : "${SALVAGEHOST_USB_PHYSICAL_PORT:?SALVAGEHOST_USB_PHYSICAL_PORT is required}"
 : "${SALVAGEHOST_USB_MODE:?SALVAGEHOST_USB_MODE is required}"
-: "${SALVAGEHOST_USB_QEMU_GROUP:?SALVAGEHOST_USB_QEMU_GROUP is required}"
 : "${SALVAGEHOST_USB_LIBVIRT_URI:?SALVAGEHOST_USB_LIBVIRT_URI is required}"
 : "${SALVAGEHOST_USB_LOCK_FILE:?SALVAGEHOST_USB_LOCK_FILE is required}"
 : "${SALVAGEHOST_USB_SESSION_LOCK_FILE:?SALVAGEHOST_USB_SESSION_LOCK_FILE is required}"
@@ -130,6 +129,7 @@ for id in "$SALVAGEHOST_USB_VENDOR_ID" "$SALVAGEHOST_USB_PRODUCT_ID"; do
 done
 [[ $SALVAGEHOST_USB_PHYSICAL_PORT =~ ^[0-9]+(-[0-9]+)+(\.[0-9]+)*$ ]] || invalid_config "invalid physical USB port"
 [[ $SALVAGEHOST_USB_MODE == guest-usb ]] || invalid_config "only guest-usb mode is supported by this reconciler"
+SALVAGEHOST_USB_QEMU_GROUP=${SALVAGEHOST_USB_QEMU_GROUP:-qemu}
 [[ $SALVAGEHOST_USB_QEMU_GROUP =~ ^[a-z_][a-z0-9_-]*$ ]] || invalid_config "invalid qemu group"
 [[ $SALVAGEHOST_USB_LIBVIRT_URI == qemu:///system ]] || invalid_config "only qemu:///system is supported"
 [[ $SALVAGEHOST_USB_LOCK_FILE == /* ]] || invalid_config "lock file must be absolute"
@@ -139,6 +139,8 @@ done
 [[ $SALVAGEHOST_USB_RETRY_DELAY_SEC =~ ^[0-9]+$ ]] || invalid_config "retry delay must be non-negative"
 [[ $SALVAGEHOST_USB_STOP_TIMEOUT_SEC =~ ^[1-9][0-9]*$ ]] || invalid_config "stop timeout must be positive"
 [[ -x $xml_helper ]] || invalid_config "missing executable $xml_helper"
+command -v getent >/dev/null 2>&1 || invalid_config "getent is required to validate the qemu group"
+getent group "$SALVAGEHOST_USB_QEMU_GROUP" >/dev/null || invalid_config "qemu group does not exist: $SALVAGEHOST_USB_QEMU_GROUP"
 
 if [[ $operation == validate-config ]]; then
   echo "config valid: $config_file"
