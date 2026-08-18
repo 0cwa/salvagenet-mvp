@@ -189,7 +189,7 @@ if [[ $operation == rollback ]]; then
   while IFS='|' read -r state target backup; do
     [[ -n $target ]] || continue
     if [[ $state == existing ]]; then
-      install -D -m 0644 "$backup" "$target"
+      cp -a --remove-destination "$backup" "$target"
     elif [[ $state == absent ]]; then
       rm -f -- "$target"
     else

@@ -11,6 +11,8 @@ the VM under normal lifecycle paths.
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import selectors
 import signal
 import subprocess
@@ -22,6 +24,7 @@ SERIAL = "5VT7N16607000293"
 VENDOR = "18d1"
 PRODUCT = "4ee7"
 PORT = "3-2"
+TERMINAL_LIFECYCLE = re.compile(r"\bStopped\s+(?:Shutdown|Destroyed|Crashed)\b", re.IGNORECASE)
 
 
 def read_config(path: Path) -> dict[str, str]:
@@ -92,6 +95,56 @@ def cleanup(reconciler: Path, config: Path) -> None:
         print(f"USB session cleanup failed with exit {result.returncode}", file=sys.stderr)
 
 
+def is_terminal_lifecycle_event(line: str) -> bool:
+    """Return whether a libvirt lifecycle line denotes a terminal VM event."""
+
+    return TERMINAL_LIFECYCLE.search(line) is not None
+
+
+def consume_udev_line(line: str, properties: dict[str, str]) -> bool:
+    """Consume one udev property line and report complete matching events."""
+
+    if not line:
+        matches = udev_event_matches(properties)
+        properties.clear()
+        return matches
+    if "=" in line:
+        name, value = line.split("=", 1)
+        properties[name] = value
+    return False
+
+
+def drain_stream(stream: object, buffer: bytearray) -> tuple[list[str], bool]:
+    """Read every currently available chunk and return complete newline lines."""
+
+    lines: list[str] = []
+    eof = False
+    fd = stream.fileno()  # type: ignore[attr-defined]
+    while True:
+        try:
+            chunk = os.read(fd, 65536)
+        except BlockingIOError:
+            break
+        if not chunk:
+            eof = True
+            break
+        buffer.extend(chunk)
+        while b"\n" in buffer:
+            raw_line, _, remainder = buffer.partition(b"\n")
+            buffer[:] = remainder
+            lines.append(raw_line.rstrip(b"\r").decode("utf-8", errors="replace"))
+    return lines, eof
+
+
+def unregister_stream(selector: selectors.BaseSelector, stream: object) -> None:
+    """Remove an EOF stream without making the selector spin on it."""
+
+    try:
+        selector.unregister(stream)  # type: ignore[arg-type]
+    except KeyError:
+        pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
@@ -120,8 +173,7 @@ def main() -> int:
         ["udevadm", "monitor", "--udev", "--property", "--subsystem-match=usb"],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
-        text=True,
-        bufsize=1,
+        bufsize=0,
     )
     lifecycle = subprocess.Popen(
         [
@@ -137,42 +189,41 @@ def main() -> int:
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
-        text=True,
-        bufsize=1,
+        bufsize=0,
     )
     selector = selectors.DefaultSelector()
     assert udev.stdout is not None
     assert lifecycle.stdout is not None
+    os.set_blocking(udev.stdout.fileno(), False)
+    os.set_blocking(lifecycle.stdout.fileno(), False)
     selector.register(udev.stdout, selectors.EVENT_READ, "udev")
     selector.register(lifecycle.stdout, selectors.EVENT_READ, "lifecycle")
+    buffers = {udev.stdout: bytearray(), lifecycle.stdout: bytearray()}
     properties: dict[str, str] = {}
 
     try:
-        while not stop and marker.exists():
+        while not stop and marker.exists() and selector.get_map():
             events = selector.select(timeout=1.0)
             if not events:
-                if udev.poll() is not None or lifecycle.poll() is not None:
-                    break
                 continue
             for key, _ in events:
-                line = key.fileobj.readline()
-                if line == "":
-                    continue
-                line = line.rstrip("\n")
-                if key.data == "lifecycle":
-                    lowered = line.lower()
-                    if any(word in lowered for word in ("shutdown", "destroyed", "crashed")):
+                lines, eof = drain_stream(key.fileobj, buffers[key.fileobj])
+                for line in lines:
+                    if key.data == "lifecycle":
+                        if is_terminal_lifecycle_event(line):
+                            cleanup(args.reconciler, args.config)
+                            return 0
+                        continue
+                    if consume_udev_line(line, properties) and marker.exists():
+                        run_reconciler(args.reconciler, args.config)
+                if eof and key.data == "lifecycle" and buffers[key.fileobj]:
+                    line = bytes(buffers[key.fileobj]).decode("utf-8", errors="replace")
+                    buffers[key.fileobj].clear()
+                    if is_terminal_lifecycle_event(line):
                         cleanup(args.reconciler, args.config)
                         return 0
-                    continue
-                if not line:
-                    if udev_event_matches(properties) and marker.exists():
-                        run_reconciler(args.reconciler, args.config)
-                    properties = {}
-                    continue
-                if "=" in line:
-                    name, value = line.split("=", 1)
-                    properties[name] = value
+                if eof:
+                    unregister_stream(selector, key.fileobj)
     finally:
         selector.close()
         for process in (udev, lifecycle):

@@ -15,6 +15,73 @@ fail() {
   exit 1
 }
 
+pass_case() {
+  echo "PASS: $*"
+}
+
+skip_case() {
+  echo "SKIP: $*"
+}
+
+# Capability discovery is deliberately limited to deciding whether a later
+# assertion would be testing the host rather than the repository. Pure
+# syntax, config-shape, security, XML, lifecycle, and ordering assertions
+# below remain mandatory on every runner.
+have_getent=false
+command -v getent >/dev/null 2>&1 && have_getent=true
+
+qemu_group_available=false
+if [[ $have_getent == true ]] && getent group qemu >/dev/null 2>&1; then
+  qemu_group_available=true
+else
+  skip_case "example/default config cases: qemu group 'qemu' is unavailable"
+fi
+
+lowercase_group=$(id -gn 2>/dev/null || true)
+lowercase_group_available=false
+if [[ $have_getent == true && $lowercase_group =~ ^[a-z_][a-z0-9_-]*$ ]] \
+  && getent group "$lowercase_group" >/dev/null 2>&1; then
+  lowercase_group_available=true
+else
+  skip_case "custom-group case: current group is unavailable or is not lowercase"
+fi
+
+udevadm_available=false
+command -v udevadm >/dev/null 2>&1 && udevadm_available=true
+if [[ $udevadm_available == false ]]; then
+  skip_case "live/check cases: udevadm is unavailable"
+fi
+
+virsh_available=false
+command -v virsh >/dev/null 2>&1 && virsh_available=true
+if [[ $virsh_available == false ]]; then
+  skip_case "installer/live cases: virsh is unavailable"
+fi
+
+installer_missing_commands=()
+for command in awk bash basename cat cp date dirname flock getent grep head install mkdir mktemp mv \
+               printf pwd python3 rm rmdir sed sha256sum sleep stat systemctl tr udevadm virsh; do
+  command -v "$command" >/dev/null 2>&1 || installer_missing_commands+=("$command")
+done
+installer_capable=false
+if ((${#installer_missing_commands[@]} == 0)); then
+  installer_capable=true
+else
+  skip_case "installer dry-run/check cases: missing commands ${installer_missing_commands[*]}"
+fi
+
+if [[ $EUID -eq 0 ]]; then
+  skip_case "non-root refusal case: validator is running as root"
+else
+  pass_case "non-root capability detected"
+fi
+
+if [[ $EUID -ne 0 ]]; then
+  skip_case "root-only lifecycle cases: validator is not running as root"
+else
+  pass_case "root capability detected"
+fi
+
 for script in \
   "$script_dir/configure-usb-device.sh" \
   "$script_dir/reconcile-usb-device.sh" \
@@ -29,8 +96,13 @@ for python_file in "$script_dir/usb-hostdev-xml.py" "$script_dir/usb-session-mon
     "$python_file" || fail "Python syntax failed: $python_file"
 done
 
-"$script_dir/reconcile-usb-device.sh" --validate-config \
-  --config "$script_dir/usb-device.conf.example" >/dev/null || fail "example config rejected"
+if [[ $qemu_group_available == true ]]; then
+  "$script_dir/reconcile-usb-device.sh" --validate-config \
+    --config "$script_dir/usb-device.conf.example" >/dev/null || fail "example config rejected"
+  pass_case "example config validation"
+else
+  skip_case "example config validation: qemu group 'qemu' is unavailable"
+fi
 
 if grep -Eq '^(GITHUB_TOKEN|OPENAI_API_KEY|AWS_SECRET_ACCESS_KEY|SSH_PRIVATE_KEY)=' \
   "$script_dir/usb-device.conf.example"; then
@@ -79,45 +151,74 @@ if python3 "$script_dir/usb-hostdev-xml.py" check-live \
   fail "stale live bus/device address was accepted"
 fi
 
-installer_output=$("$script_dir/install-usb-reconciler.sh" --dry-run \
-  --config "$script_dir/usb-device.conf.example") || fail "installer dry-run failed"
-installer_check_output=$("$script_dir/install-usb-reconciler.sh" --check \
-  --config "$script_dir/usb-device.conf.example") || fail "installer check failed"
-grep -q 'source and config validation passed' <<<"$installer_check_output" || fail "installer check did not report validation"
-grep -q 'serial=5VT7N16607000293' <<<"$installer_output" || fail "exact serial missing from dry-run"
-grep -q '18d1:4ee7' <<<"$installer_output" || fail "exact VID/PID missing from dry-run"
-grep -q 'GROUP="qemu"' <<<"$installer_output" || fail "rendered qemu access missing from dry-run"
-grep -q 'physical-port=3-2' <<<"$installer_output" || fail "physical port missing from dry-run"
-grep -q 'runtime-only udev rule: /run/udev/rules.d/' <<<"$installer_output" || fail "transient /run udev path missing from dry-run"
-grep -q 'never installed under /etc' <<<"$installer_output" || fail "dry-run does not prove udev rule is transient"
-if grep -q 'SYSTEMD_WANTS' <<<"$installer_output"; then
-  fail "dry-run still advertises SYSTEMD_WANTS"
+if [[ $qemu_group_available == true && $installer_capable == true ]]; then
+  installer_output=$("$script_dir/install-usb-reconciler.sh" --dry-run \
+    --config "$script_dir/usb-device.conf.example") || fail "installer dry-run failed"
+  installer_check_output=$("$script_dir/install-usb-reconciler.sh" --check \
+    --config "$script_dir/usb-device.conf.example") || fail "installer check failed"
+  grep -q 'source and config validation passed' <<<"$installer_check_output" || fail "installer check did not report validation"
+  grep -q 'serial=5VT7N16607000293' <<<"$installer_output" || fail "exact serial missing from dry-run"
+  grep -q '18d1:4ee7' <<<"$installer_output" || fail "exact VID/PID missing from dry-run"
+  grep -q 'GROUP="qemu"' <<<"$installer_output" || fail "rendered qemu access missing from dry-run"
+  grep -q 'physical-port=3-2' <<<"$installer_output" || fail "physical port missing from dry-run"
+  grep -q 'runtime-only udev rule: /run/udev/rules.d/' <<<"$installer_output" || fail "transient /run udev path missing from dry-run"
+  grep -q 'never installed under /etc' <<<"$installer_output" || fail "dry-run does not prove udev rule is transient"
+  if grep -q 'SYSTEMD_WANTS' <<<"$installer_output"; then
+    fail "dry-run still advertises SYSTEMD_WANTS"
+  fi
+  grep -q 'legacy timer source: .*not installed or enabled' <<<"$installer_output" || fail "dry-run does not prove timer is manual-only"
+  grep -q 'managed target: .*usb-session-monitor.py' <<<"$installer_output" || fail "dry-run omits the event monitor"
+  pass_case "installer dry-run/check"
+else
+  skip_case "installer dry-run/check: qemu group or required host commands unavailable"
 fi
-grep -q 'legacy timer source: .*not installed or enabled' <<<"$installer_output" || fail "dry-run does not prove timer is manual-only"
-grep -q 'managed target: .*usb-session-monitor.py' <<<"$installer_output" || fail "dry-run omits the event monitor"
 
-custom_group=$(id -gn)
-custom_group_config=$tmp_dir/custom-group.conf
-sed "s/^SALVAGEHOST_USB_QEMU_GROUP=.*/SALVAGEHOST_USB_QEMU_GROUP=$custom_group/" \
-  "$script_dir/usb-device.conf.example" > "$custom_group_config"
-custom_group_output=$("$script_dir/install-usb-reconciler.sh" --dry-run \
-  --config "$custom_group_config") || fail "installer rejected an existing configured device group"
-grep -q "GROUP=\"$custom_group\"" <<<"$custom_group_output" || fail "configured device group was not rendered"
+if [[ $lowercase_group_available == true && $installer_capable == true ]]; then
+  custom_group_config=$tmp_dir/custom-group.conf
+  sed "s/^SALVAGEHOST_USB_QEMU_GROUP=.*/SALVAGEHOST_USB_QEMU_GROUP=$lowercase_group/" \
+    "$script_dir/usb-device.conf.example" > "$custom_group_config"
+  custom_group_output=$("$script_dir/install-usb-reconciler.sh" --dry-run \
+    --config "$custom_group_config") || fail "installer rejected an existing configured device group"
+  grep -q "GROUP=\"$lowercase_group\"" <<<"$custom_group_output" || fail "configured device group was not rendered"
+  pass_case "custom lowercase group rendering"
+else
+  skip_case "custom lowercase group rendering: no existing lowercase group or installer dependency set"
+fi
 
-default_group_config=$tmp_dir/default-group.conf
-sed '/^SALVAGEHOST_USB_QEMU_GROUP=/d' \
-  "$script_dir/usb-device.conf.example" > "$default_group_config"
-"$script_dir/reconcile-usb-device.sh" --validate-config \
-  --config "$default_group_config" >/dev/null || fail "omitted qemu group did not default"
+if [[ $qemu_group_available == true ]]; then
+  default_group_config=$tmp_dir/default-group.conf
+  sed '/^SALVAGEHOST_USB_QEMU_GROUP=/d' \
+    "$script_dir/usb-device.conf.example" > "$default_group_config"
+  "$script_dir/reconcile-usb-device.sh" --validate-config \
+    --config "$default_group_config" >/dev/null || fail "omitted qemu group did not default"
+  pass_case "default qemu group"
+else
+  skip_case "default qemu group: qemu group 'qemu' is unavailable"
+fi
 
-missing_group_config=$tmp_dir/missing-group.conf
-sed 's/^SALVAGEHOST_USB_QEMU_GROUP=.*/SALVAGEHOST_USB_QEMU_GROUP=salvagenet-nonexistent-qemu-group/' \
-  "$script_dir/usb-device.conf.example" > "$missing_group_config"
+if [[ $have_getent == true ]]; then
+  missing_group_config=$tmp_dir/missing-group.conf
+  sed 's/^SALVAGEHOST_USB_QEMU_GROUP=.*/SALVAGEHOST_USB_QEMU_GROUP=salvagenet-nonexistent-qemu-group/' \
+    "$script_dir/usb-device.conf.example" > "$missing_group_config"
+  if "$script_dir/reconcile-usb-device.sh" --validate-config \
+    --config "$missing_group_config" >"$tmp_dir/missing-group.out" 2>&1; then
+    fail "reconciler accepted a missing configured device group"
+  fi
+  grep -q 'qemu group does not exist' "$tmp_dir/missing-group.out" || fail "missing group refusal was not explicit"
+  pass_case "missing qemu group refusal"
+else
+  skip_case "missing qemu group refusal: getent is unavailable"
+fi
+
+invalid_case_group_config=$tmp_dir/invalid-case-group.conf
+sed 's/^SALVAGEHOST_USB_QEMU_GROUP=.*/SALVAGEHOST_USB_QEMU_GROUP=QEMU/' \
+  "$script_dir/usb-device.conf.example" > "$invalid_case_group_config"
 if "$script_dir/reconcile-usb-device.sh" --validate-config \
-  --config "$missing_group_config" >"$tmp_dir/missing-group.out" 2>&1; then
-  fail "reconciler accepted a missing configured device group"
+  --config "$invalid_case_group_config" >"$tmp_dir/invalid-case-group.out" 2>&1; then
+  fail "reconciler accepted an uppercase qemu group"
 fi
-grep -q 'qemu group does not exist' "$tmp_dir/missing-group.out" || fail "missing group refusal was not explicit"
+grep -q 'invalid qemu group' "$tmp_dir/invalid-case-group.out" || fail "uppercase qemu group refusal was not explicit"
+pass_case "lowercase qemu group validation"
 
 if grep -Eq 'systemctl (enable|start) salvagehost-usb-reconcile\.timer' \
   "$script_dir/install-usb-reconciler.sh"; then
@@ -136,19 +237,29 @@ if "$script_dir/install-usb-reconciler.sh" --help 2>&1 | grep -Eq -- '--enable-t
   fail "installer still exposes timer activation flags"
 fi
 
-nonroot_output=$tmp_dir/nonroot.out
-if "$script_dir/start-nodehost-dev-with-usb.sh" --config "$script_dir/usb-device.conf.example" >"$nonroot_output" 2>&1; then
-  fail "start wrapper ran as non-root"
+if [[ $EUID -ne 0 && $qemu_group_available == true ]]; then
+  nonroot_output=$tmp_dir/nonroot.out
+  if "$script_dir/start-nodehost-dev-with-usb.sh" --config "$script_dir/usb-device.conf.example" >"$nonroot_output" 2>&1; then
+    fail "start wrapper ran as non-root"
+  fi
+  grep -q 'requires root' "$nonroot_output" || fail "non-root start refusal was not explicit"
+  pass_case "non-root start refusal"
+else
+  skip_case "non-root start refusal: runner is root or qemu group is unavailable"
 fi
-grep -q 'requires root' "$nonroot_output" || fail "non-root start refusal was not explicit"
 
-wrong_config=$tmp_dir/wrong-target.conf
-sed 's/^SALVAGEHOST_USB_VM_NAME=nodehost-dev$/SALVAGEHOST_USB_VM_NAME=other-vm/' \
-  "$script_dir/usb-device.conf.example" > "$wrong_config"
-if "$script_dir/start-nodehost-dev-with-usb.sh" --config "$wrong_config" >"$tmp_dir/wrong-target.out" 2>&1; then
-  fail "start wrapper accepted a wrong VM target"
+if [[ $qemu_group_available == true ]]; then
+  wrong_config=$tmp_dir/wrong-target.conf
+  sed 's/^SALVAGEHOST_USB_VM_NAME=nodehost-dev$/SALVAGEHOST_USB_VM_NAME=other-vm/' \
+    "$script_dir/usb-device.conf.example" > "$wrong_config"
+  if "$script_dir/start-nodehost-dev-with-usb.sh" --config "$wrong_config" >"$tmp_dir/wrong-target.out" 2>&1; then
+    fail "start wrapper accepted a wrong VM target"
+  fi
+  grep -q 'only nodehost-dev is supported' "$tmp_dir/wrong-target.out" || fail "wrong-target refusal was not explicit"
+  pass_case "wrong VM target refusal"
+else
+  skip_case "wrong VM target refusal: qemu group is unavailable"
 fi
-grep -q 'only nodehost-dev is supported' "$tmp_dir/wrong-target.out" || fail "wrong-target refusal was not explicit"
 
 fake_proc=$tmp_dir/proc/123
 mkdir -p "$fake_proc"
@@ -158,12 +269,17 @@ sed \
   -e "s#^SALVAGEHOST_USB_LOCK_FILE=.*#SALVAGEHOST_USB_LOCK_FILE=$tmp_dir/adb.lock#" \
   -e "s#^SALVAGEHOST_USB_STATE_DIR=.*#SALVAGEHOST_USB_STATE_DIR=$tmp_dir/adb-state#" \
   "$script_dir/usb-device.conf.example" > "$adb_config"
-if SALVAGEHOST_USB_PROC_ROOT="$tmp_dir/proc" \
-  "$script_dir/reconcile-usb-device.sh" --check \
-  --config "$adb_config" >"$tmp_dir/adb.out" 2>&1; then
-  fail "reconciler accepted a competing adb process"
+if [[ $qemu_group_available == true && $udevadm_available == true ]]; then
+  if SALVAGEHOST_USB_PROC_ROOT="$tmp_dir/proc" \
+    "$script_dir/reconcile-usb-device.sh" --check \
+    --config "$adb_config" >"$tmp_dir/adb.out" 2>&1; then
+    fail "reconciler accepted a competing adb process"
+  fi
+  grep -q 'competing ADB process detected' "$tmp_dir/adb.out" || fail "competing ADB refusal was not explicit"
+  pass_case "competing ADB refusal"
+else
+  skip_case "competing ADB refusal: qemu group or udevadm is unavailable"
 fi
-grep -q 'competing ADB process detected' "$tmp_dir/adb.out" || fail "competing ADB refusal was not explicit"
 grep -Fq "\"\$reconciler\" --preflight" "$script_dir/start-nodehost-dev-with-usb.sh" || fail "start wrapper does not use the strict preflight gate"
 
 grep -q 'ConditionPathExists=/run/salvagehost/nodehost-dev-usb.active' \

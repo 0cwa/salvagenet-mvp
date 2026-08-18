@@ -83,7 +83,7 @@ fi
 declare -A seen_keys=()
 allowed_key() {
   case $1 in
-    SALVAGEHOST_USB_VM_NAME|SALVAGEHOST_USB_SERIAL|SALVAGEHOST_USB_VENDOR_ID|SALVAGEHOST_USB_PRODUCT_ID|SALVAGEHOST_USB_PHYSICAL_PORT|SALVAGEHOST_USB_MODE|SALVAGEHOST_USB_QEMU_GROUP|SALVAGEHOST_USB_LIBVIRT_URI|SALVAGEHOST_USB_LOCK_FILE|SALVAGEHOST_USB_SESSION_LOCK_FILE|SALVAGEHOST_USB_STATE_DIR|SALVAGEHOST_USB_MAX_ATTEMPTS|SALVAGEHOST_USB_RETRY_DELAY_SEC|SALVAGEHOST_USB_STOP_TIMEOUT_SEC)
+    SALVAGEHOST_USB_VM_NAME|SALVAGEHOST_USB_SERIAL|SALVAGEHOST_USB_VENDOR_ID|SALVAGEHOST_USB_PRODUCT_ID|SALVAGEHOST_USB_PHYSICAL_PORT|SALVAGEHOST_USB_MODE|SALVAGEHOST_USB_QEMU_GROUP|SALVAGEHOST_USB_LIBVIRT_URI|SALVAGEHOST_USB_LOCK_FILE|SALVAGEHOST_USB_STATE_DIR|SALVAGEHOST_USB_STOP_TIMEOUT_SEC)
       return 0
       ;;
     *)
@@ -112,10 +112,7 @@ done < "$config_file"
 : "${SALVAGEHOST_USB_MODE:?SALVAGEHOST_USB_MODE is required}"
 : "${SALVAGEHOST_USB_LIBVIRT_URI:?SALVAGEHOST_USB_LIBVIRT_URI is required}"
 : "${SALVAGEHOST_USB_LOCK_FILE:?SALVAGEHOST_USB_LOCK_FILE is required}"
-: "${SALVAGEHOST_USB_SESSION_LOCK_FILE:?SALVAGEHOST_USB_SESSION_LOCK_FILE is required}"
 : "${SALVAGEHOST_USB_STATE_DIR:?SALVAGEHOST_USB_STATE_DIR is required}"
-: "${SALVAGEHOST_USB_MAX_ATTEMPTS:?SALVAGEHOST_USB_MAX_ATTEMPTS is required}"
-: "${SALVAGEHOST_USB_RETRY_DELAY_SEC:?SALVAGEHOST_USB_RETRY_DELAY_SEC is required}"
 : "${SALVAGEHOST_USB_STOP_TIMEOUT_SEC:?SALVAGEHOST_USB_STOP_TIMEOUT_SEC is required}"
 
 [[ $SALVAGEHOST_USB_VM_NAME =~ ^[A-Za-z0-9._-]+$ ]] || invalid_config "invalid VM name"
@@ -133,10 +130,7 @@ SALVAGEHOST_USB_QEMU_GROUP=${SALVAGEHOST_USB_QEMU_GROUP:-qemu}
 [[ $SALVAGEHOST_USB_QEMU_GROUP =~ ^[a-z_][a-z0-9_-]*$ ]] || invalid_config "invalid qemu group"
 [[ $SALVAGEHOST_USB_LIBVIRT_URI == qemu:///system ]] || invalid_config "only qemu:///system is supported"
 [[ $SALVAGEHOST_USB_LOCK_FILE == /* ]] || invalid_config "lock file must be absolute"
-[[ $SALVAGEHOST_USB_SESSION_LOCK_FILE == /* ]] || invalid_config "session lock file must be absolute"
 [[ $SALVAGEHOST_USB_STATE_DIR == /* ]] || invalid_config "state directory must be absolute"
-[[ $SALVAGEHOST_USB_MAX_ATTEMPTS =~ ^[1-9][0-9]*$ ]] || invalid_config "max attempts must be positive"
-[[ $SALVAGEHOST_USB_RETRY_DELAY_SEC =~ ^[0-9]+$ ]] || invalid_config "retry delay must be non-negative"
 [[ $SALVAGEHOST_USB_STOP_TIMEOUT_SEC =~ ^[1-9][0-9]*$ ]] || invalid_config "stop timeout must be positive"
 [[ -x $xml_helper ]] || invalid_config "missing executable $xml_helper"
 command -v getent >/dev/null 2>&1 || invalid_config "getent is required to validate the qemu group"
@@ -178,15 +172,6 @@ acquire_reconcile_lock() {
   [[ -d $parent ]] || mkdir -p -- "$parent"
   exec 9>"$SALVAGEHOST_USB_LOCK_FILE"
   flock -n 9 || die "another USB reconciliation is already running"
-}
-
-acquire_session_lock() {
-  local parent
-  require_command flock
-  parent=$(dirname -- "$SALVAGEHOST_USB_SESSION_LOCK_FILE")
-  [[ -d $parent ]] || mkdir -p -- "$parent"
-  exec 8>"$SALVAGEHOST_USB_SESSION_LOCK_FILE"
-  flock -n 8 || die "another VM USB lifecycle operation is already running"
 }
 
 device_present=false
@@ -252,7 +237,9 @@ check_qemu_access() {
   group=$(stat -c '%G' "$device_node") || die "cannot inspect $device_node"
   mode=$(stat -c '%a' "$device_node") || die "cannot inspect $device_node"
   [[ $group == "$SALVAGEHOST_USB_QEMU_GROUP" ]] || die "USB node group is $group, expected $SALVAGEHOST_USB_QEMU_GROUP"
-  [[ ${mode:1:1} == 6 || ${mode:1:1} == 7 ]] || die "USB node group is not readable/writable (mode $mode)"
+  [[ $mode =~ ^[0-9]{3,4}$ ]] || die "USB node mode is invalid: $mode"
+  local group_bits=${mode: -2:1}
+  [[ $group_bits == 6 || $group_bits == 7 ]] || die "USB node group is not readable/writable (mode $mode)"
 }
 
 domain_state() {
@@ -290,10 +277,9 @@ cleanup_session_unlocked() {
     udevadm control --reload-rules || true
   fi
   rm -f -- "$runtime_rule" "$guest_address_file"
-  rmdir --ignore-fail-on-non-empty "$runtime_rule_dir" 2>/dev/null || true
 }
 
-activate_session() {
+activate_session() (
   require_root
   require_command udevadm
   udevadm settle --timeout=10
@@ -303,17 +289,19 @@ activate_session() {
   write_runtime_rule
   : > "$session_marker"
   : > "$session_starting"
-  if ! trigger_exact_device; then
-    cleanup_session_unlocked
-    die "transient udev session activation failed"
-  fi
+  activation_cleanup() {
+    local status=$?
+    trap - EXIT
+    cleanup_session_unlocked || true
+    exit "$status"
+  }
+  trap activation_cleanup EXIT
+  trigger_exact_device || die "transient udev session activation failed"
   find_device
-  if ! check_qemu_access; then
-    cleanup_session_unlocked
-    die "transient udev rule did not grant qemu access to the exact device"
-  fi
+  check_qemu_access
+  trap - EXIT
   echo "USB session active for serial $SALVAGEHOST_USB_SERIAL on physical port $SALVAGEHOST_USB_PHYSICAL_PORT"
-}
+)
 
 dump_xml() {
   local mode=$1 output=$2
@@ -492,7 +480,17 @@ if [[ $operation == dry-run ]]; then
   exit 0
 fi
 
-if [[ $operation == check || $operation == status ]]; then
+if [[ $operation == status ]]; then
+  status_file=$SALVAGEHOST_USB_STATE_DIR/status
+  if [[ -r $status_file ]]; then
+    cat -- "$status_file"
+  else
+    echo "status: unavailable (no persisted status at $status_file)"
+  fi
+  exit 0
+fi
+
+if [[ $operation == check ]]; then
   require_command flock
   tmp_dir=$(mktemp -d)
   trap 'rm -rf -- "$tmp_dir"' EXIT

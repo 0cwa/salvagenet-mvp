@@ -32,7 +32,17 @@ def source_info(hostdev: ET.Element) -> dict[str, str | None]:
     guest_bus = guest_address.get("bus") if guest_address is not None else None
     guest_port = guest_address.get("port") if guest_address is not None else None
     if source is None:
-        return {"vendor": None, "product": None, "bus": None, "device": None, "guest_bus": guest_bus, "guest_port": guest_port}
+        return {
+            "managed": None,
+            "vendor": None,
+            "product": None,
+            "bus": None,
+            "device": None,
+            "guest_bus": guest_bus,
+            "guest_port": guest_port,
+            "startupPolicy": None,
+            "guestReset": None,
+        }
     vendor = child(source, "vendor")
     product = child(source, "product")
     address = child(source, "address")
@@ -66,6 +76,13 @@ def matching(root: ET.Element, vendor: str, product: str) -> list[tuple[ET.Eleme
         if info["vendor"] == vendor and info["product"] == product:
             result.append((element, info))
     return result
+
+
+def identity_matches_when_present(info: dict[str, str | None], vendor: str, product: str) -> bool:
+    return (
+        info["vendor"] in (None, vendor)
+        and info["product"] in (None, product)
+    )
 
 
 def load(path: Path) -> ET.Element:
@@ -113,6 +130,8 @@ def check_live(args: argparse.Namespace) -> int:
         print(f"live USB hostdev identity is ambiguous ({len(found)} matches)", file=sys.stderr)
         return 2
     else:
+        vendor = args.vendor.lower().removeprefix("0x")
+        product = args.product.lower().removeprefix("0x")
         candidates = []
         for element in usb_hostdevs(root):
             info = source_info(element)
@@ -121,6 +140,7 @@ def check_live(args: argparse.Namespace) -> int:
                 and args.guest_port is not None
                 and info["guest_bus"] == str(args.guest_bus)
                 and info["guest_port"] == str(args.guest_port)
+                and identity_matches_when_present(info, vendor, product)
             ):
                 candidates.append(info)
         if len(candidates) != 1:
@@ -144,12 +164,17 @@ def extract(args: argparse.Namespace) -> int:
     root = load(Path(args.xml))
     found = matching(root, args.vendor, args.product)
     if not found and args.guest_bus is not None and args.guest_port is not None:
-        found = [
-            (element, source_info(element))
-            for element in usb_hostdevs(root)
-            if source_info(element)["guest_bus"] == str(args.guest_bus)
-            and source_info(element)["guest_port"] == str(args.guest_port)
-        ]
+        vendor = args.vendor.lower().removeprefix("0x")
+        product = args.product.lower().removeprefix("0x")
+        found = []
+        for element in usb_hostdevs(root):
+            info = source_info(element)
+            if (
+                info["guest_bus"] == str(args.guest_bus)
+                and info["guest_port"] == str(args.guest_port)
+                and identity_matches_when_present(info, vendor, product)
+            ):
+                found.append((element, info))
     if len(found) == 0:
         print("cannot extract absent live USB hostdev", file=sys.stderr)
         return 1

@@ -1,7 +1,7 @@
 [Unit]
 Description=Event-driven nodehost-dev physical USB session monitor
 Documentation=file:/etc/salvagehost/nodehost-dev-usb.conf
-After=libvirtd.service virtqemud.service systemd-udev-settle.service
+After=libvirtd.service virtqemud.service
 ConditionPathExists=/run/salvagehost/nodehost-dev-usb.active
 
 [Service]

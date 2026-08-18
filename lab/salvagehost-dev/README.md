@@ -73,6 +73,7 @@ a separate config file. Do not put it in `.env`, because that file can contain
 GitHub/OpenAI credentials:
 
 ```sh
+sudo install -d -m 0755 /etc/salvagehost
 sudo install -m 0644 lab/salvagehost-dev/usb-device.conf.example \
   /etc/salvagehost/nodehost-dev-usb.conf
 sudo lab/salvagehost-dev/install-usb-reconciler.sh \
