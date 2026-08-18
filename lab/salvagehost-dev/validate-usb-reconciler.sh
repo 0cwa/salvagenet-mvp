@@ -127,9 +127,9 @@ if grep -Eq 'install .*rendered_udev.*install_udev|install -m [0-9]+ .*rendered_
   "$script_dir/install-usb-reconciler.sh"; then
   fail "installer still installs a persistent udev rule"
 fi
-grep -q 'install -m 0755 "\$monitor" "\$install_monitor"' \
+grep -Fq "install -m 0755 \"\$monitor\" \"\$install_monitor\"" \
   "$script_dir/install-usb-reconciler.sh" || fail "installer omits the event monitor"
-grep -q 'rm -f -- "\$legacy_udev"' "$script_dir/install-usb-reconciler.sh" || fail "installer does not remove the old persistent udev rule"
+grep -Fq "rm -f -- \"\$legacy_udev\"" "$script_dir/install-usb-reconciler.sh" || fail "installer does not remove the old persistent udev rule"
 grep -q 'remains enabled; refusing to continue' "$script_dir/install-usb-reconciler.sh" || fail "installer does not fail closed on enabled timer"
 grep -q 'remains active; refusing to continue' "$script_dir/install-usb-reconciler.sh" || fail "installer does not fail closed on active timer"
 if "$script_dir/install-usb-reconciler.sh" --help 2>&1 | grep -Eq -- '--enable-timer|--start-timer'; then
@@ -164,7 +164,7 @@ if SALVAGEHOST_USB_PROC_ROOT="$tmp_dir/proc" \
   fail "reconciler accepted a competing adb process"
 fi
 grep -q 'competing ADB process detected' "$tmp_dir/adb.out" || fail "competing ADB refusal was not explicit"
-grep -q '"$reconciler" --preflight' "$script_dir/start-nodehost-dev-with-usb.sh" || fail "start wrapper does not use the strict preflight gate"
+grep -Fq "\"\$reconciler\" --preflight" "$script_dir/start-nodehost-dev-with-usb.sh" || fail "start wrapper does not use the strict preflight gate"
 
 grep -q 'ConditionPathExists=/run/salvagehost/nodehost-dev-usb.active' \
   "$script_dir/systemd/salvagehost-usb-reconcile.service" || fail "event service is not session-gated"
@@ -183,12 +183,12 @@ line_of() {
   grep -nF -- "$1" "$script_dir/start-nodehost-dev-with-usb.sh" | head -n 1 | cut -d: -f1
 }
 
-activate_line=$(line_of '"$reconciler" --activate-session --config "$config_file"')
-detach_line=$(line_of '"$reconciler" --detach-persistent --config "$config_file"')
-preflight_line=$(line_of '"$reconciler" --preflight --config "$config_file"')
+activate_line=$(line_of "\"\$reconciler\" --activate-session --config \"\$config_file\"")
+detach_line=$(line_of "\"\$reconciler\" --detach-persistent --config \"\$config_file\"")
+preflight_line=$(line_of "\"\$reconciler\" --preflight --config \"\$config_file\"")
 vm_start_line=$(line_of 'virsh -c qemu:///system start nodehost-dev >/dev/null')
-apply_line=$(line_of '"$reconciler" --apply --config "$config_file"')
-monitor_start_line=$(line_of 'systemctl start "$monitor_service"')
+apply_line=$(line_of "\"\$reconciler\" --apply --config \"\$config_file\"")
+monitor_start_line=$(line_of "systemctl start \"\$monitor_service\"")
 [[ -n $activate_line && -n $detach_line && -n $preflight_line && -n $vm_start_line && -n $apply_line && -n $monitor_start_line ]] \
   || fail "start wrapper is missing a required lifecycle step"
 (( activate_line < detach_line && detach_line < preflight_line && preflight_line < vm_start_line && vm_start_line < apply_line && apply_line < monitor_start_line )) \
