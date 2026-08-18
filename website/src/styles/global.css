@@ -990,6 +990,13 @@ main {
   line-height: 1.7;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.6rem;
+}
+
 
 .hero-art-tag {
   position: absolute;
@@ -1164,6 +1171,63 @@ main:has(.landing-root-fade) + .site-footer .container {
   margin-top: 0;
 }
 
+.evidence-bridge {
+  margin-top: clamp(3.5rem, 7vw, 6rem);
+}
+
+.evidence-panel {
+  max-width: 64rem;
+  margin-inline: auto;
+  padding: clamp(1.7rem, 3.5vw, 2.8rem);
+}
+
+.evidence-panel h2 {
+  max-width: 42rem;
+  font-size: var(--text-2xl);
+}
+
+.evidence-body {
+  max-width: 48rem;
+  margin-top: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.principle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.4rem;
+  margin-top: 1.35rem;
+  padding: 0;
+  list-style: none;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.principle-row li {
+  margin: 0;
+}
+
+.principle-row li::before {
+  content: '•';
+  margin-right: 0.45rem;
+  color: var(--moss);
+}
+
+.evidence-link {
+  display: inline-block;
+  margin-top: 1.35rem;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.evidence-link:hover {
+  color: var(--ink-deep);
+  text-decoration-color: var(--amber);
+}
+
 /* Inner-page hierarchy: brief top-level story, details below. */
 .inner-page {
   padding-top: clamp(1rem, 2vw, 2rem);
@@ -1319,6 +1383,15 @@ main:has(.landing-root-fade) + .site-footer .container {
 
   .hero-lede {
     line-height: 1.62;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-actions .btn {
+    justify-content: center;
   }
 
   .hero-art-tag {

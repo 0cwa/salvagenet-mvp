@@ -1,0 +1,18 @@
+[Unit]
+Description=Event-driven nodehost-dev physical USB session monitor
+Documentation=file:/etc/salvagehost/nodehost-dev-usb.conf
+After=libvirtd.service virtqemud.service
+ConditionPathExists=/run/salvagehost/nodehost-dev-usb.active
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/salvagehost/usb-session-monitor.py --config /etc/salvagehost/nodehost-dev-usb.conf --reconciler /usr/local/libexec/salvagehost/reconcile-usb-device.sh
+Restart=no
+TimeoutStartSec=30s
+TimeoutStopSec=10s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/lock /run/salvagehost /run/udev/rules.d /var/lib/salvagehost
