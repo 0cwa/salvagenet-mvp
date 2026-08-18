@@ -12,12 +12,12 @@ const steps = [
   {
     icon: 'server',
     title: 'Give it a Linux host.',
-    text: 'SalvageNet prepares Linux, connects it privately, and watches over its lifecycle.',
+    text: 'SalvageNet is designed to prepare Linux, connect it privately, and supervise its lifecycle.',
   },
   {
     icon: 'boxes',
     title: 'Use the tools you know.',
-    text: 'Docker, Kubernetes, Nomad, SSH, and similar tools keep working in their usual way.',
+    text: 'SalvageNet is designed to let Docker, Kubernetes, Nomad, SSH, and similar tools keep working in their usual way.',
   },
 ] as const;
 
@@ -48,14 +48,17 @@ const outcomes = [
   <section class="hero">
     <div class="container">
       <div class="hero-copy">
-        <p class="eyebrow">Old hardware. New purpose.</p>
+        <p class="eyebrow">LOCAL TECH. REVIVED. REUSED. RECONNECTED.</p>
         <h1 class="hero-title">
-          Turn spare devices into useful <span class="accent no-break">self-hosting</span> nodes.
+          Give spare devices a useful second life as <span class="accent no-break">self-hosting</span> nodes.
         </h1>
         <p class="hero-lede">
-          SalvageNet is a way to turn spare Android hardware into private, manageable Linux
-          hosts—without giving up the tools you already know.
+          SalvageNet is building an open device layer for preparing and supervising Linux on qualified spare hardware. The goal is private, understandable infrastructure that leaves workload management to the tools you already use.
         </p>
+        <div class="hero-actions">
+          <a class="btn btn--primary" href="#how-it-works">See how it works →</a>
+          <a class="btn btn--ghost" href="/roadmap/">View the roadmap →</a>
+        </div>
       </div>
       <div class="hero-art">
         <span class="hero-phone-frame">
@@ -132,6 +135,27 @@ const outcomes = [
             ))
           }
         </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section evidence-bridge" aria-labelledby="evidence-title">
+    <div class="container">
+      <div class="panel circuit-panel evidence-panel">
+        <div>
+          <h2 id="evidence-title">The software foundation is being qualified now.</h2>
+          <p class="evidence-body">
+            Core host, profile, artifact, lifecycle, and security checks are in place. The next
+            step is to prove the complete path on real hardware before calling SalvageNet a
+            validated MVP.
+          </p>
+          <ul class="principle-row" aria-label="SalvageNet principles">
+            <li>Reuse capable hardware</li>
+            <li>Keep control local</li>
+            <li>Build on familiar tools</li>
+          </ul>
+          <a class="evidence-link" href="/roadmap/">See the project roadmap →</a>
+        </div>
       </div>
     </div>
   </section>
