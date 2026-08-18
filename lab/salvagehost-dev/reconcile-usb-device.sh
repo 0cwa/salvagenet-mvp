@@ -289,7 +289,8 @@ activate_session() (
   write_runtime_rule
   : > "$session_marker"
   : > "$session_starting"
-  trap 'status=$?; trap - EXIT; cleanup_session_unlocked || true; exit "$status"' EXIT
+  local activation_cleanup_status=0
+  trap 'activation_cleanup_status=$?; trap - EXIT; cleanup_session_unlocked || true; exit "$activation_cleanup_status"' EXIT
   trigger_exact_device || die "transient udev session activation failed"
   find_device
   check_qemu_access
