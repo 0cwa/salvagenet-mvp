@@ -1,0 +1,171 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import ArtImage from '../components/ArtImage.astro';
+
+const steps = [
+  {
+    icon: 'phone',
+    title: 'Start with a spare device.',
+    text: 'The first target is a retired Android phone that still has useful life in it.',
+  },
+  {
+    icon: 'server',
+    title: 'Give it a Linux host.',
+    text: 'SalvageNet is designed to prepare Linux, connect it privately, and supervise its lifecycle.',
+  },
+  {
+    icon: 'boxes',
+    title: 'Use the tools you know.',
+    text: 'SalvageNet is designed to let Docker, Kubernetes, Nomad, SSH, and similar tools keep working in their usual way.',
+  },
+] as const;
+
+const outcomes = [
+  {
+    icon: 'leaf',
+    title: 'Keep good hardware in use',
+    text: 'Give a capable device another job instead of leaving it in a drawer.',
+  },
+  {
+    icon: 'lock',
+    title: 'Keep it under your control',
+    text: 'Run services on your own hardware and reach them through a private network.',
+  },
+  {
+    icon: 'puzzle',
+    title: 'Keep your existing tools',
+    text: 'Add a host layer without replacing the open-source software you already use.',
+  },
+] as const;
+---
+
+<BaseLayout
+  title="SalvageNet — Give spare devices a useful second life"
+  description="SalvageNet is building a practical path from spare devices to private, manageable Linux hosts."
+  current="/"
+>
+  <section class="hero">
+    <div class="container">
+      <div class="hero-copy">
+        <p class="eyebrow">LOCAL TECH. REVIVED. REUSED. RECONNECTED.</p>
+        <h1 class="hero-title">
+          Give spare devices a useful second life as <span class="accent no-break">self-hosting</span> nodes.
+        </h1>
+        <p class="hero-lede">
+          SalvageNet is building an open device layer for preparing and supervising Linux on qualified spare hardware. The goal is private, understandable infrastructure that leaves workload management to the tools you already use.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn--primary" href="#how-it-works">See how it works →</a>
+          <a class="btn btn--ghost" href="/roadmap/">View the roadmap →</a>
+        </div>
+      </div>
+      <div class="hero-art">
+        <span class="hero-phone-frame">
+          <img
+            class="hero-phone-art"
+            src="/assets/art-reuse-workbench-dark.webp"
+            width="1280"
+            height="900"
+            alt="A retired phone connected to a small circuit board as plant-like circuits grow around it"
+            loading="eager"
+            fetchpriority="high"
+          />
+        </span>
+        <p class="hero-art-tag">
+          <span aria-hidden="true"></span>
+          Spare device <strong>→</strong> private Linux host
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section why" aria-labelledby="why-title">
+    <div class="container">
+      <header class="section-heading">
+        <div>
+          <h2 id="why-title">Keep capable hardware in use.</h2>
+        </div>
+      </header>
+      <ul class="why-grid">
+        {
+          outcomes.map((outcome) => (
+            <li>
+              <div class="step-icon"><Icon name={outcome.icon} /></div>
+              <h3>{outcome.title}</h3>
+              <p>{outcome.text}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <ArtImage
+    name="circuit-divider"
+    class="landing-divider"
+    width={1600}
+    height={280}
+    alt=""
+  />
+
+  <section class="section section-band" id="how-it-works" aria-labelledby="how-title">
+    <div class="container">
+      <header class="section-heading">
+        <div>
+          <h2 id="how-title">A small host layer beneath the tools you know.</h2>
+        </div>
+      </header>
+      <div class="panel circuit-panel process-panel">
+        <ol class="steps">
+          {
+            steps.map((step, index) => (
+              <>
+                <li>
+                  <div>
+                    <div class="step-icon"><Icon name={step.icon} /></div>
+                    <h3 class="step-title">{step.title}</h3>
+                    <p class="step-text">{step.text}</p>
+                  </div>
+                </li>
+                {index < steps.length - 1 && (
+                  <li class="step-arrow" aria-hidden="true"><Icon name="arrow-right" /></li>
+                )}
+              </>
+            ))
+          }
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section evidence-bridge" aria-labelledby="evidence-title">
+    <div class="container">
+      <div class="panel circuit-panel evidence-panel">
+        <div>
+          <h2 id="evidence-title">The software foundation is being qualified now.</h2>
+          <p class="evidence-body">
+            Core host, profile, artifact, lifecycle, and security checks are in place. The next
+            step is to prove the complete path on real hardware before calling SalvageNet a
+            validated MVP.
+          </p>
+          <ul class="principle-row" aria-label="SalvageNet principles">
+            <li>Reuse capable hardware</li>
+            <li>Keep control local</li>
+            <li>Build on familiar tools</li>
+          </ul>
+          <a class="evidence-link" href="/roadmap/">See the project roadmap →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <ArtImage
+    name="node-garden"
+    class="landing-root-fade"
+    width={1536}
+    height={700}
+    alt="Two small servers growing among plants, with roots becoming colorful circuit lines"
+  />
+
+</BaseLayout>

@@ -31,7 +31,7 @@ internal object QemuTestFixtures {
         id = VmProfileId("ubuntu-2404-arm64-uefi"), version = 1,
         machine = MachineSpec(cpuModel = "max"),
         boot = BootSpec.Uefi(artifact("aavmf-code"), artifact("aavmf-vars")),
-        systemDisk = SystemDiskSpec(artifact("ubuntu-2404-arm64-cloud"), DiskFormat.QCOW2, WritableLayer.QCOW2_OVERLAY),
+        systemDisk = SystemDiskSpec(artifact("ubuntu-2404-arm64-cloud"), DiskFormat.QCOW2, WritableLayer.COPIED_WRITABLE),
         dataDisk = DataDiskSpec(8, true),
         initialization = InitializationSpec(InitializationKind.NOCLOUD_NET, "guest-init/ubuntu/vendor-data.yaml", "/v1/bootstrap/{token}/"),
         recoverySsh = RecoverySshSpec(), health = HealthSpec(HealthKind.METADATA_CALLBACK),

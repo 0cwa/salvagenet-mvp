@@ -1,0 +1,48 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+
+packages:
+  - adb
+  - cloud-image-utils
+  - curl
+  - git
+  - git-lfs
+  - jq
+  - make
+  - openjdk-17-jdk
+  - openssh-client
+  - openssl
+  - podman
+  - python3
+  - python3-venv
+  - qemu-efi-aarch64
+  - qemu-system-arm
+  - qemu-utils
+  - shellcheck
+  - shfmt
+  - unzip
+  - yamllint
+  - zip
+
+write_files:
+  - path: /usr/local/sbin/salvagehost-mount-repository
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      mountpoint=/workspace/salvagenet-mvp
+      mkdir -p "$mountpoint"
+      mountpoint -q "$mountpoint" || mount -t virtiofs salvagenet "$mountpoint"
+
+runcmd:
+  - [bash, -lc, /usr/local/sbin/salvagehost-mount-repository]
+  - [bash, -lc, 'grep -q "^[^#].*salvagenet.* /workspace/salvagenet-mvp " /etc/fstab || echo "salvagenet /workspace/salvagenet-mvp virtiofs defaults 0 0" >> /etc/fstab']
+  - [su, -, ubuntu, -c, 'cd /workspace/salvagenet-mvp && tools/bootstrap/install-go.sh']
+  - [su, -, ubuntu, -c, 'cd /workspace/salvagenet-mvp && tools/bootstrap/install-android-sdk.sh']
+  # Command-line Tools 22 replaces sdkmanager with `android sdk`. The
+  # repository installer still owns the downloaded tools and environment;
+  # this fallback installs only its declared SDK/NDK baseline when sdkmanager
+  # returns without materialising those packages.
+  - [su, -, ubuntu, -c, 'source ~/.config/nodehost/env.sh && test -d "$ANDROID_SDK_ROOT/platforms/android-36" || android --no-metrics --sdk "$ANDROID_SDK_ROOT" sdk install platform-tools platforms/android-36 build-tools/36.0.0 ndk/27.2.12479018 cmake/3.22.1']
+  - [su, -, ubuntu, -c, 'source ~/.config/nodehost/env.sh && cd /workspace/salvagenet-mvp && tools/bootstrap/write-local-properties.sh']

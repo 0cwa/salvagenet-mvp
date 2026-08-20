@@ -1,39 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[[ $# -ge 1 && $# -le 2 ]] || { echo "usage: $0 Txx [slug]" >&2; exit 2; }
-task=${1^^}
-root=$(git rev-parse --show-toplevel)
-cd "$root"
-[[ -f "agents/tasks/$task/task.md" ]] || { echo "unknown task $task" >&2; exit 2; }
-slug=${2:-$(python3 - "$task" <<'PY'
+[[ $# -ge 1 && $# -le 2 ]] || { echo "usage: $0 <task-id> [slug]" >&2; exit 2; }
+task=${1^^}; root=$(git rev-parse --show-toplevel); cd "$root"; [[ -f "agents/tasks/$task/task.md" ]] || { echo "unknown task $task" >&2; exit 2; }
+slug=${2:-$(python3 - "$task" <<'PY_WORKTREE_SLUG'
 import json, sys
 from pathlib import Path
-root=Path.cwd()
-task=sys.argv[1]
-data=json.loads((root/'agents/task-dag.json').read_text())
-print(next(item['slug'] for item in data['tasks'] if item['id']==task))
-PY
+task=sys.argv[1]; data=json.loads(Path('agents/task-dag.json').read_text()); print(next(item['slug'] for item in data['tasks'] if item['id']==task))
+PY_WORKTREE_SLUG
 )}
-integration=$(python3 - <<'PY'
+integration=$(python3 - <<'PY_WORKTREE_INTEGRATION'
 import json
 from pathlib import Path
 print(json.loads(Path('agents/task-dag.json').read_text())['integrationBranch'])
-PY
+PY_WORKTREE_INTEGRATION
 )
-if ! git show-ref --verify --quiet "refs/heads/$integration"; then
-  git branch "$integration" HEAD
-  echo "created integration branch $integration at HEAD" >&2
-fi
-branch="agent/$task-$slug"
-dir="$root/.worktrees/$task-$slug"
-mkdir -p "$root/.worktrees"
+if ! git show-ref --verify --quiet "refs/heads/$integration"; then git branch "$integration" HEAD; echo "created integration branch $integration at HEAD" >&2; fi
+branch="agent/$task-$slug"; dir="$root/.worktrees/$task-$slug"; mkdir -p "$root/.worktrees"
 if git show-ref --verify --quiet "refs/heads/$branch"; then
-  if git worktree list --porcelain | grep -Fxq "worktree $dir"; then
-    printf '%s\n' "$dir"
-    exit 0
-  fi
+  if git worktree list --porcelain | grep -Fxq "worktree $dir"; then printf '%s\n' "$dir"; exit 0; fi
   git worktree add "$dir" "$branch"
-else
-  git worktree add -b "$branch" "$dir" "$integration"
-fi
+else git worktree add -b "$branch" "$dir" "$integration"; fi
 printf '%s\n' "$dir"

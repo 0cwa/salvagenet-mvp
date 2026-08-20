@@ -11,7 +11,7 @@ enum class DeviceTransport { PCI }
 enum class BootKind { DIRECT_KERNEL, UEFI }
 enum class InitializationKind { LEGACY_PODROID, NOCLOUD_NET }
 enum class DiskFormat { RAW, QCOW2, SQUASHFS }
-enum class WritableLayer { QCOW2_OVERLAY, SEPARATE_EXT4_OVERLAY, NONE }
+enum class WritableLayer { COPIED_WRITABLE, SEPARATE_EXT4_OVERLAY, NONE }
 enum class HealthKind { CONSOLE_MARKER, METADATA_CALLBACK, SSH }
 
 data class ArtifactRef(
@@ -111,7 +111,7 @@ data class ProfileRequirements(
 data class VmProfile(
     val id: VmProfileId,
     val version: Int,
-    val extends: VmProfileId? = null,
+    val derivedFrom: VmProfileId? = null,
     val architecture: Architecture = Architecture.AARCH64,
     val machine: MachineSpec,
     val boot: BootSpec,

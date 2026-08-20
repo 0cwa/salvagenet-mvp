@@ -1,0 +1,51 @@
+/* ------------------------------------------------------------------
+   SalvageNet design tokens — single source of truth.
+   Palette and type follow the approved brand board
+   (salvage-design-final.png), with paired light and dark canvases.
+------------------------------------------------------------------ */
+
+:root {
+  /* Permanent dark palette */
+  --canvas: #02232b;
+  --surface: #07323c;
+  --panel: #062c35;
+  --ink: #ece7d8;
+  --moss: #8eaa93;
+  --amber: #fac145;
+  --copper: #ff684a;
+  --signal: #55a9cf;
+
+  --ink-deep: #f9f5e9;
+  --ink-muted: #a3bab6;
+  --ink-faint: #7d968f;
+  --line: #16444e;
+  --line-teal: #1a525d;
+  --moss-deep: #a8c2ad;
+  --amber-soft: #2e3320;
+  --focus: #55a9cf;
+
+  /* Typography */
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1.125rem;
+  --text-md: 1.2rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: clamp(1.65rem, 1.2rem + 1.8vw, 2.25rem);
+  --text-hero: clamp(2.4rem, 1.6rem + 3.6vw, 3.75rem);
+
+  /* Shape & line */
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --hairline: 1px;
+  --stroke: 1.5px;
+
+  /* Rhythm */
+  --maxw: 96rem; /* broad shell keeps the content closer to the viewport edges */
+  --gutter: clamp(1.25rem, 3vw, 2rem);
+  --section-gap: clamp(4rem, 8vw, 7.5rem);
+}

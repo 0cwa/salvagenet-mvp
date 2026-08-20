@@ -1,0 +1,10 @@
+GOAL.md
+AGENTS.md
+docs/architecture/networking.md
+docs/architecture/vm-profiles.md
+docs/testing/headscale-lab.md
+agents/tasks/H02A/task.md
+docs/research/experiments/H02A.md
+lab/qemu/AGENTS.md
+lab/headscale/AGENTS.md
+lab/headscale/README.md

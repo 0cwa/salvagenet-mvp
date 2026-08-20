@@ -1,0 +1,75 @@
+---
+import Icon from './Icon.astro';
+
+interface Props {
+  current: '/' | '/roadmap' | '/about';
+}
+
+const { current } = Astro.props;
+
+export const GITHUB_URL = 'https://github.com/0cwa/salvagenet-mvp';
+
+const nav = [
+  { href: '/roadmap/', label: 'Roadmap', key: '/roadmap' },
+  { href: '/about/', label: 'About', key: '/about' },
+] as const;
+---
+
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/" aria-label="SalvageNet — home">
+      <img
+        class="logo-on-dark"
+        src="/assets/logo-lockup-v2-on-dark.png"
+        width="1756"
+        height="541"
+        alt="SalvageNet"
+        fetchpriority="high"
+      />
+    </a>
+
+    <nav class="site-nav" aria-label="Main">
+      <ul>
+        {
+          nav.map((item) => (
+            <li>
+              <a
+                class="nav-link"
+                href={item.href}
+                aria-current={item.key === current ? 'page' : undefined}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+        <li>
+          <a class="nav-github" href={GITHUB_URL} rel="noopener">
+            <Icon name="github" />
+            GitHub
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <details class="nav-toggle">
+      <summary aria-label="Open menu">Menu</summary>
+      <nav class="nav-panel" aria-label="Main">
+        <ul>
+          {
+            nav.map((item) => (
+              <li>
+                <a href={item.href} aria-current={item.key === current ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+          <li>
+            <a href={GITHUB_URL} rel="noopener">GitHub</a>
+          </li>
+        </ul>
+      </nav>
+    </details>
+  </div>
+</header>

@@ -1,0 +1,38 @@
+name: Device validation
+description: Track one exact-APK physical or remote-device gate run.
+title: "[device] "
+labels: []
+body:
+  - type: input
+    id: gate
+    attributes:
+      label: Gate ID
+      placeholder: B02
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Source commit
+    validations:
+      required: true
+  - type: input
+    id: apk
+    attributes:
+      label: APK SHA-256
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device/environment
+      description: Model, API, ABI, page size, power policy, and remote-lab limitations.
+    validations:
+      required: true
+  - type: textarea
+    id: procedure
+    attributes:
+      label: Procedure and evidence
+      description: Exact commands plus redacted artifact paths.
+    validations:
+      required: true

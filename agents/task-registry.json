@@ -1,87 +1,101 @@
 {
   "schemaVersion": 1,
+  "cycle": "guest-boot-2",
+  "historicalCycles": [
+    "T00-T09 initial implementation packets",
+    "hardware-independent-1",
+    "foundation-1",
+    "guest-boot-1",
+    "roadmap-foundation-1"
+  ],
+  "statusSource": "docs/roadmap/hardware-independent.md",
+  "cycleStatus": {
+    "F01": "MERGED",
+    "H01": "MERGED",
+    "H02": "SUPERSEDED",
+    "H02A": "PLANNED",
+    "H02B": "QUEUED_REVIEW",
+    "H03": "QUEUED_REVIEW",
+    "H04": "MERGED",
+    "WEB04": "MERGED"
+  },
   "tasks": [
     {
-      "id": "T00",
-      "name": "Import and baseline Podroid",
+      "id": "F01",
+      "name": "Canonical artifact and profile resolution",
       "dependsOn": [],
-      "packet": "agents/tasks/T00/task.md"
+      "packet": "agents/tasks/F01/task.md",
+      "status": "MERGED",
+      "mergeCommit": "246d551ca7e691a0319a4b30e29d6e4905cd9910",
+      "validatedHead": "31dcd75199928b7887132a1429392266388c0b60",
+      "validationRun": "30549498423",
+      "workflowArtifactId": "8762334271",
+      "workflowArtifactDigest": "sha256:6163f03ca995a366f6e2d47a53e9d70c33adce23eaf0dd80e76ea212351da868",
+      "apkSha256": "f423bd939f97be119250318ca1c871df0ff9bc25a67b0e5672cc75c6d668e7f9",
+      "apkSizeBytes": 348568385
     },
     {
-      "id": "T01",
-      "name": "Domain contracts, schemas, and profiles",
+      "id": "H01",
+      "name": "Authenticated resumable artifact upload",
       "dependsOn": [],
-      "packet": "agents/tasks/T01/task.md"
+      "packet": "agents/tasks/H01/task.md",
+      "status": "MERGED",
+      "mergeCommit": "60d0394e25cc84f8ea0dcc39f62a349c17171b2b",
+      "validatedHead": "839f3638a4ee31e601d7f0c093596acc799c5b57",
+      "validationRun": "30510377089"
     },
     {
-      "id": "T02",
-      "name": "Podroid-derived QEMU adapter",
-      "dependsOn": [
-        "T00",
-        "T01"
-      ],
-      "packet": "agents/tasks/T02/task.md"
+      "id": "H02",
+      "name": "Host-QEMU and Headscale guest E2E",
+      "dependsOn": ["F01"],
+      "packet": "agents/tasks/H02/task.md",
+      "status": "SUPERSEDED",
+      "supersededBy": ["H02A", "H02B"]
     },
     {
-      "id": "T03",
-      "name": "Durable store and NodeSupervisorService",
-      "dependsOn": [
-        "T01"
-      ],
-      "packet": "agents/tasks/T03/task.md"
+      "id": "H02A",
+      "name": "Canonical Ubuntu guest boot qualification",
+      "dependsOn": ["F01"],
+      "packet": "agents/tasks/H02A/task.md",
+      "status": "PLANNED",
+      "roadmapIssue": 37,
+      "reactivatedAfter": "WEB04"
     },
     {
-      "id": "T04",
-      "name": "Headscale lab and guest-init assets",
+      "id": "H02B",
+      "name": "Guest mesh identity and recovery qualification",
+      "dependsOn": ["H02A"],
+      "packet": "agents/tasks/H02B/task.md",
+      "status": "QUEUED_REVIEW"
+    },
+    {
+      "id": "H03",
+      "name": "Managed-emulator lifecycle suite",
+      "dependsOn": ["F01"],
+      "packet": "agents/tasks/H03/task.md",
+      "status": "QUEUED_REVIEW"
+    },
+    {
+      "id": "H04",
+      "name": "HIL evidence hardening",
       "dependsOn": [],
-      "packet": "agents/tasks/T04/task.md"
+      "packet": "agents/tasks/H04/task.md",
+      "status": "MERGED",
+      "mergeCommit": "1f127ef8b5fcf04762a0cc4dd15f8313df23839e"
     },
     {
-      "id": "T05",
-      "name": "Embedded Android host mesh",
-      "dependsOn": [
-        "T00",
-        "T01",
-        "T04"
-      ],
-      "packet": "agents/tasks/T05/task.md"
-    },
-    {
-      "id": "T06",
-      "name": "Typed Host API and MVP CLI",
-      "dependsOn": [
-        "T01"
-      ],
-      "packet": "agents/tasks/T06/task.md"
-    },
-    {
-      "id": "T07",
-      "name": "Vertical Android integration",
-      "dependsOn": [
-        "T02",
-        "T03",
-        "T04",
-        "T05",
-        "T06"
-      ],
-      "packet": "agents/tasks/T07/task.md"
-    },
-    {
-      "id": "T08",
-      "name": "QA, failure injection, and evidence",
-      "dependsOn": [
-        "T07"
-      ],
-      "packet": "agents/tasks/T08/task.md"
-    },
-    {
-      "id": "T09",
-      "name": "USB networking MVP+",
-      "dependsOn": [
-        "T08",
-        "BASE_MVP_PASS"
-      ],
-      "packet": "agents/tasks/T09/task.md"
+      "id": "WEB04",
+      "name": "Issue roadmap and human-aware agent index",
+      "dependsOn": [],
+      "packet": "agents/tasks/WEB04/task.md",
+      "status": "MERGED",
+      "mergeCommit": "888eb7e63a3419dca3f867d6baadbe95ef8c7e1f",
+      "validatedHead": "e1b4be78beb42d35038f65ede323a51fa56e9957",
+      "validationRun": "30597378616",
+      "snapshotMergeCommit": "15cc2791ebc6e81860fb73ca7a58e4ad12cf5235",
+      "snapshotValidatedHead": "e4a4930bb22f828f0214b24249db7243eadba6f9",
+      "snapshotValidationRun": "30598010253",
+      "roadmapIssue": 31
     }
   ]
 }

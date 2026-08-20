@@ -1,0 +1,134 @@
+diff --git a/AGENTS.md b/AGENTS.md
+new file mode 100644
+index 0000000..75584a9
+--- /dev/null
++++ b/AGENTS.md
+@@ -0,0 +1,9 @@
++# Imported Podroid island instructions
++
++- Treat this subtree as imported upstream code with local composition patches, not the default home for NodeHost behavior.
++- Prefer wrappers and sibling modules under `android/modules/`; broad moves or rewrites require an explicit upstream-sync/extraction task.
++- Preserve nativeLibraryDir executable packaging, launcher-first argv, dedicated spawn/reap behavior, Unix sockets, and packaging verification.
++- Every copied or moved upstream file records its original path and pinned commit.
++- Do not update the Podroid snapshot and implement a feature in the same commit.
++- After any change here, run the Podroid packaging verification and the smallest affected upstream/app test before NodeHost tests.
++- Never add live keys, downloaded mutable binaries, arbitrary QEMU arguments, or user-controlled shell execution.
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 3780b9c..8a05e76 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -67,7 +67,7 @@
+ 
+     <application
+         android:name=".PodroidApplication"
+-        android:allowBackup="true"
++        android:allowBackup="false"
+         android:dataExtractionRules="@xml/data_extraction_rules"
+         android:extractNativeLibs="true"
+         android:fullBackupContent="@xml/backup_rules"
+diff --git a/app/src/main/java/com/excp/podroid/PodroidApplication.kt b/app/src/main/java/com/excp/podroid/PodroidApplication.kt
+index cd739ea..52fb1ca 100644
+--- a/app/src/main/java/com/excp/podroid/PodroidApplication.kt
++++ b/app/src/main/java/com/excp/podroid/PodroidApplication.kt
+@@ -10,6 +10,9 @@ package com.excp.podroid
+ import android.app.Application
+ import android.os.Build
+ import android.util.Log
++import android.content.Intent
++import androidx.core.content.ContextCompat
++import org.nodehost.shell.NodeSupervisorService
+ import dagger.hilt.android.HiltAndroidApp
+ import kotlinx.coroutines.CompletableDeferred
+ import kotlinx.coroutines.CoroutineScope
+@@ -37,6 +40,9 @@ class PodroidApplication : Application() {
+     override fun onCreate() {
+         super.onCreate()
+         exemptHiddenApi()
++        // Node purpose is service-owned. Starting the UI must retain, but never redefine,
++        // the durable desired VM generation.
++        ContextCompat.startForegroundService(this, Intent(this, NodeSupervisorService::class.java))
+         // Extract off the main thread: the squashfs alone is ~225 MB and
+         // blocking onCreate on first install/upgrade would ANR the cold start.
+         appScope.launch { extractAssets() }
+diff --git a/app/src/main/java/com/excp/podroid/engine/hostbridge/NotificationPoster.kt b/app/src/main/java/com/excp/podroid/engine/hostbridge/NotificationPoster.kt
+index 6f7d34e..cf70236 100644
+--- a/app/src/main/java/com/excp/podroid/engine/hostbridge/NotificationPoster.kt
++++ b/app/src/main/java/com/excp/podroid/engine/hostbridge/NotificationPoster.kt
+@@ -85,7 +85,12 @@ class AndroidNotificationPoster @Inject constructor(
+             .setAutoCancel(true)
+             .setPriority(prio)
+             .build()
+-        NotificationManagerCompat.from(context).notify(notifId, n)
++        if (!notificationsPermitted()) return notifId
++        try {
++            NotificationManagerCompat.from(context).notify(notifId, n)
++        } catch (_: SecurityException) {
++            // Permission can be revoked between the explicit check and the binder call.
++        }
+         return notifId
+     }
+ }
+diff --git a/app/src/main/res/xml/backup_rules.xml b/app/src/main/res/xml/backup_rules.xml
+index 4df9255..ce0b324 100644
+--- a/app/src/main/res/xml/backup_rules.xml
++++ b/app/src/main/res/xml/backup_rules.xml
+@@ -1,13 +1,8 @@
+-<?xml version="1.0" encoding="utf-8"?><!--
+-   Sample backup rules file; uncomment and customize as necessary.
+-   See https://developer.android.com/guide/topics/data/autobackup
+-   for details.
+-   Note: This file is ignored for devices older than API 31
+-   See https://developer.android.com/about/versions/12/backup-restore
+--->
++<?xml version="1.0" encoding="utf-8"?>
+ <full-backup-content>
+-    <!--
+-   <include domain="sharedpref" path="."/>
+-   <exclude domain="sharedpref" path="device.xml"/>
+--->
+-</full-backup-content>
+\ No newline at end of file
++    <exclude domain="root" path="." />
++    <exclude domain="file" path="." />
++    <exclude domain="database" path="." />
++    <exclude domain="sharedpref" path="." />
++    <exclude domain="external" path="." />
++</full-backup-content>
+diff --git a/app/src/main/res/xml/data_extraction_rules.xml b/app/src/main/res/xml/data_extraction_rules.xml
+index 9ee9997..491c90f 100644
+--- a/app/src/main/res/xml/data_extraction_rules.xml
++++ b/app/src/main/res/xml/data_extraction_rules.xml
+@@ -1,19 +1,17 @@
+-<?xml version="1.0" encoding="utf-8"?><!--
+-   Sample data extraction rules file; uncomment and customize as necessary.
+-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
+-   for details.
+--->
++<?xml version="1.0" encoding="utf-8"?>
+ <data-extraction-rules>
+-    <cloud-backup>
+-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
+-        <include .../>
+-        <exclude .../>
+-        -->
++    <cloud-backup disableIfNoEncryptionCapabilities="true">
++        <exclude domain="root" path="." />
++        <exclude domain="file" path="." />
++        <exclude domain="database" path="." />
++        <exclude domain="sharedpref" path="." />
++        <exclude domain="external" path="." />
+     </cloud-backup>
+-    <!--
+     <device-transfer>
+-        <include .../>
+-        <exclude .../>
++        <exclude domain="root" path="." />
++        <exclude domain="file" path="." />
++        <exclude domain="database" path="." />
++        <exclude domain="sharedpref" path="." />
++        <exclude domain="external" path="." />
+     </device-transfer>
+-    -->
+-</data-extraction-rules>
+\ No newline at end of file
++</data-extraction-rules>

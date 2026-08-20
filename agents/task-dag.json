@@ -1,98 +1,34 @@
 {
   "schemaVersion": 1,
-  "integrationBranch": "integration/mvp-night",
+  "integrationBranch": "integration/guest-boot-2",
+  "phase": {
+    "id": "guest-boot-2",
+    "objective": "Qualify the canonical Ubuntu guest boot, NoCloud, QMP, key-only loopback SSH, restart, and secret-hygiene path before adding guest mesh behavior or returning to physical Android validation.",
+    "entryCriteria": [
+      "WEB04 merged through PR #22 at 888eb7e63a3419dca3f867d6baadbe95ef8c7e1f after exact-head workflow 30597378616 passed.",
+      "The reviewed live roadmap snapshot merged through PR #77 at 15cc2791ebc6e81860fb73ca7a58e4ad12cf5235 after exact-head workflow 30598010253 passed.",
+      "The live graph contains 53 stable-ID issues, 82 dependency links, seven milestones, no reported disagreements, and GUEST-01 issue #37 bound to agents/tasks/H02A/task.md.",
+      "F01 remains merged at 246d551ca7e691a0319a4b30e29d6e4905cd9910; packaged profile JSON, guest-init assets, and strict active artifact manifests are production truth.",
+      "The existing host-QEMU laboratory can perform its current bounded UEFI, NoCloud, QMP, and loopback SSH smoke flow, but has not yet proved the canonical H02A contract.",
+      "Draft PR #20 remains a path-disjoint device-lab safety review and is not a prerequisite, a second authorized task, or physical evidence.",
+      "The phase makes no Android, physical-device, guest-mesh, release, or acceptance claim."
+    ],
+    "exitCriteria": [
+      "One bounded command prepares, boots, verifies, records, and cleans up the canonical Ubuntu host-QEMU flow.",
+      "The run records exact source, profile, guest-init, Ubuntu image, and AAVMF identities before QEMU starts.",
+      "Real QMP running status, NoCloud completion, and key-only loopback SSH succeed independently of guest mesh.",
+      "Guest reboot and complete QEMU stop/start return to readiness without introducing or replaying one-use guest-mesh material.",
+      "A bounded redacted forbidden-material scan and machine-readable host-QEMU evidence are reviewed.",
+      "All H02A task criteria and normal repository, Android, guest, and package checks pass before H02B, H03, or physical validation is reconsidered."
+    ]
+  },
   "tasks": [
     {
-      "id": "T00",
-      "slug": "podroid-import-baseline",
-      "dependsOn": [],
+      "id": "H02A",
+      "slug": "canonical-ubuntu-guest-boot-qualification",
+      "dependsOn": ["F01"],
       "parallelGroup": 1,
       "mvpPlus": false
-    },
-    {
-      "id": "T01",
-      "slug": "contracts-profiles",
-      "dependsOn": [],
-      "parallelGroup": 1,
-      "mvpPlus": false
-    },
-    {
-      "id": "T04",
-      "slug": "headscale-guest-init-lab",
-      "dependsOn": [],
-      "parallelGroup": 1,
-      "mvpPlus": false
-    },
-    {
-      "id": "T02",
-      "slug": "qemu-adapter",
-      "dependsOn": [
-        "T00",
-        "T01"
-      ],
-      "parallelGroup": 2,
-      "mvpPlus": false
-    },
-    {
-      "id": "T03",
-      "slug": "store-supervisor",
-      "dependsOn": [
-        "T01"
-      ],
-      "parallelGroup": 2,
-      "mvpPlus": false
-    },
-    {
-      "id": "T05",
-      "slug": "host-mesh",
-      "dependsOn": [
-        "T00",
-        "T01",
-        "T04"
-      ],
-      "parallelGroup": 2,
-      "mvpPlus": false
-    },
-    {
-      "id": "T06",
-      "slug": "host-api-cli",
-      "dependsOn": [
-        "T01"
-      ],
-      "parallelGroup": 2,
-      "mvpPlus": false
-    },
-    {
-      "id": "T07",
-      "slug": "vertical-integration",
-      "dependsOn": [
-        "T02",
-        "T03",
-        "T04",
-        "T05",
-        "T06"
-      ],
-      "parallelGroup": 3,
-      "mvpPlus": false
-    },
-    {
-      "id": "T08",
-      "slug": "qa-hardening",
-      "dependsOn": [
-        "T07"
-      ],
-      "parallelGroup": 4,
-      "mvpPlus": false
-    },
-    {
-      "id": "T09",
-      "slug": "usb-mvp-plus",
-      "dependsOn": [
-        "T08",
-        "BASE_MVP_PASS"
-      ],
-      "parallelGroup": 5,
-      "mvpPlus": true
     }
   ]
 }

@@ -12,10 +12,9 @@ plugins {
 }
 
 val podroidQemuVersion = providers.gradleProperty("podroidQemuVersion").get()
-val podroidRuntimeLock = rootProject.file("../upstream/podroid-runtime.lock")
-val podroidRuntimePreparer = rootProject.file("prepare-runtime.py")
-val podroidRuntimeOutput = layout.buildDirectory.dir("generated/podroidRuntime")
-val podroidRuntimeApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
+
+// SalvageNet keeps its composition and packaging logic outside the vendored subtree.
+apply(from = rootProject.file("../podroid.integration.gradle.kts"))
 
 android {
     namespace = "com.excp.podroid"
@@ -92,10 +91,11 @@ android {
         buildConfig = true
     }
 
+    // Static generated directories stay in the native Android DSL; the tasks that populate
+    // and verify them remain in the external SalvageNet integration script.
     sourceSets.getByName("main") {
-        // Static paths plus the explicit preBuild dependency avoid AGP's ambiguous Provider source semantics.
-        jniLibs.directories.add(podroidRuntimeOutput.get().dir("jniLibs").asFile.absolutePath)
-        assets.directories.add(podroidRuntimeOutput.get().dir("assets").asFile.absolutePath)
+        jniLibs.directories.add(layout.buildDirectory.dir("generated/podroidRuntime/jniLibs").get().asFile.absolutePath)
+        assets.directories.add(layout.buildDirectory.dir("generated/podroidRuntime/assets").get().asFile.absolutePath)
     }
 
     packaging {
@@ -110,57 +110,7 @@ android {
     }
 }
 
-val preparePodroidRuntime by tasks.registering(Exec::class) {
-    group = "build setup"
-    description = "Obtains and verifies the pinned Podroid runtime before Android packaging."
-    inputs.files(podroidRuntimeLock, podroidRuntimePreparer)
-    inputs.dir(file("src/main/assets/qemu"))
-    outputs.dir(podroidRuntimeOutput)
-    commandLine(
-        "python3",
-        podroidRuntimePreparer.absolutePath,
-        "--prepare",
-        "--output-dir",
-        podroidRuntimeOutput.get().asFile.absolutePath,
-    )
-    if (gradle.startParameter.isOffline) {
-        args("--offline")
-    }
-}
-
-tasks.named("preBuild") {
-    dependsOn(preparePodroidRuntime)
-}
-// The sibling adapter exposes a generated file-backed AAR; resolve it only after its producer completes.
-tasks.matching { it.name == "desugarDebugFileDependencies" || it.name == "checkDebugDuplicateClasses" }
-    .configureEach {
-        dependsOn(":mesh-tailscale:buildLibtailscale")
-    }
-
-val verifyPodroidPackaging by tasks.registering(Exec::class) {
-    group = "verification"
-    description = "Fails unless the debug APK contains the complete pinned ARM64 Podroid runtime."
-    dependsOn("packageDebug")
-    inputs.files(podroidRuntimeLock, podroidRuntimePreparer, podroidRuntimeApk)
-    commandLine(
-        "python3",
-        podroidRuntimePreparer.absolutePath,
-        "--verify-apk",
-        podroidRuntimeApk.get().asFile.absolutePath,
-    )
-}
-
-tasks.matching { it.name == "assembleDebug" }.configureEach {
-    finalizedBy(verifyPodroidPackaging)
-}
-// The repository CI invokes :app:lintDebug, so missing runtime payloads fail that existing gate too.
-tasks.matching { it.name == "lintDebug" }.configureEach {
-    dependsOn(verifyPodroidPackaging)
-}
-
 dependencies {
-    // NODEHOST-COMPOSITION-HOOK
-    implementation(project(":node-shell"))
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

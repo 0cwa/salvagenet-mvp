@@ -1,0 +1,6 @@
+lab/qemu/**
+lab/headscale/**
+profiles/guest-init/**
+tests/network/**
+tests/guest/**
+docs/research/experiments/H02.md

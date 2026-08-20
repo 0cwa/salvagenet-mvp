@@ -1,0 +1,8 @@
+tests/hil/**
+tests/device/**
+tests/e2e/**
+tools/evidence/**
+evidence/schema/**
+docs/testing/device-evidence.md
+docs/roadmap/device-validation.md
+docs/research/experiments/H04.md

@@ -1,0 +1,80 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ArtImage from '../components/ArtImage.astro';
+---
+
+<BaseLayout
+  title="About — SalvageNet"
+  description="SalvageNet is a host layer for turning spare Android phones into Linux-capable nodes without replacing the tools that run above them."
+  current="/about"
+>
+  <div class="container inner-page about-page">
+    <header class="page-head split">
+      <div>
+        <h1>SalvageNet turns spare phones into Linux hosts.</h1>
+        <p class="lede">
+          The goal is practical: give an old Android phone a controlled second job, without asking
+          the software above it to change.
+        </p>
+      </div>
+      <ArtImage
+        name="tools-integration"
+        class="spot-art"
+        width={1280}
+        height={900}
+        alt="A Linux host layer connecting a small server, software cube, and terminal monitor"
+      />
+    </header>
+
+    <section class="about-intro" aria-labelledby="what-it-is">
+      <p class="page-kicker">What it is</p>
+      <h2 id="what-it-is">A host layer, not a new way to run everything.</h2>
+      <p>
+        SalvageNet is an open-source device-enablement layer. On a supported phone, it manages the
+        host, runs a Linux guest through the Android-native QEMU path, keeps desired state across
+        restarts, and provides private connectivity and recovery paths.
+      </p>
+      <p>
+        It is not a workload scheduler, a replacement for Docker or Kubernetes, or a custom Linux
+        distribution. Those tools remain responsible for the work they already do.
+      </p>
+    </section>
+
+    <section class="about-grid" aria-label="What SalvageNet handles">
+      <article class="about-card">
+        <p class="page-kicker">SalvageNet handles</p>
+        <h2>The device layer</h2>
+        <ul>
+          <li>Provisioning and profile-driven Linux guests</li>
+          <li>Host and guest lifecycle</li>
+          <li>Private host and guest connectivity</li>
+          <li>Recovery when the normal guest path fails</li>
+        </ul>
+      </article>
+      <article class="about-card">
+        <p class="page-kicker">You keep</p>
+        <h2>Your existing tools</h2>
+        <ul>
+          <li>Normal Linux userspace and SSH</li>
+          <li>Docker, Kubernetes, Nomad, and similar tools</li>
+          <li>Your own hardware and network boundary</li>
+          <li>Open formats instead of a closed service</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="about-status" aria-labelledby="current-boundary">
+      <p class="page-kicker">Next steps</p>
+      <h2 id="current-boundary">Build, test, repeat.</h2>
+      <p>
+        The core software, packaging, security, and evidence checks are in place. The next phase is
+        to run the same path on more devices, finish the remaining features, and document what
+        works in practice.
+      </p>
+      <p>
+        The <a href="/roadmap/">roadmap</a> tracks that work from controlled tests to a dependable
+        release.
+      </p>
+    </section>
+  </div>
+</BaseLayout>

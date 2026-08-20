@@ -13,10 +13,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.assertArrayEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,8 +61,23 @@ class AndroidQemuRuntimeBackendTest {
         assertTrue(backend.profile(VmProfileId("ubuntu-2404-arm64-uefi"), true).boot is BootSpec.Uefi)
         val k3s = backend.profile(VmProfileId("k3s-worker-lab"), true)
         assertTrue(k3s.boot is BootSpec.Uefi)
-        assertEquals(VmProfileId("ubuntu-2404-arm64-uefi"), k3s.extends)
+        assertEquals(VmProfileId("ubuntu-2404-arm64-uefi"), k3s.derivedFrom)
         assertTrue(k3s.requirements.qualificationChecks.contains("tailscale-reachability"))
+    }
+
+    @Test fun nonPodroidBareArtifactCannotBypassActiveManifestContract() {
+        val root = File(context.filesDir, "nodehost-artifacts")
+        val manifest = ArtifactManifestStore(root).active("aavmf-code")!!
+        val bytes = ArtifactManifestStore(root).payload(manifest).readBytes()
+        assertTrue(File(root, "aavmf-code.manifest.json").delete())
+        File(root, "aavmf-code").writeBytes(bytes)
+        File(root, "aavmf-code.sha256").writeText("${manifest.sha256}\n")
+
+        val failure = runCatching {
+            backend(FakeQemuControl()).profile(VmProfileId("ubuntu-2404-arm64-uefi"), true)
+        }.exceptionOrNull()
+
+        assertTrue(failure?.message.orEmpty().contains("active artifact manifest is required: aavmf-code"))
     }
 
     @Test fun mutableSystemStateSurvivesRepeatedPreparationAfterBootstrapConsumption() = runBlocking {
@@ -141,6 +156,7 @@ class AndroidQemuRuntimeBackendTest {
         File(context.filesDir, "vms/default").mkdirs()
         File(context.filesDir, "vms/default/qmp.sock").createNewFile()
         backend.execute(operationContext("qmp"), RuntimeStep.WaitForQmp)
+        assertEquals(1, qemu.qmpReadinessChecks)
 
         val running = backend.observe(RuntimeId.DEFAULT) as RuntimeObservation.Running
         assertEquals(1L, running.appliedGeneration)
@@ -149,6 +165,23 @@ class AndroidQemuRuntimeBackendTest {
         qemu.exit.complete(QemuExit(0, emptyList()))
         withTimeout(2_000) { while (backend.observe(RuntimeId.DEFAULT) is RuntimeObservation.Running) kotlinx.coroutines.yield() }
         assertTrue(backend.observe(RuntimeId.DEFAULT) !is RuntimeObservation.Running)
+    }
+
+    @Test fun qmpSocketWithoutRunningMonitorDoesNotCountAsReadiness() = runBlocking {
+        val qemu = FakeQemuControl().apply { qmpStatus = "paused" }
+        val backend = backend(qemu)
+        backend.attachLifecycle(scope) {}
+        backend.execute(operationContext("prepare"), RuntimeStep.PrepareBoot)
+        backend.execute(operationContext("start"), RuntimeStep.StartProcess)
+        File(context.filesDir, "vms/default").mkdirs()
+        File(context.filesDir, "vms/default/qmp.sock").createNewFile()
+
+        val result = runCatching { backend.execute(operationContext("qmp"), RuntimeStep.WaitForQmp) }
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()!!.message!!.contains("not running"))
+        assertEquals(1, qemu.qmpReadinessChecks)
+        assertTrue(backend.observe(RuntimeId.DEFAULT) is RuntimeObservation.Starting)
     }
 
     @Test fun spontaneousProcessExitClearsRuntimeAndWakesReconciliation() = runBlocking {
@@ -193,23 +226,37 @@ class AndroidQemuRuntimeBackendTest {
         val root = File(context.filesDir, "nodehost-artifacts").apply { mkdirs() }
         listOf(
             "podroid-kernel", "podroid-initramfs", "podroid-alpine-squashfs",
-            "ubuntu-2404-arm64-cloud", "aavmf-code", "aavmf-vars",
         ).forEach { id ->
             val bytes = "fixture-$id".toByteArray()
             File(root, id).writeBytes(bytes)
-            val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-            File(root, "$id.sha256").writeText("$digest\n")
+            File(root, "$id.sha256").writeText("${sha256(bytes)}\n")
+        }
+        val manifests = ArtifactManifestStore(root)
+        listOf(
+            "ubuntu-2404-arm64-cloud", "aavmf-code", "aavmf-vars",
+        ).forEach { id ->
+            val bytes = "fixture-$id".toByteArray()
+            val digest = sha256(bytes)
+            val payload = manifests.versionPayload(id, digest)
+            payload.parentFile!!.mkdirs()
+            payload.writeBytes(bytes)
+            manifests.writeActive(ArtifactManifest(id, digest, bytes.size.toLong()), "test")
         }
     }
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes).joinToString("") { "%02x".format(it) }
 
     private class FakeQemuControl : QemuProcessControl {
         val exit = CompletableDeferred<QemuExit>()
         val startedRuntimes = mutableListOf<RuntimeSpec>()
+        var qmpStatus = "running"
+        var qmpReadinessChecks = 0
         var shutdownRequests = 0
         var forceStops = 0
         override suspend fun start(plan: QemuLaunchPlan, runtime: RuntimeSpec): ManagedQemuProcess {
             startedRuntimes += runtime
-            return ManagedQemuProcess(42, { exit.await() }, { shutdownRequests++ })
+            return ManagedQemuProcess(42, { exit.await() }, { qmpReadinessChecks++; qmpStatus }, { shutdownRequests++ })
         }
         override fun forceStop() {
             forceStops++

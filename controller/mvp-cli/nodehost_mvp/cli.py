@@ -19,61 +19,39 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("status", "capabilities", "profiles", "images", "vms", "operations", "diagnostics"):
         subcommands.add_parser(name)
 
-    get_vm = subcommands.add_parser("get-vm")
-    get_vm.add_argument("vm_id")
-
-    import_image = subcommands.add_parser("import-image")
-    import_image.add_argument("request_json")
-    import_image.add_argument("--idempotency-key")
-
-    apply_vm = subcommands.add_parser("apply-vm")
-    apply_vm.add_argument("vm_id")
-    apply_vm.add_argument("request_json")
-    apply_vm.add_argument("--idempotency-key")
-
-    remove_vm = subcommands.add_parser("remove-vm")
-    remove_vm.add_argument("vm_id")
-    remove_vm.add_argument("--idempotency-key")
-
-    operation = subcommands.add_parser("operation")
-    operation.add_argument("operation_id")
-
-    cancel = subcommands.add_parser("cancel-operation")
-    cancel.add_argument("operation_id")
-    cancel.add_argument("--idempotency-key")
-
-    revoke = subcommands.add_parser("revoke-controller")
-    revoke.add_argument("controller_id")
-    revoke.add_argument("--idempotency-key")
-
-    wait = subcommands.add_parser("wait")
-    wait.add_argument("operation_id")
-    wait.add_argument("--timeout", type=float, default=600)
-
-    proxy = subcommands.add_parser("proxy-ssh")
-    proxy.add_argument("vm_id")
+    get_vm = subcommands.add_parser("get-vm"); get_vm.add_argument("vm_id")
+    import_image = subcommands.add_parser("import-image"); import_image.add_argument("request_json"); import_image.add_argument("--idempotency-key")
+    upload_image = subcommands.add_parser("upload-image")
+    upload_image.add_argument("artifact_id")
+    upload_image.add_argument("file")
+    upload_image.add_argument("--sha256")
+    upload_image.add_argument("--chunk-size", type=int, default=NodeHostClient.MAX_REQUEST_BYTES)
+    upload_image.add_argument("--idempotency-key")
+    upload_status = subcommands.add_parser("artifact-upload"); upload_status.add_argument("upload_id")
+    cancel_upload = subcommands.add_parser("cancel-artifact-upload"); cancel_upload.add_argument("upload_id")
+    apply_vm = subcommands.add_parser("apply-vm"); apply_vm.add_argument("vm_id"); apply_vm.add_argument("request_json"); apply_vm.add_argument("--idempotency-key")
+    remove_vm = subcommands.add_parser("remove-vm"); remove_vm.add_argument("vm_id"); remove_vm.add_argument("--idempotency-key")
+    operation = subcommands.add_parser("operation"); operation.add_argument("operation_id")
+    cancel = subcommands.add_parser("cancel-operation"); cancel.add_argument("operation_id"); cancel.add_argument("--idempotency-key")
+    revoke = subcommands.add_parser("revoke-controller"); revoke.add_argument("controller_id"); revoke.add_argument("--idempotency-key")
+    wait = subcommands.add_parser("wait"); wait.add_argument("operation_id"); wait.add_argument("--timeout", type=float, default=600)
+    proxy = subcommands.add_parser("proxy-ssh"); proxy.add_argument("vm_id")
     return parser
 
 
-def _key(value: str | None) -> str:
-    return value or secrets.token_urlsafe(24)
-
+def _key(value: str | None) -> str: return value or secrets.token_urlsafe(24)
 
 def _load_json_object(path: str) -> dict[str, Any]:
     raw = Path(path).read_bytes()
-    if len(raw) > 1024 * 1024:
-        raise ValueError("request JSON exceeds 1 MiB")
+    if len(raw) > 1024 * 1024: raise ValueError("request JSON exceeds 1 MiB")
     value = json.loads(raw.decode("utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError("request JSON must contain an object")
+    if not isinstance(value, dict): raise ValueError("request JSON must contain an object")
     return value
 
 
 def run(args: argparse.Namespace) -> Any:
     config = ControllerConfig.load(args.config)
-    if args.command == "proxy-ssh":
-        return proxy_ssh(config, args.vm_id)
-
+    if args.command == "proxy-ssh": return proxy_ssh(config, args.vm_id)
     client = NodeHostClient(config)
     if args.command == "status": return client.status()
     if args.command == "capabilities": return client.capabilities()
@@ -82,6 +60,16 @@ def run(args: argparse.Namespace) -> Any:
     if args.command == "vms": return client.vms()
     if args.command == "get-vm": return client.vm(args.vm_id)
     if args.command == "import-image": return client.import_image(_load_json_object(args.request_json), _key(args.idempotency_key))
+    if args.command == "upload-image":
+        return client.upload_file(
+            args.artifact_id,
+            Path(args.file),
+            expected_sha256=args.sha256,
+            idempotency_key=args.idempotency_key,
+            chunk_size=args.chunk_size,
+        )
+    if args.command == "artifact-upload": return client.artifact_upload(args.upload_id)
+    if args.command == "cancel-artifact-upload": return client.cancel_artifact_upload(args.upload_id)
     if args.command == "apply-vm": return client.apply_vm(args.vm_id, _load_json_object(args.request_json), _key(args.idempotency_key))
     if args.command == "remove-vm": return client.remove_vm(args.vm_id, _key(args.idempotency_key))
     if args.command == "operations": return client.operations()
@@ -97,16 +85,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         result = run(args)
-        if args.command == "proxy-ssh":
-            return int(result)
-        json.dump(result, sys.stdout, indent=2)
-        sys.stdout.write("\n")
-        return 0
+        if args.command == "proxy-ssh": return int(result)
+        json.dump(result, sys.stdout, indent=2); sys.stdout.write("\n"); return 0
     except (ApiError, OSError, ValueError, RuntimeError, TimeoutError, json.JSONDecodeError) as exc:
-        # Boundary exceptions are designed not to carry headers/configuration.
-        print(f"phonectl-mvp: {exc}", file=sys.stderr)
-        return 1
+        print(f"phonectl-mvp: {exc}", file=sys.stderr); return 1
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == "__main__": raise SystemExit(main())

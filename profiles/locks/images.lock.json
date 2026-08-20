@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": null,
+  "updatedAt": "2026-07-31",
   "artifacts": {
     "podroid-kernel": {
       "source": {
@@ -28,11 +28,12 @@
     },
     "ubuntu-2404-arm64-cloud": {
       "source": {
-        "kind": "remote-pin-input",
-        "url": "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-arm64.img"
+        "kind": "remote-release",
+        "release": "20260725",
+        "url": "https://cloud-images.ubuntu.com/releases/noble/release-20260725/ubuntu-24.04-server-cloudimg-arm64.img"
       },
-      "sha256": null,
-      "sizeBytes": null
+      "sha256": "2eaec7286c49fdea713dddabcf5012cafa7097a658e916acb48f4bc5fdc8e419",
+      "sizeBytes": 618098176
     },
     "aavmf-code": {
       "source": {

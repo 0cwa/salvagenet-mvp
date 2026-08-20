@@ -1,11 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "repository": "https://github.com/ExTV/Podroid.git",
   "commit": "8ecfefaa3459b7e84c3d6e52c57e8005e289e8e3",
+  "release": "v1.2.6",
   "destination": "android/podroid",
   "method": "git-subtree-squash",
+  "patchSeries": "android/upstream/patches/series",
   "capturedAt": "2026-07-29",
-  "notes": "Pinned, full commit verified through GitHub. T00 must still import it and record local build/boot evidence.",
-  "verifiedAt": "2026-07-29",
-  "verifiedCommitMessage": "docs(readme): note container backup, status view, and Downloads sharing"
+  "verifiedAt": "2026-07-30",
+  "verifiedCommitMessage": "docs(readme): note container backup, status view, and Downloads sharing",
+  "notes": "Pinned upstream source baseline. tools/vendor/podroid.py verifies that android/podroid equals this commit plus the ordered patch series."
 }

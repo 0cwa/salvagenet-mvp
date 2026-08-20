@@ -2,63 +2,58 @@
 
 ## Branch model
 
-- `main` — clean handoff baseline; fast-forward only after integration is green.
-- `integration/mvp-night` — orchestrator-owned ordered merge branch.
-- `agent/Txx-slug` — one task packet in one worktree.
+- `main` — reviewed baseline with green CI.
+- The active integration branch is read from `agents/task-dag.json` when a phase needs one.
+- `agent/<task-id>-<slug>` — one active task packet in one worktree.
+- `agent/<phase>-realignment` — narrow planning/status correction at a phase boundary.
 
-No implementation agent writes directly to `main` or the integration branch.
+Completed integration and task branches are historical provenance. Queued, paused, superseded, or merged packets and visible GitHub issues are not reusable work authorization.
 
-## Initialize the night
+## Start the active phase
 
 ```sh
 make install-hooks
-make integration-worktree
-make wave WAVE=1
+make dev-plan
+make validate
 make status
+make context TASK=WEB04
 ```
 
-`make wave` refuses to create a later wave until all of its task prerequisites
-are merged into the integration branch. The USB wave also checks the base-MVP
-acceptance ledger.
+Verify phase entry criteria before creating implementation worktrees. The current `roadmap-foundation-1` phase has one task, so a multi-worktree wave is unnecessary. Use `make wave` only when a later reviewed phase contains genuinely independent, path-disjoint tasks.
 
 ## Task cycle
 
 ```sh
-make worktree TASK=T02
-cd .worktrees/T02-qemu-adapter
-make context TASK=T02
-# Read .local/context/T02.md plus applicable AGENTS.md files.
-# Implement and run the task packet's smallest checks.
-python3 tools/agents/verify-scope.py T02
+make worktree TASK=WEB04
+cd .worktrees/WEB04-issue-roadmap-and-human-aware-agent-index
+make context TASK=WEB04
+# Read .local/context/WEB04.md plus applicable AGENTS.md files.
+# Reconfirm the packet's phase-start findings before implementation.
+python3 tools/agents/verify-scope.py WEB04
 AGENT_MODEL='<exact runtime-reported model>' \
 AGENT_RUN_ID='<stable runner id>' \
-AGENT_TASK_ID=T02 \
+AGENT_TASK_ID=WEB04 \
 AGENT_MODE=goal \
-  tools/provenance/commit-agent.sh 'runtime-qemu: preserve typed launch invariants'
+  tools/provenance/commit-agent.sh 'roadmap: bootstrap live issue graph and agent index'
 ```
 
-The task worktree must be clean before integration.
+The task worktree must be clean before handoff. If discovery changes the real scope, update the active issue, task packet, and phase plan before continuing rather than silently crossing allowed paths.
 
-## Orchestrator integration
+## Integration
 
-```sh
-make integrate TASK=T02
-make status
-```
+For a single-task phase, a focused PR from the tested task branch directly to `main` is preferred. An integration branch is useful only when the reviewed phase has multiple tasks that must be tested together.
 
-The integration helper verifies task scope, cleanliness, prerequisite order,
-merges without rewriting the agent commit, and runs the repository validation
-suite. It stops on conflicts rather than inventing a resolution. The
-orchestrator resolves a conflict in the integration worktree with the relevant
-task packet and both module AGENTS files in context.
+Before merge-ready:
 
-After all base tasks are integrated and verified:
+1. task acceptance criteria pass;
+2. phase exit criteria pass or the packet records a focused blocker;
+3. scope verifier passes;
+4. repository validation passes;
+5. full applicable CI passes on the exact head;
+6. evidence or live-state class is explicit;
+7. actionable review findings are resolved or dispositioned.
 
-```sh
-git switch main
-git merge --ff-only integration/mvp-night
-make validate
-```
+After approval, merge the exact tested head without rewriting it when possible. Then update the registry, roadmap issue, and experiment with the merge SHA, and perform the next phase-start review before activating queued work.
 
 ## Commit policy
 
@@ -66,14 +61,13 @@ make validate
 - Functional source and broad generated output separated when practical.
 - No history rewriting after handoff.
 - Every agent commit carries exact provenance trailers.
-- Never commit secrets or model conversation transcripts.
-- Use only concrete `TODO(MVP-HARDENING, Txx)` comments.
+- Never commit secrets, raw GitHub responses, or model conversation transcripts.
+- Use only concrete `TODO(MVP-HARDENING, <task-id>)` comments with expiry triggers.
 
-## Merge and evidence policy
+## Evidence and state policy
 
-1. Task-local acceptance green.
-2. Scope verifier green.
-3. Prerequisites already integrated.
-4. Repository validation green after merge.
-5. Physical checks recorded as `PASS` or `BLOCKED-HARDWARE`, never inferred.
-6. T08 alone promotes task-local experiment notes into the shared ledger.
+- Gate status changes require reviewed evidence records, not issue or task completion.
+- Host-QEMU, emulator, roadmap, website, and code-review results never close physical gates.
+- Live roadmap apply must identify the exact source, seed/schema version, workflow, object counts, source hash, and rerun result.
+- Physical evidence must identify the exact source commit, APK digest, device facts, scenario, commands, and assertions.
+- A final MVP claim requires the relevant HIL scenarios to be run against one exact candidate after foundational/runtime changes have landed.

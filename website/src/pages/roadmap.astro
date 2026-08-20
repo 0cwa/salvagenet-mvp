@@ -1,0 +1,98 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import ArtImage from '../components/ArtImage.astro';
+
+const stages = [
+  {
+    name: 'Foundation',
+    tag: 'Complete',
+    tagClass: 'route-tag--done',
+    nodeClass: 'route-node--done',
+    text: 'Build the host software, Linux guest profiles, delivery path, and automated checks.',
+    current: false,
+    done: true,
+  },
+  {
+    name: 'Further testing and implementation',
+    tag: 'Current work',
+    tagClass: 'route-tag--current',
+    nodeClass: 'route-node--current',
+    text: 'Test the host on more devices while implementing the features needed for a dependable release.',
+    current: true,
+    done: false,
+  },
+  {
+    name: 'Early access',
+    tag: 'Next',
+    tagClass: '',
+    nodeClass: '',
+    text: 'Publish reviewed downloads, practical setup guidance, and the first device records.',
+    current: false,
+    done: false,
+  },
+  {
+    name: 'Reliability',
+    tag: 'Next',
+    tagClass: '',
+    nodeClass: '',
+    text: 'Test heat, storage, networking, recovery, lifecycle, and updates over time.',
+    current: false,
+    done: false,
+  },
+  {
+    name: 'Broader platforms',
+    tag: 'Later',
+    tagClass: '',
+    nodeClass: '',
+    text: 'Carry the proven approach to more Android devices, small computers, and Linux hosts.',
+    current: false,
+    done: false,
+  },
+] as const;
+---
+
+<BaseLayout
+  title="Roadmap — SalvageNet"
+  description="The path from SalvageNet's software foundation to real-device validation, early access, reliability, and broader platforms."
+  current="/roadmap"
+>
+  <div class="container inner-page">
+    <header class="page-head">
+      <h1>Start with one device. Prove the whole path.</h1>
+      <p class="lede">
+        The foundation is in place. The next work combines device testing with feature
+        implementation.
+      </p>
+    </header>
+
+    <section class="route" aria-label="Project stages">
+      <ol>
+        {
+          stages.map((stage, index) => (
+            <li class={stage.current ? 'is-current' : undefined}>
+              <span class={`route-node ${stage.nodeClass}`} aria-hidden="true">
+                {stage.done && <Icon name="check" />}
+              </span>
+              <span class="route-stage">Stage {String(index + 1).padStart(2, '0')}</span>
+              <div class="route-card">
+                <h2>{stage.name}</h2>
+                <span class={`route-tag ${stage.tagClass}`}>{stage.tag}</span>
+                <p>{stage.text}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <ArtImage
+      name="broader-platforms"
+      class="art-band inner-art-band roadmap-art"
+      width={1600}
+      height={480}
+      mobile={{ width: 900, height: 700 }}
+      alt="A phone, single-board computer, and desktop host connected by one growing circuit system"
+    />
+  </div>
+</BaseLayout>
