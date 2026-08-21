@@ -60,5 +60,7 @@ fi
 
 grep -q '^PasswordAuthentication no$' profiles/guest-init/common/nodehost-bootstrap-ubuntu.sh
 grep -q -- '--max-time 30' profiles/guest-init/common/nodehost-bootstrap-ubuntu.sh
-python3 tests/guest/test_h02a_lab.py
-printf 'guest-init, H02A lab contract, and K3s qualifier checks: PASS\n'
+for test_file in tests/guest/test_h02a_*.py; do
+  python3 "$test_file"
+done
+printf 'guest-init, complete H02A contracts, and K3s qualifier checks: PASS\n'

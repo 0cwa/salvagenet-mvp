@@ -2,7 +2,7 @@
 
 ## Status
 
-**ACTIVE — sole authorised task in phase `guest-boot-2`.** Implementation may begin only within this packet's allowed boundary. GUEST-01 is live roadmap issue #37; issue state does not replace this task authorization.
+**ACTIVE — runtime implementation in review; real host evidence pending.** H02A is the sole authorised task in phase `guest-boot-2`. GUEST-01 is live roadmap issue #37; issue state does not replace this task authorization.
 
 ## Outcome
 
@@ -10,20 +10,19 @@ Prove the canonical Ubuntu profile, rendered vendor-data, selected artifact iden
 
 ## Phase-start review
 
-- WEB04 merged through PR #22 at `888eb7e63a3419dca3f867d6baadbe95ef8c7e1f`; its exact implementation head passed workflow `30597378616`.
-- The reviewed live roadmap snapshot merged through PR #77 at `15cc2791ebc6e81860fb73ca7a58e4ad12cf5235`; its exact generated head passed workflow `30598010253`.
-- The live graph contains 53 stable-ID issues, 82 dependency links, seven milestones, no reported disagreements, and GUEST-01 issue #37 bound to this packet. The generated index correctly kept WEB04 active until this separate phase transition.
+- WEB04 and its reviewed snapshots are merged; the committed live index has GUEST-01 as the sole active, task-authorized item with no reported roadmap disagreement or fallback.
 - Draft PR #20 remains a path-disjoint HIL safety review. It is not a prerequisite, is not authorized by this phase, and supplies no physical evidence.
-- F01 merged at `246d551ca7e691a0319a4b30e29d6e4905cd9910`; packaged profile JSON and strict active manifests remain production truth.
-- The existing `make qemu-lab-e2e` baseline is not yet sufficient: it writes a parallel cloud-init document and discovers arbitrary host firmware without binding those choices to the canonical profile/evidence record.
-- H02A must use the canonical rendered Ubuntu vendor-data as NoCloud vendor-data, while a clearly test-only NoCloud user-data layer provides the ephemeral SSH public key and a mesh-independent readiness marker.
+- F01 remains production truth for packaged profile JSON, rendered guest-init assets, and strict active artifact manifests.
+- The production-aligned H02A preparation slice merged through PR #80 at `096ad60136bef2e007ab7a78bb66c16487a41000`; exact-head workflow `30600697377` passed repository, guest, Android, packaging, signature, and alignment checks.
+- Preparation consumes the immutable Ubuntu 24.04 ARM64 release dated `20260725`, verifies its exact size and SHA-256, renders canonical vendor-data, creates an independent copied-writable system disk, records matched AAVMF inputs, and launches only the preflight-recorded QEMU command.
+- The runtime branch must prove three complete stages: initial boot, clean guest reboot, and complete QEMU stop/start. Each stage requires independent QMP, NoCloud, SSH, host-key, guest-tool, scan, and log records.
+- The explicitly test-only user-data is deterministic multipart MIME: a `users`-only cloud-config part mirrors canonical `nodeadmin`, installs the ephemeral key during the config stage, and changes only the disposable qualification account from a locked password to the non-authenticating `NP` sentinel. A final shell part adds qualification-only sudo, SSH hardening, and readiness. It must not override canonical vendor package, `write_files`, or `runcmd` work.
+- Canonical vendor-data must not synchronously start `nodehost-bootstrap.service` from `cloud-final.service` while the unit is ordered `After=cloud-final.service`. It enables the unit and queues a separate `systemctl start --no-block`, preserving same-boot activation without an ordering deadlock.
+- The account sentinel is not a reusable password or credential. It exists because Ubuntu OpenSSH rejects a locked account even for public-key authentication. Canonical `ssh_pwauth: false`, effective `sshd -T` checks, and explicit password-only/keyboard-interactive-only probes must continue to prove that password access is unavailable.
 - H02A must not create `/var/lib/nodehost/bootstrap.env`, redeem a one-use guest secret, install/enroll Tailscale, or exercise readiness callbacks. Actual redemption, erasure, and guest-mesh persistence checks belong to H02B.
-- The Ubuntu cloud image must become reproducibly pinned in `profiles/locks/images.lock.json`; repeated runs consume the pinned digest instead of silently advancing `current`.
-- Host AAVMF firmware may come from the documented package search path, but its exact source path, digest, size, and package/tool facts must be recorded. Host evidence must not claim byte identity with an Android-uploaded AAVMF artifact unless that identity is explicitly established.
-- Guest boot and guest mesh are separate failure domains. Headscale, Tailscale enrollment, tailnet SSH, and coordination outage/recovery are deferred to H02B.
+- Host AAVMF evidence records host package paths and identities only. It must not claim byte identity with a separately qualified Android artifact unless that identity is explicitly established.
 - Emulator and physical-device behavior are out of scope; host-QEMU evidence cannot close Android gates.
-- The task may update only its packet, the specifically listed host-QEMU laboratory files, H02A-named helpers, guest-side qualification tests, the exact Ubuntu image lock/pinning helper, its experiment record, and Makefile entry points needed to expose the reviewed flow.
-- Runtime ownership, Android process-death recovery, QMP peer authentication, AVF, controller replacement, website implementation, and native-runtime rebuilds remain outside this phase. Useful ideas from the Kybernetria fork may inform later tasks but must not expand H02A.
+- Runtime ownership, Android process-death recovery, QMP peer authentication, AVF, controller replacement, website implementation, native-runtime rebuilds, and USB remain outside this phase.
 
 ## Compatibility policy
 
@@ -37,12 +36,13 @@ None. H02A is pre-release host-QEMU qualification and may make clean-break chang
 - AAVMF code and vars source paths, SHA-256 values, and sizes are recorded before QEMU starts; any difference from a separately qualified Android artifact is stated rather than hidden.
 - QEMU arguments are derived from or checked against canonical profile fields for architecture, `virt`, CPU model, TCG, PCI virtio, UEFI, SLIRP, and recovery SSH port rather than maintained as an unexplained parallel profile.
 - QEMU boots the canonical UEFI/SLIRP shape and a real QMP monitor reports `running`.
-- NoCloud uses the canonical rendered vendor-data plus an explicitly test-only user-data layer. `cloud-init status --wait` completes and no unresolved template markers remain.
-- Key-only loopback SSH succeeds; password authentication, keyboard-interactive authentication, and root login are disabled.
+- NoCloud uses canonical rendered vendor-data plus explicitly test-only two-part MIME data. The `users`-only cloud-config part installs the ephemeral SSH key during the config stage and uses `lock_passwd: false` plus the non-authenticating `NP` sentinel only for the disposable qualification account, without replacing vendor package, `write_files`, or `runcmd` work. The final shell part applies qualification-only hardening/readiness. `cloud-init status --wait` completes and no unresolved template markers remain.
+- Canonical bootstrap activation cannot block cloud-final: the service is enabled persistently and its same-boot start is queued with `systemctl start --no-block`; `systemctl enable --now` is rejected by H02A preparation.
+- Key-only loopback SSH succeeds; password authentication, keyboard-interactive authentication, and root login are disabled. The sentinel must not make password access possible.
 - A clean guest reboot and a complete QEMU stop/start both return to QMP-running, cloud-init-complete, and key-only SSH readiness.
 - H02A introduces no NodeHost or guest-mesh authentication key, bootstrap token, or callback capability. An ephemeral SSH public key is permitted. A bounded scan of seed inputs, cloud-init state, logs, process environment, and temporary metadata confirms no secret-shaped canary or forbidden bootstrap material is present. One-use redemption/erasure remains explicitly untested until H02B.
-- Evidence is bounded under `.local/qemu-lab/`, names its evidence class as `host-qemu`, and states `androidHardwareValidated: false`, `physicalGateEligible: false`, and `guestMeshValidated: false`.
-- Cleanup stops QEMU and removes generated seed, key, socket, PID, and temporary files while retaining only the explicitly documented evidence and cached pinned base image.
+- Evidence is bounded under `.local/qemu-lab/`, names its evidence class as `host-qemu`, records the exact qualification account/sudo contracts, and states `androidHardwareValidated: false`, `physicalGateEligible: false`, and `guestMeshValidated: false`.
+- Cleanup stops only the process proven to be the recorded H02A QEMU instance and removes generated seed, key, socket, PID, disk, firmware-copy, and temporary files while retaining only reviewed evidence and the reverified pinned base image.
 - Existing repository, profile, guest, Android, and package checks remain green.
 - No Headscale/Tailscale guest enrollment, emulator work, qcow2 product-semantic change, native build rewrite, runtime-ownership refactor, or physical gate claim is introduced.
 
@@ -55,19 +55,21 @@ make qemu-lab-e2e
 python3 tools/agents/verify-scope.py H02A
 ```
 
-The phase-end record must include host prerequisites, lock/profile/vendor-data/firmware identities, exact command result, evidence path, and any unavailable acceleration or firmware checks. The normal GitHub static and Android/package workflow must remain green even though host-QEMU execution is separate evidence.
+The phase-end record must include host prerequisites, lock/profile/vendor-data/firmware identities, exact command result, evidence path, qualification account/sudo modes, and any unavailable acceleration or firmware checks. The normal GitHub static and Android/package workflow must remain green even though host-QEMU execution is separate evidence.
 
 ## Phase-end verification
 
 1. Check every acceptance criterion against actual host-QEMU evidence, not only script or unit tests.
 2. Confirm the lab consumes canonical F01 profile/vendor-data inputs and does not maintain a second complete profile or cloud-init definition.
-3. Confirm loopback SSH succeeds independently without bootstrap secret redemption or guest mesh.
-4. Inspect the bounded forbidden-material scan and verify redaction before preserving evidence.
-5. Confirm normal runs consume an existing pinned Ubuntu lock rather than mutating it.
-6. Run the required checks and complete applicable CI.
-7. Record implemented, tested, merge-ready, merged, and host-qualified states separately.
-8. Re-evaluate H02B, H03, physical validation, and any runtime-ownership investigation from the result; activate none automatically.
+3. Confirm loopback SSH succeeds independently without bootstrap secret redemption or guest mesh, and that the test-only account sentinel cannot authenticate by password.
+4. Inspect the bounded forbidden-material scan, exact scanned paths, and redacted logs before preserving evidence.
+5. Confirm three distinct boot IDs and one stable SSH host key across both restart paths.
+6. Confirm normal runs consume an existing pinned Ubuntu lock rather than mutating it.
+7. Confirm cleanup signals no process unless its `/proc` identity matches the recorded H02A QEMU plan.
+8. Run required checks and complete applicable CI.
+9. Record implemented, tested, merge-ready, merged, and host-qualified states separately.
+10. Re-evaluate H02B, H03, physical validation, and any runtime-ownership investigation from the result; activate none automatically.
 
 ## Handoff
 
-Report the exact source commit, host/tool versions, canonical profile/vendor-data identity, Ubuntu lock, AAVMF identities, QMP/NoCloud/SSH/restart results, forbidden-material scan, cleanup result, evidence classification, and every unmet criterion. Do not claim Android behavior, one-use secret erasure, guest mesh viability, or process-death recovery.
+Report the exact source commit, host/tool versions, canonical profile/vendor-data identity, Ubuntu lock, AAVMF identities, QMP/NoCloud/SSH/restart results, qualification account/sudo modes, SSH host-key continuity, forbidden-material scan, cleanup result, evidence classification, and every unmet criterion. Do not claim Android behavior, one-use secret erasure, guest mesh viability, or process-death recovery.

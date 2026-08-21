@@ -22,8 +22,10 @@ ROOT = Path(__file__).resolve().parents[3]
 PROFILE_PATH = ROOT / "profiles/ubuntu-2404-arm64-uefi/profile.json"
 LOCK_PATH = ROOT / "profiles/locks/images.lock.json"
 RENDERER = ROOT / "tools/profiles/render-guest-init.py"
+AAVMF_ROOT = Path("/usr/share/AAVMF")
 IMAGE_ID = "ubuntu-2404-arm64-cloud"
 PROFILE_ID = "ubuntu-2404-arm64-uefi"
+MIME_BOUNDARY = "===============nodehost-h02a=="
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PUBLIC_KEY = re.compile(r"^ssh-ed25519 [A-Za-z0-9+/]+={0,3}(?: [ -~]{1,128})?$")
 MAX_TEXT_BYTES = 256 * 1024
@@ -211,16 +213,25 @@ def validate_public_key(text: str) -> str:
 
 
 def test_user_data(public_key: str) -> str:
-    """Return a shell script so user-data cannot override vendor cloud-config lists."""
+    """Return deterministic multipart data without overriding vendor work lists."""
     key = validate_public_key(public_key)
-    return f"""#!/bin/sh
+    cloud_config = f"""#cloud-config
+users:
+  - name: nodeadmin
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: false
+    hashed_passwd: "NP"
+    ssh_authorized_keys:
+      - {key}
+"""
+    final_script = """#!/bin/sh
 set -eu
-install -d -m 0700 -o nodeadmin -g nodeadmin /home/nodeadmin/.ssh
-cat > /home/nodeadmin/.ssh/authorized_keys <<'NODEHOST_H02A_KEY'
-{key}
-NODEHOST_H02A_KEY
-chown nodeadmin:nodeadmin /home/nodeadmin/.ssh/authorized_keys
-chmod 0600 /home/nodeadmin/.ssh/authorized_keys
+cat > /etc/sudoers.d/90-nodehost-h02a <<'NODEHOST_H02A_SUDO'
+nodeadmin ALL=(ALL) NOPASSWD:ALL
+NODEHOST_H02A_SUDO
+chmod 0440 /etc/sudoers.d/90-nodehost-h02a
+visudo -cf /etc/sudoers.d/90-nodehost-h02a
 cat > /etc/ssh/sshd_config.d/99-nodehost-h02a.conf <<'NODEHOST_H02A_SSHD'
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -231,6 +242,22 @@ systemctl restart ssh
 install -d -m 0755 /var/lib/nodehost
 printf 'h02a-ready\\n' > /var/lib/nodehost/h02a-ready
 """
+    return (
+        "MIME-Version: 1.0\n"
+        f'Content-Type: multipart/mixed; boundary="{MIME_BOUNDARY}"\n'
+        "\n"
+        f"--{MIME_BOUNDARY}\n"
+        'Content-Type: text/cloud-config; charset="us-ascii"\n'
+        "Content-Transfer-Encoding: 7bit\n"
+        "\n"
+        f"{cloud_config}"
+        f"--{MIME_BOUNDARY}\n"
+        'Content-Type: text/x-shellscript; charset="us-ascii"\n'
+        "Content-Transfer-Encoding: 7bit\n"
+        "\n"
+        f"{final_script}"
+        f"--{MIME_BOUNDARY}--\n"
+    )
 
 
 def meta_data(instance_id: str = "nodehost-h02a-ubuntu", hostname: str = "nodehost-h02a") -> str:
@@ -265,10 +292,44 @@ def render_vendor_data(state: Path, profile: dict[str, Any]) -> Path:
         raise LabError("canonical vendor-data retained an unresolved include")
     if "/var/lib/nodehost/bootstrap.env" not in text:
         raise LabError("canonical vendor-data lost its inert bootstrap condition")
+    canonical_user = """users:
+  - name: nodeadmin
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+"""
+    if canonical_user not in text or "ssh_authorized_keys:" in text:
+        raise LabError("canonical vendor-data nodeadmin contract changed")
+    required_bootstrap_commands = (
+    "- [systemctl, enable, nodehost-bootstrap.service]",
+    "- [systemctl, start, --no-block, nodehost-bootstrap.service]",
+)
+    if "- [systemctl, enable, --now, nodehost-bootstrap.service]" in text:
+        raise LabError("canonical vendor-data deadlocks cloud-final with enable --now")
+    missing = [command for command in required_bootstrap_commands if command not in text]
+    if missing:
+        raise LabError(f"canonical vendor-data lost nonblocking bootstrap activation: {missing}")
     return destination
 
 
-def find_firmware_pair() -> tuple[Path, Path]:
+def resolve_firmware_path(path: Path, root: Path = AAVMF_ROOT) -> Path:
+    if not path.exists():
+        raise LabError(f"packaged firmware path is missing: {path}")
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise LabError(f"cannot resolve packaged firmware path {path}: {exc}") from exc
+    try:
+        relative = resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise LabError(f"packaged firmware path escapes {resolved_root}: {path} -> {resolved}") from exc
+    if not relative.parts or not resolved.is_file():
+        raise LabError(f"packaged firmware target is not one regular file: {path} -> {resolved}")
+    return resolved
+
+
+def find_firmware_pair() -> tuple[tuple[Path, Path], tuple[Path, Path]]:
     pairs = [
         (
             Path("/usr/share/AAVMF/AAVMF_CODE.fd"),
@@ -280,9 +341,11 @@ def find_firmware_pair() -> tuple[Path, Path]:
         ),
     ]
     for code, variables in pairs:
-        if all(path.is_file() and not path.is_symlink() for path in (code, variables)):
-            return code, variables
-    raise LabError("a matched AAVMF code/vars firmware pair was not found")
+        try:
+            return (code, resolve_firmware_path(code)), (variables, resolve_firmware_path(variables))
+        except LabError:
+            continue
+    raise LabError("a matched, confined AAVMF code/vars firmware pair was not found")
 
 
 def package_fact(path: Path) -> str | None:
@@ -309,12 +372,14 @@ def package_fact(path: Path) -> str | None:
     return version.stdout.strip() if version.returncode == 0 else package
 
 
-def firmware_fact(path: Path) -> dict[str, Any]:
+def firmware_fact(requested: Path, resolved: Path) -> dict[str, Any]:
     return {
-        "sourcePath": str(path),
-        "sha256": sha256_file(path),
-        "sizeBytes": path.stat().st_size,
-        "package": package_fact(path),
+        "sourcePath": str(requested),
+        "resolvedPath": str(resolved),
+        "sourcePathSymlink": requested.is_symlink(),
+        "sha256": sha256_file(resolved),
+        "sizeBytes": resolved.stat().st_size,
+        "package": package_fact(requested),
     }
 
 
@@ -357,7 +422,7 @@ def qemu_command(profile: dict[str, Any], state: Path, ssh_port: int) -> list[st
         "-drive", f"if=none,id=seed,format=raw,readonly=on,file={state / 'seed.img'}",
         "-device", "virtio-blk-pci,drive=seed",
         "-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{ssh_port}-:22",
-        "-device", "virtio-net-pci,netdev=net0",
+        "-device", "virtio-net-pci,netdev=net0,romfile=",
         "-qmp", f"unix:{state / 'qmp.sock'},server=on,wait=off",
         "-monitor", "none",
         "-serial", f"file:{state / 'serial.log'}",
@@ -476,7 +541,7 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
     if data.stat().st_size != data_size:
         raise LabError("raw data disk has the wrong virtual size")
 
-    code_source, vars_source = find_firmware_pair()
+    (code_requested, code_source), (vars_requested, vars_source) = find_firmware_pair()
     code = state / "AAVMF_CODE.fd"
     variables = state / "AAVMF_VARS.fd"
     code_digest = copy_verified(code_source, code)
@@ -500,13 +565,17 @@ def prepare(state: Path, ssh_port: int) -> dict[str, Any]:
             "renderedSha256": sha256_file(vendor),
         },
         "testUserData": {
-            "format": "text/x-shellscript",
+            "format": "multipart/mixed",
+            "parts": ["text/cloud-config", "text/x-shellscript"],
+            "earlySshKey": True,
+            "qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel",
             "sha256": sha256_file(user),
+            "qualificationSudo": "nodeadmin-nopasswd-test-only",
         },
         "image": lock,
         "firmware": {
-            "code": {**firmware_fact(code_source), "copiedSha256": code_digest},
-            "vars": {**firmware_fact(vars_source), "copiedSha256": vars_digest},
+            "code": {**firmware_fact(code_requested, code_source), "copiedSha256": code_digest},
+            "vars": {**firmware_fact(vars_requested, vars_source), "copiedSha256": vars_digest},
         },
         "tools": {
             "qemu": tool_fact("qemu-system-aarch64", "--version"),
