@@ -71,6 +71,33 @@ Use a dedicated branch and do not mix the bump with feature work.
 A failed post-pull verification is expected when the old patch no longer
 represents the new baseline; it is not permission to skip the patch refresh.
 
+## Upstream compatibility canary
+
+The shipping baseline remains explicitly pinned. A separate scheduled workflow,
+`.github/workflows/podroid-upstream-canary.yml`, asks a different question:
+whether today's upstream could still be composed with SalvageNet.
+
+The canary has two tracks:
+
+- **release** resolves Podroid's latest GitHub release, stages its exact source,
+  applies the current downstream patch queue, derives an ephemeral runtime lock
+  from that release APK, runs source/API tests, and verifies the resulting APK,
+  signature, runtime contents, lint, and 16 KiB zip alignment;
+- **main** resolves the exact current upstream `main` commit, applies the same
+  patch queue, and runs source/API tests without pretending that the pinned
+  release runtime corresponds to unreleased source.
+
+Both tracks stage source under `android/.podroid-canary/`. They never rewrite
+the tracked source lock. The release track rewrites `podroid-runtime.lock`
+only inside the disposable Actions checkout so package verification can exercise
+the candidate release artifacts.
+
+A canary failure is evidence of integration drift, not permission to move the
+shipping pin automatically. Review the report artifact, update or remove
+downstream patches deliberately, then perform a normal dedicated upstream bump.
+Physical Android evidence remains required before adopting a runtime baseline;
+hosted CI cannot substitute for the HIL gates.
+
 ## Extraction and licensing
 
 When moving Podroid code into sibling modules, retain the original path and

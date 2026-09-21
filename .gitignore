@@ -21,6 +21,8 @@ control/examples/local/*.json
 controller/mvp-cli/controller.json
 
 # Imported upstream/build output
+android/.podroid-canary/
+.artifacts/
 android/podroid/.gradle/
 android/podroid/local.properties
 android/podroid/**/build/

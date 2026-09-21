@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -23,7 +24,9 @@ def load_implementation() -> ModuleType:
     # The implementation originated inside the imported Podroid tree. Keep its
     # artifact logic intact while making repository-owned paths explicit here.
     module.LOCK_PATH = ROOT / "android" / "upstream" / "podroid-runtime.lock"
-    module.SOURCE_ASSETS = ROOT / "android" / "podroid" / "app" / "src" / "main" / "assets"
+    source_root = os.environ.get("SALVAGENET_PODROID_SOURCE_ROOT")
+    podroid_root = Path(source_root).resolve() if source_root else ROOT / "android" / "podroid"
+    module.SOURCE_ASSETS = podroid_root / "app" / "src" / "main" / "assets"
     return module
 
 
