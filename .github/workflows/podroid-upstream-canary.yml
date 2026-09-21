@@ -3,6 +3,16 @@ name: podroid-upstream-canary
 on:
   schedule:
     - cron: '17 4 * * *'
+  pull_request:
+    paths:
+      - .github/workflows/podroid-upstream-canary.yml
+      - android/podroid.integration.gradle.kts
+      - android/upstream/podroid.lock
+      - android/upstream/podroid-runtime.lock
+      - android/upstream/patches/**
+      - tools/vendor/podroid_canary.py
+      - tools/vendor/prepare-podroid-runtime.py
+      - tests/tools/test_podroid_canary.py
   workflow_dispatch:
     inputs:
       track:
