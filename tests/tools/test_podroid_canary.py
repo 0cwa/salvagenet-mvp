@@ -18,6 +18,20 @@ class PodroidCanaryTest(unittest.TestCase):
         with self.assertRaises(m.CanaryError):
             m.repository_slug("git@github.com:ExTV/Podroid.git")
 
+    def test_resolve_ref_peels_fetched_commit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            remote = Path(temporary) / "remote"
+            remote.mkdir()
+            m.run(["git", "init", "--quiet"], cwd=remote)
+            m.run(["git", "config", "user.email", "test@example.invalid"], cwd=remote)
+            m.run(["git", "config", "user.name", "Canary Test"], cwd=remote)
+            (remote / "README").write_text("candidate\n")
+            m.run(["git", "add", "README"], cwd=remote)
+            m.run(["git", "commit", "--quiet", "-m", "candidate"], cwd=remote)
+            commit, subject = m.resolve_ref(str(remote), "HEAD")
+            self.assertEqual(m.run(["git", "rev-parse", "HEAD"], cwd=remote).stdout.strip(), commit)
+            self.assertEqual("candidate", subject)
+
     def test_build_runtime_lock_rehashes_candidate_apk(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
