@@ -11,8 +11,10 @@ diff --git a/settings.gradle.kts b/settings.gradle.kts
 diff --git a/gradle.properties b/gradle.properties
 --- a/gradle.properties
 +++ b/gradle.properties
-@@ -23,1 +23,10 @@
- kotlin.code.style=official
+@@ -20,4 +20,13 @@
+ # https://developer.android.com/r/tools/gradle-multi-project-decoupled-projects
+ # org.gradle.parallel=true
+ # Kotlin code style for this project: "official" or "obsolete":
 +
 +# NODEHOST-WORKSPACE-PROPERTIES-BEGIN
 +# Centralized node-host adapter versions. The imported Podroid toolchain remains authoritative.
@@ -22,6 +24,7 @@ diff --git a/gradle.properties b/gradle.properties
 +nodehost.minSdk=26
 +nodehost.ndkVersion=27.2.12479018
 +# NODEHOST-WORKSPACE-PROPERTIES-END
+ kotlin.code.style=official
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
