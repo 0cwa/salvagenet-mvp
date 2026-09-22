@@ -11,10 +11,8 @@ diff --git a/settings.gradle.kts b/settings.gradle.kts
 diff --git a/gradle.properties b/gradle.properties
 --- a/gradle.properties
 +++ b/gradle.properties
-@@ -23,3 +23,12 @@
+@@ -23,1 +23,10 @@
  kotlin.code.style=official
- podroidQemuVersion=11.0.0
- podroidKernelVersion=7.0.10
 +
 +# NODEHOST-WORKSPACE-PROPERTIES-BEGIN
 +# Centralized node-host adapter versions. The imported Podroid toolchain remains authoritative.
