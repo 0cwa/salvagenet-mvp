@@ -169,9 +169,6 @@ def apply_patch_series(destination: Path) -> tuple[list[dict], bool]:
     failed = False
     for name in patch_names():
         patch = (PATCH_SERIES.parent / name).read_text(encoding="utf-8")
-        if failed:
-            results.append({"name": name, "status": "not-run"})
-            continue
         checked = run(
             ["git", "apply", "--check", "--whitespace=nowarn", "-"],
             cwd=destination,
@@ -182,11 +179,16 @@ def apply_patch_series(destination: Path) -> tuple[list[dict], bool]:
             results.append(
                 {
                     "name": name,
-                    "status": "conflict",
+                    "status": "conflict" if not failed else "conflict-after-earlier-failure",
                     "detail": (checked.stderr or checked.stdout).strip()[-8000:],
                 }
             )
             failed = True
+            continue
+        if failed:
+            # Keep the worktree at the last valid cumulative state, but still tell
+            # maintainers that this later patch is textually compatible on its own.
+            results.append({"name": name, "status": "would-apply-after-earlier-failure"})
             continue
         applied = run(
             ["git", "apply", "--whitespace=nowarn", "-"],
