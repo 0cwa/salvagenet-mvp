@@ -31,8 +31,17 @@ val preparePodroidRuntime by tasks.registering(Exec::class) {
     }
 }
 
+val sourceOnlyCanary = providers.environmentVariable("SALVAGENET_PODROID_CANARY_SOURCE_ONLY")
+    .map { it == "1" }
+    .orElse(false)
+
 tasks.named("preBuild") {
-    dependsOn(preparePodroidRuntime)
+    // Source/API canaries intentionally omit the large runtime payload. Any packaging
+    // task still reaches verifyPodroidPackaging and therefore cannot produce a false
+    // success with missing or stale runtime artifacts.
+    if (!sourceOnlyCanary.get()) {
+        dependsOn(preparePodroidRuntime)
+    }
 }
 
 // The sibling adapter exposes a generated file-backed AAR; resolve it only after its producer completes.

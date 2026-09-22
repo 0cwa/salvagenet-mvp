@@ -1,0 +1,171 @@
+name: podroid-upstream-canary
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  pull_request:
+    paths:
+      - .github/workflows/podroid-upstream-canary.yml
+      - android/podroid.integration.gradle.kts
+      - android/upstream/podroid.lock
+      - android/upstream/podroid-runtime.lock
+      - android/upstream/patches/**
+      - tools/vendor/podroid_canary.py
+      - tools/vendor/prepare-podroid-runtime.py
+      - tests/tools/test_podroid_canary.py
+  workflow_dispatch:
+    inputs:
+      track:
+        description: Upstream track to test
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - release
+          - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: podroid-upstream-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        track: ${{ fromJSON(inputs.track == 'release' && '["release"]' || inputs.track == 'main' && '["main"]' || '["release","main"]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CANARY_ROOT: android/.podroid-canary
+      REPORT_ROOT: .artifacts/podroid-canary/${{ matrix.track }}
+      SALVAGENET_PODROID_SOURCE_ROOT: ${{ github.workspace }}/android/.podroid-canary
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.3'
+          cache: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - name: Install pinned Android components
+        shell: bash
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
+          sdkmanager \
+            'platform-tools' \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            'ndk;27.2.12479018'
+
+      - name: Prepare upstream candidate
+        id: prepare
+        continue-on-error: true
+        run: |
+          python3 tools/vendor/podroid_canary.py prepare \
+            --track '${{ matrix.track }}' \
+            --destination "$CANARY_ROOT" \
+            --report-dir "$REPORT_ROOT"
+
+      - name: Source and API compatibility
+        id: source
+        if: steps.prepare.outcome == 'success'
+        continue-on-error: true
+        env:
+          SALVAGENET_PODROID_CANARY_SOURCE_ONLY: '1'
+        working-directory: android/.podroid-canary
+        run: |
+          ./gradlew \
+            :app:testDebugUnitTest \
+            :node-model:testDebugUnitTest \
+            :node-core:testDebugUnitTest \
+            :node-store:testDebugUnitTest \
+            :runtime-qemu:testDebugUnitTest \
+            :mesh-tailscale:testDebugUnitTest \
+            :control-api:testDebugUnitTest \
+            :node-shell:testDebugUnitTest
+
+      - name: Release runtime and packaging compatibility
+        id: runtime
+        if: matrix.track == 'release' && steps.prepare.outcome == 'success' && steps.source.outcome == 'success'
+        continue-on-error: true
+        working-directory: android/.podroid-canary
+        run: |
+          ./gradlew \
+            :app:assembleDebug \
+            :mesh-tailscale:assembleRelease \
+            :app:lintDebug \
+            :app:verifyPodroidPackaging
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          build_tools="$ANDROID_SDK_ROOT/build-tools/36.0.0"
+          "$build_tools/apksigner" verify --verbose "$apk"
+          "$build_tools/zipalign" -c -P 16 4 "$apk"
+          mkdir -p "${GITHUB_WORKSPACE}/${REPORT_ROOT}"
+          cp "$apk" "${GITHUB_WORKSPACE}/${REPORT_ROOT}/candidate-debug.apk"
+          sha256sum "$apk" > "${GITHUB_WORKSPACE}/${REPORT_ROOT}/candidate-debug.sha256"
+
+      - name: Publish compatibility summary
+        if: always()
+        shell: bash
+        run: |
+          runtime='not-applicable'
+          if [[ '${{ matrix.track }}' == 'release' ]]; then
+            runtime='${{ steps.runtime.outcome }}'
+          fi
+          {
+            echo '## Podroid upstream canary: `${{ matrix.track }}`'
+            echo
+            echo '| Stage | Result |'
+            echo '|---|---|'
+            echo '| Candidate preparation / patch queue | `${{ steps.prepare.outcome }}` |'
+            echo '| Source + API compatibility | `${{ steps.source.outcome }}` |'
+            echo "| Runtime + packaging compatibility | \`$runtime\` |"
+            echo
+            if [[ -f "$REPORT_ROOT/summary.md" ]]; then
+              cat "$REPORT_ROOT/summary.md"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload canary evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podroid-upstream-${{ matrix.track }}-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: .artifacts/podroid-canary/${{ matrix.track }}/
+
+      - name: Enforce canary result
+        if: always()
+        shell: bash
+        run: |
+          test '${{ steps.prepare.outcome }}' = 'success'
+          test '${{ steps.source.outcome }}' = 'success'
+          if [[ '${{ matrix.track }}' == 'release' ]]; then
+            test '${{ steps.runtime.outcome }}' = 'success'
+          fi

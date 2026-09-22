@@ -74,7 +74,6 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val updateOpenFailedMessage = stringResource(R.string.update_open_failed)
     val vmState by viewModel.vmState.collectAsStateWithLifecycle()
     val bootStage by viewModel.bootStage.collectAsStateWithLifecycle()
     val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
@@ -127,7 +126,7 @@ fun HomeScreen(
                     }.onFailure {
                         android.widget.Toast.makeText(
                             context,
-                            updateOpenFailedMessage,
+                            context.getString(R.string.update_open_failed),
                             android.widget.Toast.LENGTH_LONG,
                         ).show()
                     }

@@ -47,7 +47,6 @@ fun ContainerBackupScreen(
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val copiedMessage = stringResource(R.string.container_backup_copied)
 
     Scaffold(
         topBar = {
@@ -119,7 +118,7 @@ fun ContainerBackupScreen(
                     text = stringResource(R.string.container_backup_copy_export),
                     onClick = {
                         if (viewModel.copyExportCommand()) {
-                            Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.container_backup_copied), Toast.LENGTH_SHORT).show()
                         }
                     },
                     enabled = ui.containerName.isNotBlank(),
@@ -138,7 +137,7 @@ fun ContainerBackupScreen(
                     text = stringResource(R.string.container_backup_copy_save),
                     onClick = {
                         if (viewModel.copySaveCommand()) {
-                            Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.container_backup_copied), Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -149,7 +148,7 @@ fun ContainerBackupScreen(
                     text = stringResource(R.string.container_backup_copy_list),
                     onClick = {
                         viewModel.copyListCommand()
-                        Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.container_backup_copied), Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -157,7 +156,7 @@ fun ContainerBackupScreen(
                     text = stringResource(R.string.container_backup_copy_all),
                     onClick = {
                         viewModel.copyAllCommand()
-                        Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.container_backup_copied), Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
