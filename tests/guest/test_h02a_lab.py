@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from email import policy
+from email.parser import BytesParser
 import importlib.util
 import json
 from pathlib import Path
@@ -73,18 +75,49 @@ class H02ALabTests(unittest.TestCase):
             with self.assertRaisesRegex(h02a.LabError, "must not be a symlink"):
                 h02a.copy_verified(source, destination, expected)
 
-    def test_test_only_user_data_is_a_non_merging_final_stage_script(self) -> None:
+    def test_firmware_symlinks_must_resolve_inside_the_package_root(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT / ".local") as temporary:
+            directory = Path(temporary)
+            firmware_root = directory / "AAVMF"
+            firmware_root.mkdir()
+            target = firmware_root / "AAVMF_CODE.no-secboot.fd"
+            target.write_bytes(b"uefi-firmware")
+            admitted = firmware_root / "AAVMF_CODE.fd"
+            admitted.symlink_to(target.name)
+            self.assertEqual(target.resolve(), h02a.resolve_firmware_path(admitted, firmware_root))
+
+            outside = directory / "outside.fd"
+            outside.write_bytes(b"outside-firmware")
+            escaped = firmware_root / "AAVMF_VARS.fd"
+            escaped.symlink_to(outside)
+            with self.assertRaisesRegex(h02a.LabError, "escapes"):
+                h02a.resolve_firmware_path(escaped, firmware_root)
+
+    def test_test_only_user_data_is_multipart_with_an_early_key(self) -> None:
         key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB h02a"
         rendered = h02a.test_user_data(key)
-        self.assertTrue(rendered.startswith("#!/bin/sh\nset -eu\n"))
-        self.assertIn("NODEHOST_H02A_KEY", rendered)
-        self.assertIn("/var/lib/nodehost/h02a-ready", rendered)
-        self.assertIn("PasswordAuthentication no", rendered)
-        self.assertIn("KbdInteractiveAuthentication no", rendered)
-        self.assertIn("PermitRootLogin no", rendered)
+        message = BytesParser(policy=policy.default).parsebytes(rendered.encode("utf-8"))
+        self.assertTrue(message.is_multipart())
+        self.assertEqual("multipart/mixed", message.get_content_type())
+        parts = list(message.iter_parts())
+        self.assertEqual(
+            ["text/cloud-config", "text/x-shellscript"],
+            [part.get_content_type() for part in parts],
+        )
+        cloud_config = parts[0].get_content()
+        final_script = parts[1].get_content()
+        self.assertTrue(cloud_config.startswith("#cloud-config\nusers:\n"))
+        for expected in (
+            "name: nodeadmin",
+            "groups: [sudo]",
+            "shell: /bin/bash",
+            "lock_passwd: false",
+            'hashed_passwd: "NP"',
+            "ssh_authorized_keys:",
+            key,
+        ):
+            self.assertIn(expected, cloud_config)
         for forbidden in (
-            "#cloud-config",
-            "users:",
             "packages:",
             "write_files:",
             "runcmd:",
@@ -95,7 +128,18 @@ class H02ALabTests(unittest.TestCase):
             "headscale",
             "tskey-",
         ):
-            self.assertNotIn(forbidden, rendered.lower() if forbidden.islower() else rendered)
+            self.assertNotIn(forbidden, cloud_config)
+        self.assertTrue(final_script.startswith("#!/bin/sh\nset -eu\n"))
+        self.assertNotIn("authorized_keys", final_script)
+        self.assertIn("/etc/sudoers.d/90-nodehost-h02a", final_script)
+        self.assertIn("nodeadmin ALL=(ALL) NOPASSWD:ALL", final_script)
+        self.assertIn("visudo -cf /etc/sudoers.d/90-nodehost-h02a", final_script)
+        self.assertIn("PasswordAuthentication no", final_script)
+        self.assertIn("KbdInteractiveAuthentication no", final_script)
+        self.assertIn("PermitRootLogin no", final_script)
+        self.assertIn("/var/lib/nodehost/h02a-ready", final_script)
+        self.assertEqual(2, rendered.count(f"--{h02a.MIME_BOUNDARY}\n"))
+        self.assertTrue(rendered.endswith(f"--{h02a.MIME_BOUNDARY}--\n"))
 
     def test_qemu_plan_is_closed_and_matches_profile_contract(self) -> None:
         profile = h02a.canonical_profile()
@@ -113,7 +157,8 @@ class H02ALabTests(unittest.TestCase):
         self.assertIn("hostfwd=tcp:127.0.0.1:2222-:22", joined)
         self.assertIn("virtio-blk-pci,drive=system", joined)
         self.assertIn("virtio-blk-pci,drive=data", joined)
-        self.assertIn("virtio-net-pci,netdev=net0", joined)
+        self.assertIn("virtio-net-pci,netdev=net0,romfile=", command)
+        self.assertNotIn("virtio-net-pci,netdev=net0", command)
         self.assertNotIn("backing", joined)
         self.assertNotIn("-kernel", command)
         self.assertNotIn("-append", command)
@@ -125,6 +170,7 @@ class H02ALabTests(unittest.TestCase):
         prepare = (ROOT / "lab/qemu/scripts/prepare.sh").read_text(encoding="utf-8")
         start = (ROOT / "lab/qemu/scripts/start.sh").read_text(encoding="utf-8")
         helper = HELPER.read_text(encoding="utf-8")
+        vendor = (ROOT / "profiles/guest-init/ubuntu/vendor-data.yaml").read_text(encoding="utf-8")
         self.assertNotIn("/current/", pin)
         self.assertIn("explicit immutable Ubuntu release date is required", pin)
         self.assertIn("h02a-prepare.py", prepare)
@@ -132,7 +178,18 @@ class H02ALabTests(unittest.TestCase):
         self.assertNotIn("qemu-system-aarch64 \\", start)
         self.assertNotIn("QEMU_EFI.fd", helper)
         self.assertIn("find_firmware_pair", helper)
+        self.assertIn("resolve_firmware_path", helper)
+        self.assertIn('"resolvedPath": str(resolved)', helper)
         self.assertIn("sha256_file(system) != lock", helper)
+        self.assertIn('"format": "multipart/mixed"', helper)
+        self.assertIn('"earlySshKey": True', helper)
+        self.assertIn('"qualificationAccountPassword": "unlocked-non-authenticating-NP-sentinel"', helper)
+        self.assertIn('"qualificationSudo": "nodeadmin-nopasswd-test-only"', helper)
+        self.assertIn('"virtio-net-pci,netdev=net0,romfile="', helper)
+        self.assertIn("- [systemctl, enable, nodehost-bootstrap.service]", vendor)
+        self.assertIn("- [systemctl, start, --no-block, nodehost-bootstrap.service]", vendor)
+        self.assertNotIn("enable, --now, nodehost-bootstrap.service", vendor)
+        self.assertIn("deadlocks cloud-final with enable --now", helper)
         for script in (
             ROOT / "tools/profiles/pin-ubuntu-image.sh",
             ROOT / "lab/qemu/scripts/prepare.sh",

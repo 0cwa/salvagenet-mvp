@@ -7,10 +7,14 @@ lab/qemu/scripts/start.sh
 lab/qemu/scripts/smoke.sh
 lab/qemu/scripts/stop.sh
 lab/qemu/scripts/e2e.sh
+lab/qemu/scripts/report.py
 lab/qemu/scripts/h02a-*.sh
 lab/qemu/scripts/h02a-*.py
 tests/guest/**
+tests/tools/test_qemu_lab_report.py
 profiles/locks/images.lock.json
 tools/profiles/pin-ubuntu-image.sh
 Makefile
 docs/research/experiments/H02A.md
+# Serial evidence proved H02A must repair the canonical cloud-final activation contract.
+profiles/guest-init/ubuntu/vendor-data.yaml
