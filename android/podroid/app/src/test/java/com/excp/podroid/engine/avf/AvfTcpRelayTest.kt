@@ -1,5 +1,6 @@
 package com.excp.podroid.engine.avf
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -115,7 +116,10 @@ class AvfTcpRelayTest {
             log = noOpLog,
         )
         assertTrue(relay.attach(SocketRelayEndpoint(pair.right.endpoint)))
-        val job = launch(Dispatchers.Default) { relay.run() }
+        // Exercise cancellation of a running relay. DEFAULT start may be cancelled
+        // before run() enters and owns cleanup; the forwarder tests cover that
+        // separate pre-start ownership case.
+        val job = launch(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { relay.run() }
         try {
             withTimeout(3_000) { job.cancelAndJoin() }
             assertTrue(pair.left.endpoint.isClosed)

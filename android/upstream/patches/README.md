@@ -14,7 +14,9 @@ The series separates the downstream concerns:
 - `0005` retains Podman-or-Docker native build support, including the new upstream
   documentation staging and optional UML build commands;
 - `0006` excludes upstream's new automation and debug execution registrations,
-  including explicit-intent dispatch in the exported launcher Activity.
+  including explicit-intent dispatch in the exported launcher Activity;
+- `0007` starts the cancellation test's relay before cancelling it, avoiding a
+  coroutine scheduling race while retaining both socket-closure assertions.
 
 The v1.3.0 refresh drops obsolete Compose-resource and X11 formatting hunks:
 upstream has replaced those UI paths. The current queue is derived from the

@@ -31,7 +31,7 @@ The imported source advances by 126 upstream commits. The two newer upstream
 source/release/runtime provenance contract. The subtree remains squashed; source
 and adaptation commits remain separately reviewable.
 
-The six ordered patches retain the workspace/build hooks, startup composition,
+The seven ordered patches retain the workspace/build hooks, startup composition,
 backup exclusions, notification permission guard, Android 26 stat compatibility,
 enrollment row, terminal test configuration, and Podman/Docker build selection.
 Obsolete resource and X11 formatting hunks were replaced by upstream's current
@@ -71,7 +71,7 @@ checks establish input integrity, not the rebuilt APK or physical execution.
 | Check | Recorded result |
 |---|---|
 | `make validate` | PASS on starting main and the updated tree |
-| `make podroid-verify` | PASS: exact v1.3.0 tree plus six patches |
+| `make podroid-verify` | PASS: exact v1.3.0 tree plus seven patches |
 | `python3 tools/vendor/check-podroid-provenance.py` | PASS: release tag, SHA, and subject agree |
 | QEMU fixture tests | PASS: four tests, including source-pin and adaptation agreement |
 | Android control-surface tests | PASS: eight tests covering source and decoded manifests plus explicit Activity dispatch |
@@ -91,6 +91,14 @@ Local temporary storage must be outside the repository's `.local/` directory
 when running the H02A confinement test; that test deliberately rejects external
 temporary paths and accepts paths within `.local/`.
 
+The first complete app-test run compiled the application and ran 479 tests;
+only `AvfTcpRelayTest.cancellation_closes_both_idle_sockets` failed. Its immediate
+cancellation could prevent the dispatched coroutine from entering `relay.run()`
+at all. Patch 0007 uses `CoroutineStart.UNDISPATCHED` to establish the running
+relay before cancellation, retaining the real sockets, deadline, and both
+closure assertions. Production's separate pre-start ownership cleanup is already
+covered by `VsockPortForwarderTest`; no relay runtime change was needed.
+
 Existing compatibility-monitor PR [#100](https://github.com/0cwa/salvagenet-mvp/pull/100)
 remains separate. Its recorded canaries stop at patch conflicts and its normal
 source check detects uncaptured patch drift; those runs are not adoption evidence.
@@ -102,3 +110,12 @@ verification is recorded by the PR's exact-head checks. The configured physical
 sequence still needs `hil-smoke`, then relevant MVP/lifecycle coverage of the
 new candidate. No physical gate, unattended-reliability claim, product phase,
 or public release status is advanced by this sync.
+
+An APK upgrade preserves operator-managed guest images. Before Alpine
+qualification, stop the managed VM (or deliberately reset/re-provision the alpha
+node), publish the verified v1.3.0 APK's kernel, initramfs, and rootfs with the
+existing `upload-image <artifact_id> <file> --sha256 <digest>` CLI, and record
+their sizes and digests. Use `podroid-kernel`, `podroid-initramfs`, and
+`podroid-alpine-squashfs`, matching the runtime lock. `hil-smoke` installs with
+`adb install -r` and does not replace those inputs; an APK-only update cannot
+establish that an existing managed guest runs the new kernel/rootfs.
