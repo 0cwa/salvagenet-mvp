@@ -7,9 +7,17 @@ The series separates the downstream concerns:
 
 - `0001` is the narrow SalvageNet workspace and external composition hook;
 - `0002` records inherited node startup, notification, and backup-security changes;
-- `0003` records Android API compatibility, Compose resource, and enrollment UI changes;
-- `0004` records pointer-input cleanup and terminal unit-test configuration;
-- `0005` records Podman-or-Docker native build support.
+- `0003` retains Android API compatibility and enrollment, and hides the optional
+  UML choice because SalvageNet does not package that backend;
+- `0004` retains terminal unit-test configuration;
+- `0005` retains Podman-or-Docker native build support, including the new upstream
+  documentation staging and optional UML build commands;
+- `0006` excludes upstream's new automation and debug execution registrations,
+  including explicit-intent dispatch in the exported launcher Activity.
+
+The v1.3.0 refresh drops obsolete Compose-resource and X11 formatting hunks:
+upstream has replaced those UI paths. The current queue is derived from the
+exact v1.3.0 tag; it is not a partial application of the v1.2.6 patches.
 
 SalvageNet-owned composition, runtime preparation, and package verification
 live outside the subtree. New project behavior should remain in sibling modules

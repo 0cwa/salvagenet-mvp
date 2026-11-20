@@ -1,0 +1,147 @@
+diff --git a/app/src/debug/AndroidManifest.xml b/app/src/debug/AndroidManifest.xml
+index 2339fc7..3299a26 100644
+--- a/app/src/debug/AndroidManifest.xml
++++ b/app/src/debug/AndroidManifest.xml
+@@ -1,21 +1,4 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<!-- Debug-only UML feasibility harness; merged into debug builds only. -->
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+-    <application>
+-        <provider
+-            android:name="com.excp.podroid.umltest.UmlTestProvider"
+-            android:authorities="${applicationId}.umltest"
+-            android:exported="true"
+-            android:permission="android.permission.DUMP" />
+-
+-        <service
+-            android:name="com.excp.podroid.umltest.UmlTestService"
+-            android:exported="true"
+-            android:permission="android.permission.DUMP"
+-            android:foregroundServiceType="specialUse">
+-            <property
+-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+-                android:value="User-Mode Linux test harness" />
+-        </service>
+-    </application>
+-</manifest>
++<!-- SalvageNet debug candidates use tests/hil through the real Host API.
++     Do not register upstream's independent UML execution harness. -->
++<manifest />
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index d8a4a62..ee46e71 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -99,13 +99,6 @@
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+             </intent-filter>
+-            <!-- Foreground-launch path for automation (#78 fix round): an
+-                 Activity launch is always allowed to start a foreground
+-                 service, unlike a cold background receiver. -->
+-            <intent-filter>
+-                <action android:name="com.excp.podroid.action.START_VM" />
+-                <category android:name="android.intent.category.DEFAULT" />
+-            </intent-filter>
+         </activity>
+ 
+         <!-- FileProvider for sharing console logs -->
+@@ -119,19 +112,6 @@
+                 android:resource="@xml/file_paths" />
+         </provider>
+ 
+-        <!--
+-            adb-only control surface for on-device test automation (state,
+-            backend switch, port forwards, backups, navigate). The manifest
+-            permission is defense in depth only - ControlProvider.call()
+-            enforces the real check (shell/root uid or DUMP) in code, since
+-            the framework performs no permission check on call() itself.
+-        -->
+-        <provider
+-            android:name=".engine.control.ControlProvider"
+-            android:authorities="${applicationId}.control"
+-            android:exported="true"
+-            android:permission="android.permission.DUMP" />
+-
+         <!-- Foreground service that hosts the QEMU process -->
+         <service
+             android:name=".service.PodroidService"
+@@ -142,22 +122,9 @@
+                 android:value="Podman emulation via QEMU" />
+         </service>
+ 
+-        <!--
+-            Boot autostart + Tasker/automation entry point (#78). Exported
+-            without a permission on purpose: automation apps (Tasker etc.)
+-            cannot hold a custom signature permission, and the two custom
+-            actions only start/stop the VM via PodroidService's own
+-            companion - there is nothing privileged for a permission to gate.
+-        -->
+-        <receiver
+-            android:name=".service.VmControlReceiver"
+-            android:exported="true">
+-            <intent-filter>
+-                <action android:name="android.intent.action.BOOT_COMPLETED" />
+-                <action android:name="com.excp.podroid.action.START_VM" />
+-                <action android:name="com.excp.podroid.action.STOP_VM" />
+-            </intent-filter>
+-        </receiver>
++        <!-- SalvageNet boot and remote control belong to node-shell's durable
++             supervisor and authenticated Host API. Upstream automation is not
++             registered as an independent runtime owner. -->
+ 
+     </application>
+ 
+diff --git a/app/src/main/java/com/excp/podroid/MainActivity.kt b/app/src/main/java/com/excp/podroid/MainActivity.kt
+index 3b90e8b..3e07ca7 100644
+--- a/app/src/main/java/com/excp/podroid/MainActivity.kt
++++ b/app/src/main/java/com/excp/podroid/MainActivity.kt
+@@ -1,7 +1,6 @@
+ package com.excp.podroid
+ 
+ import android.content.Context
+-import android.content.Intent
+ import android.os.Bundle
+ import androidx.activity.ComponentActivity
+ import androidx.activity.compose.setContent
+@@ -16,8 +15,6 @@ import androidx.compose.ui.Modifier
+ import androidx.hilt.navigation.compose.hiltViewModel
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.excp.podroid.data.repository.LanguageManager
+-import com.excp.podroid.service.PodroidService
+-import com.excp.podroid.service.VmControlReceiver
+ import com.excp.podroid.ui.navigation.NavGraphViewModel
+ import com.excp.podroid.ui.navigation.PodroidNavGraph
+ import com.excp.podroid.ui.theme.PodroidTheme
+@@ -36,9 +33,6 @@ class MainActivity : ComponentActivity() {
+     override fun onCreate(savedInstanceState: Bundle?) {
+         enableEdgeToEdge()
+         super.onCreate(savedInstanceState)
+-        if (savedInstanceState == null) {
+-            handleStartVmIntent(intent)
+-        }
+         setContent {
+             val windowSizeClass = calculateWindowSizeClass(this)
+             val navVm: NavGraphViewModel = hiltViewModel()
+@@ -95,22 +89,4 @@ class MainActivity : ComponentActivity() {
+         }
+     }
+ 
+-    override fun onNewIntent(intent: Intent) {
+-        super.onNewIntent(intent)
+-        setIntent(intent)
+-        handleStartVmIntent(intent)
+-    }
+-
+-    /**
+-     * Foreground-launch path for automation: a cold background receiver may
+-     * be denied a foreground-service start, but an Activity launch is always
+-     * foreground, so this route is reliable on both cold start (onCreate,
+-     * only when there is no saved state to restore) and warm delivery
+-     * (onNewIntent).
+-     */
+-    private fun handleStartVmIntent(intent: Intent?) {
+-        if (intent?.action == VmControlReceiver.ACTION_START_VM) {
+-            PodroidService.start(this)
+-        }
+-    }
+ }

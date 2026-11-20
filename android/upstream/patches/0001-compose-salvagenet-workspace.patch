@@ -1,42 +1,32 @@
-diff --git a/settings.gradle.kts b/settings.gradle.kts
---- a/settings.gradle.kts
-+++ b/settings.gradle.kts
-@@ -25,3 +25,6 @@
- 
- rootProject.name = "Podroid"
- include(":app", ":terminal-emulator", ":terminal-view")
+diff --git a/AGENTS.md b/AGENTS.md
+new file mode 100644
+index 0000000..75584a9
+--- /dev/null
++++ b/AGENTS.md
+@@ -0,0 +1,9 @@
++# Imported Podroid island instructions
 +
-+// NODEHOST-WORKSPACE-INCLUDE
-+apply(from = "../workspace.settings.gradle.kts")
-diff --git a/gradle.properties b/gradle.properties
---- a/gradle.properties
-+++ b/gradle.properties
-@@ -23,3 +23,12 @@
- kotlin.code.style=official
- podroidQemuVersion=11.0.0
- podroidKernelVersion=7.0.10
-+
-+# NODEHOST-WORKSPACE-PROPERTIES-BEGIN
-+# Centralized node-host adapter versions. The imported Podroid toolchain remains authoritative.
-+nodehost.roomVersion=2.8.4
-+nodehost.ktorVersion=3.5.1
-+nodehost.compileSdk=36
-+nodehost.minSdk=26
-+nodehost.ndkVersion=27.2.12479018
-+# NODEHOST-WORKSPACE-PROPERTIES-END
++- Treat this subtree as imported upstream code with local composition patches, not the default home for NodeHost behavior.
++- Prefer wrappers and sibling modules under `android/modules/`; broad moves or rewrites require an explicit upstream-sync/extraction task.
++- Preserve nativeLibraryDir executable packaging, launcher-first argv, dedicated spawn/reap behavior, Unix sockets, and packaging verification.
++- Every copied or moved upstream file records its original path and pinned commit.
++- Do not update the Podroid snapshot and implement a feature in the same commit.
++- After any change here, run the Podroid packaging verification and the smallest affected upstream/app test before NodeHost tests.
++- Never add live keys, downloaded mutable binaries, arbitrary QEMU arguments, or user-controlled shell execution.
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 0d7c893..96d5f15 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
-@@ -12,6 +12,9 @@
- }
+@@ -13,6 +13,9 @@ plugins {
  
  val podroidQemuVersion = providers.gradleProperty("podroidQemuVersion").get()
-+
+ 
 +// SalvageNet keeps its composition and packaging logic outside the vendored subtree.
 +apply(from = rootProject.file("../podroid.integration.gradle.kts"))
- 
++
  android {
      namespace = "com.excp.podroid"
+     compileSdk {
 @@ -88,6 +91,13 @@ android {
          buildConfig = true
      }
@@ -51,3 +41,31 @@ diff --git a/app/build.gradle.kts b/app/build.gradle.kts
      packaging {
          resources {
              excludes += "/META-INF/{AL2.0,LGPL2.1}"
+diff --git a/gradle.properties b/gradle.properties
+index 491c2d7..a0a3d25 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -24,3 +24,12 @@ kotlin.code.style=official
+ podroidQemuVersion=11.1.2
+ podroidKernelVersion=7.3
+ podroidUmlKernelCommit=32e5e10b8
++
++# NODEHOST-WORKSPACE-PROPERTIES-BEGIN
++# Centralized node-host adapter versions. The imported Podroid toolchain remains authoritative.
++nodehost.roomVersion=2.8.4
++nodehost.ktorVersion=3.5.1
++nodehost.compileSdk=36
++nodehost.minSdk=26
++nodehost.ndkVersion=27.2.12479018
++# NODEHOST-WORKSPACE-PROPERTIES-END
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 274fa00..f2e71fb 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -25,3 +25,6 @@ dependencyResolutionManagement {
+ 
+ rootProject.name = "Podroid"
+ include(":app", ":terminal-emulator", ":terminal-view")
++
++// NODEHOST-WORKSPACE-INCLUDE
++apply(from = "../workspace.settings.gradle.kts")

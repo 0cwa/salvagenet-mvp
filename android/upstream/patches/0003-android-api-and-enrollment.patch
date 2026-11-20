@@ -1,0 +1,67 @@
+diff --git a/app/src/main/java/com/excp/podroid/engine/avf/ninep/Ninep2000LServer.kt b/app/src/main/java/com/excp/podroid/engine/avf/ninep/Ninep2000LServer.kt
+index e413757..08d39e7 100644
+--- a/app/src/main/java/com/excp/podroid/engine/avf/ninep/Ninep2000LServer.kt
++++ b/app/src/main/java/com/excp/podroid/engine/avf/ninep/Ninep2000LServer.kt
+@@ -1,5 +1,6 @@
+ package com.excp.podroid.engine.avf.ninep
+ 
++import android.os.Build
+ import android.util.Log
+ import java.io.ByteArrayOutputStream
+ import java.io.EOFException
+@@ -110,12 +111,12 @@ object OsStatSource : StatSource {
+             rdev = st.st_rdev,
+             blksize = st.st_blksize,
+             blocks = st.st_blocks,
+-            atimeSec = st.st_atim.tv_sec,
+-            atimeNsec = st.st_atim.tv_nsec,
+-            mtimeSec = st.st_mtim.tv_sec,
+-            mtimeNsec = st.st_mtim.tv_nsec,
+-            ctimeSec = st.st_ctim.tv_sec,
+-            ctimeNsec = st.st_ctim.tv_nsec,
++            atimeSec = if (Build.VERSION.SDK_INT >= 27) st.st_atim.tv_sec else st.st_atime,
++            atimeNsec = if (Build.VERSION.SDK_INT >= 27) st.st_atim.tv_nsec else 0,
++            mtimeSec = if (Build.VERSION.SDK_INT >= 27) st.st_mtim.tv_sec else st.st_mtime,
++            mtimeNsec = if (Build.VERSION.SDK_INT >= 27) st.st_mtim.tv_nsec else 0,
++            ctimeSec = if (Build.VERSION.SDK_INT >= 27) st.st_ctim.tv_sec else st.st_ctime,
++            ctimeNsec = if (Build.VERSION.SDK_INT >= 27) st.st_ctim.tv_nsec else 0,
+         )
+     }
+ }
+diff --git a/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt b/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt
+index 7378789..b5c34a9 100644
+--- a/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt
++++ b/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt
+@@ -98,6 +98,7 @@ import com.excp.podroid.ui.components.PodroidSwitch
+ import com.excp.podroid.ui.components.PodroidTopBar
+ import com.excp.podroid.ui.theme.PodroidTokens
+ import com.excp.podroid.data.repository.LanguageManager
++import org.nodehost.shell.EnrollmentImportActivity
+ 
+ @Composable
+ private fun languageDisplayName(language: String, systemDefaultLanguage: String): String {
+@@ -265,6 +266,14 @@ fun SettingsScreen(
+                     onAutostartChange = viewModel::setAutostartOnBoot,
+                 )
+ 
++                // ── NODE ENROLLMENT ───────────────────────────────────
++                PodroidSectionLabel("Node enrollment")
++                PodroidListRow(
++                    label = "Import controller enrollment",
++                    value = "Select enrollment and guest bootstrap JSON",
++                    onClick = { ctx.startActivity(Intent(ctx, EnrollmentImportActivity::class.java)) },
++                )
++
+                 // ── NETWORK ───────────────────────────────────────────
+                 PodroidSectionLabel(stringResource(R.string.network))
+                 PodroidListRow(
+@@ -331,7 +340,8 @@ fun SettingsScreen(
+                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                         modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
+                     ) {
+-                        EngineSelection.entries.forEach { sel ->
++                        // SalvageNet does not package the optional UML runtime.
++                        listOf(EngineSelection.AUTO, EngineSelection.AVF, EngineSelection.QEMU).forEach { sel ->
+                             FilterChip(
+                                 selected = ui.engineSelection == sel,
+                                 onClick = { viewModel.setEngineSelection(sel) },

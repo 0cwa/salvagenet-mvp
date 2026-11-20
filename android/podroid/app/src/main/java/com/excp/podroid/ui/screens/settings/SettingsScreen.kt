@@ -340,7 +340,8 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
                     ) {
-                        EngineSelection.entries.forEach { sel ->
+                        // SalvageNet does not package the optional UML runtime.
+                        listOf(EngineSelection.AUTO, EngineSelection.AVF, EngineSelection.QEMU).forEach { sel ->
                             FilterChip(
                                 selected = ui.engineSelection == sel,
                                 onClick = { viewModel.setEngineSelection(sel) },

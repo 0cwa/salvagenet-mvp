@@ -1,23 +1,8 @@
-diff --git a/AGENTS.md b/AGENTS.md
-new file mode 100644
-index 0000000..75584a9
---- /dev/null
-+++ b/AGENTS.md
-@@ -0,0 +1,9 @@
-+# Imported Podroid island instructions
-+
-+- Treat this subtree as imported upstream code with local composition patches, not the default home for NodeHost behavior.
-+- Prefer wrappers and sibling modules under `android/modules/`; broad moves or rewrites require an explicit upstream-sync/extraction task.
-+- Preserve nativeLibraryDir executable packaging, launcher-first argv, dedicated spawn/reap behavior, Unix sockets, and packaging verification.
-+- Every copied or moved upstream file records its original path and pinned commit.
-+- Do not update the Podroid snapshot and implement a feature in the same commit.
-+- After any change here, run the Podroid packaging verification and the smallest affected upstream/app test before NodeHost tests.
-+- Never add live keys, downloaded mutable binaries, arbitrary QEMU arguments, or user-controlled shell execution.
 diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
-index 3780b9c..8a05e76 100644
+index 7059881..d8a4a62 100644
 --- a/app/src/main/AndroidManifest.xml
 +++ b/app/src/main/AndroidManifest.xml
-@@ -67,7 +67,7 @@
+@@ -74,7 +74,7 @@
  
      <application
          android:name=".PodroidApplication"
@@ -27,7 +12,7 @@ index 3780b9c..8a05e76 100644
          android:extractNativeLibs="true"
          android:fullBackupContent="@xml/backup_rules"
 diff --git a/app/src/main/java/com/excp/podroid/PodroidApplication.kt b/app/src/main/java/com/excp/podroid/PodroidApplication.kt
-index cd739ea..52fb1ca 100644
+index 468651c..e1f223b 100644
 --- a/app/src/main/java/com/excp/podroid/PodroidApplication.kt
 +++ b/app/src/main/java/com/excp/podroid/PodroidApplication.kt
 @@ -10,6 +10,9 @@ package com.excp.podroid
@@ -40,7 +25,7 @@ index cd739ea..52fb1ca 100644
  import dagger.hilt.android.HiltAndroidApp
  import kotlinx.coroutines.CompletableDeferred
  import kotlinx.coroutines.CoroutineScope
-@@ -37,6 +40,9 @@ class PodroidApplication : Application() {
+@@ -36,6 +39,9 @@ class PodroidApplication : Application() {
      override fun onCreate() {
          super.onCreate()
          exemptHiddenApi()
