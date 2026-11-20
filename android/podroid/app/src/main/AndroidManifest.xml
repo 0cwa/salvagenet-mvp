@@ -28,8 +28,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- Autostart the VM on boot when the setting is enabled (#78) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Required on Android 13+ to show the foreground service notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Lets the setup wizard and Home permissions card show the direct battery
+         exemption dialog instead of the general system list -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Full storage access to share the Downloads folder with the VM -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
@@ -85,11 +92,19 @@
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.Podroid"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Foreground-launch path for automation (#78 fix round): an
+                 Activity launch is always allowed to start a foreground
+                 service, unlike a cold background receiver. -->
+            <intent-filter>
+                <action android:name="com.excp.podroid.action.START_VM" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
@@ -104,6 +119,19 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!--
+            adb-only control surface for on-device test automation (state,
+            backend switch, port forwards, backups, navigate). The manifest
+            permission is defense in depth only - ControlProvider.call()
+            enforces the real check (shell/root uid or DUMP) in code, since
+            the framework performs no permission check on call() itself.
+        -->
+        <provider
+            android:name=".engine.control.ControlProvider"
+            android:authorities="${applicationId}.control"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+
         <!-- Foreground service that hosts the QEMU process -->
         <service
             android:name=".service.PodroidService"
@@ -113,6 +141,23 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Podman emulation via QEMU" />
         </service>
+
+        <!--
+            Boot autostart + Tasker/automation entry point (#78). Exported
+            without a permission on purpose: automation apps (Tasker etc.)
+            cannot hold a custom signature permission, and the two custom
+            actions only start/stop the VM via PodroidService's own
+            companion - there is nothing privileged for a permission to gate.
+        -->
+        <receiver
+            android:name=".service.VmControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="com.excp.podroid.action.START_VM" />
+                <action android:name="com.excp.podroid.action.STOP_VM" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

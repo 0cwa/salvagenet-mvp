@@ -2,9 +2,9 @@
 set -eu
 ROOTFS=/work/rootfs
 
-# ALPINE_VERSION comes from the Dockerfile ENV (full release like 3.23.4).
-# Strip the patch component to get the major branch (e.g. 3.23) used in repo URLs.
-: "${ALPINE_VERSION:?ALPINE_VERSION must be set (e.g. 3.23.4)}"
+# ALPINE_VERSION comes from the Dockerfile ENV (full release like 3.24.1).
+# Strip the patch component to get the major branch (e.g. 3.24) used in repo URLs.
+: "${ALPINE_VERSION:?ALPINE_VERSION must be set (e.g. 3.24.1)}"
 ALPINE_BRANCH="${ALPINE_VERSION%.*}"
 
 mkdir -p "$ROOTFS/etc/apk"
@@ -19,6 +19,7 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
     alpine-base \
     openrc \
     busybox-openrc \
+    busybox-extras \
     bash \
     podman \
     docker docker-openrc docker-cli-compose \
@@ -31,6 +32,7 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
     bridge-utils \
     iproute2 \
     dropbear dropbear-openrc \
+    openssh-sftp-server \
     curl \
     ca-certificates \
     shadow shadow-uidmap \
@@ -52,8 +54,8 @@ apk -X "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_BRANCH}/main" \
 # does this, but we set them explicitly so the squashfs ships with the
 # correct security.capability xattr (preserved by mksquashfs without -no-xattrs).
 if command -v setcap >/dev/null 2>&1; then
-    setcap cap_setuid+ep "$ROOTFS/usr/bin/newuidmap" 2>/dev/null || true
-    setcap cap_setgid+ep "$ROOTFS/usr/bin/newgidmap" 2>/dev/null || true
+    setcap cap_setuid+ep "$ROOTFS/usr/bin/newuidmap"
+    setcap cap_setgid+ep "$ROOTFS/usr/bin/newgidmap"
 fi
 
 # Ensure doas and sudo are setuid-root. apk usually does this, but on
@@ -114,7 +116,7 @@ cp /work/files/usr/local/bin/podroid-resize "$ROOTFS/usr/local/bin/"
 cp /work/files/usr/local/bin/podroid-login  "$ROOTFS/usr/local/bin/"
 cp /work/files/usr/local/bin/podroid-getty  "$ROOTFS/usr/local/bin/"
 cp /work/files/usr/local/bin/podroid-backup "$ROOTFS/usr/local/bin/"
-cp /work/files/usr/local/bin/podroid-update-stats "$ROOTFS/usr/local/bin/"
+cp /work/files/usr/local/bin/podroid-docs   "$ROOTFS/usr/local/bin/"
 # podroid-vsock-agent is COPY'd in from the vsock-builder Docker stage. Make
 # sure it's executable (cross-arch COPY can lose the mode bit on some buildkit
 # versions).
@@ -130,9 +132,8 @@ ln -sf podroid-hostd "$ROOTFS/usr/local/bin/podroid-open"
 ln -sf podroid-hostd "$ROOTFS/usr/local/bin/podroid-power"
 ln -sf podroid-hostd "$ROOTFS/usr/local/bin/podroid-headless"
 ln -sf podroid-hostd "$ROOTFS/usr/local/bin/podroid-server"
+ln -sf podroid-hostd "$ROOTFS/usr/local/bin/podroid-phone-ip"
 chmod +x "$ROOTFS/usr/local/bin/podroid-"*
-mkdir -p "$ROOTFS/etc/conf.d"
-cp /work/files/etc/conf.d/podroid "$ROOTFS/etc/conf.d/"
 # vsock agent's initial forward table (read at podroid-vsock startup).
 mkdir -p "$ROOTFS/etc/podroid"
 cp /work/files/etc/podroid/forwards.conf "$ROOTFS/etc/podroid/forwards.conf"
@@ -140,6 +141,12 @@ chmod 0644 "$ROOTFS/etc/podroid/forwards.conf"
 # Migration scripts dir (seeded with its README; per-version <v>.sh added over time).
 mkdir -p "$ROOTFS/etc/podroid/migrations"
 cp /work/files/etc/podroid/migrations/README "$ROOTFS/etc/podroid/migrations/README"
+# Install every migration script so a new one needs no build-script edit.
+for f in /work/files/etc/podroid/migrations/*.sh; do
+    [ -f "$f" ] || continue
+    cp "$f" "$ROOTFS/etc/podroid/migrations/"
+    chmod 0755 "$ROOTFS/etc/podroid/migrations/$(basename "$f")"
+done
 # System-version stamp: the migration anchor. Baked from the app versionCode at
 # build time; compared against /mnt/persist/.podroid/applied-version at boot.
 printf '%s\n' "${SYSTEM_VERSION:-0}" > "$ROOTFS/etc/podroid/system-version"
@@ -163,6 +170,14 @@ chmod 0644 "$ROOTFS/etc/profile.d/podroid-color.sh" "$ROOTFS/etc/profile.d/podro
 mkdir -p "$ROOTFS/etc/containers"
 cp /work/files/etc/containers/storage.conf "$ROOTFS/etc/containers/storage.conf"
 chmod 0644 "$ROOTFS/etc/containers/storage.conf"
+
+# Offline copy of the docs/guide site, staged into /work/docs-guide by
+# build_rootfs() in build-all.sh (this must run after the "Strip docs" rm -rf
+# above, or mksquashfs would ship nothing here). Served in-guest by
+# podroid-docs.
+mkdir -p "$ROOTFS/usr/share/doc/podroid"
+cp /work/docs-guide/*.html /work/docs-guide/style.css "$ROOTFS/usr/share/doc/podroid/"
+chmod 0644 "$ROOTFS/usr/share/doc/podroid/"*
 
 # Hostname (read by podroid-bootstrap via `hostname -F /etc/hostname`)
 echo "podroid" > "$ROOTFS/etc/hostname"

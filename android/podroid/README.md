@@ -31,7 +31,7 @@ A real Alpine Linux VM with its own kernel - not a chroot or proot trick - so **
 ## What you get
 
 - **Podman, Docker and LXC** - pre-installed, ready the moment it boots
-- **A real VM** - Alpine Linux on a custom kernel via QEMU, or hardware-accelerated AVF on supported pKVM devices
+- **A real VM** - Alpine Linux on a custom kernel via QEMU, or hardware-accelerated AVF on supported pKVM devices; an experimental, opt-in **UML** backend (no USB passthrough yet) runs the guest kernel as a plain process and is selectable in Settings
 - **In-app terminal** - full xterm-256color, 122 color themes, 13 fonts, live resize
 - **X11 desktop** - run GUI Linux apps in a built-in viewer with touch, keyboard, mouse and audio
 - **USB passthrough**, **SSH**, **port forwarding** and a **guest-to-Android bridge**
@@ -49,14 +49,19 @@ podman run --rm alpine echo "hello from a container"
 docker run -d -p 8080:80 nginx
 
 # expose that container to your phone and LAN, right from the VM shell
-podroid-forward add 8080 8080 tcp     # TCP or UDP, on both the QEMU and AVF backends
+podroid-forward add 8080 8080 tcp     # TCP or UDP, on every backend
 curl http://<phone-ip>:8080
+podroid-forward clean                 # remove every rule you added, in one go
 
 # SSH in from your laptop (enable SSH in the setup wizard or Settings)
 ssh root@<phone-ip> -p 9922        # password: podroid
+
+# read this documentation with no network connection
+podroid-forward add 9980 9980 tcp     # forward the docs port to the phone
+podroid-docs                          # serves docs/guide at http://127.0.0.1:9980
 ```
 
-Setup, the two backends, networking, the X11 viewer and troubleshooting all live in the **[documentation](https://extv.github.io/Podroid/guide/)**.
+Setup, the backends, networking, the X11 viewer and troubleshooting all live in the **[documentation](https://extv.github.io/Podroid/guide/)**.
 
 ## Build
 
@@ -74,6 +79,10 @@ Contributions of every size are welcome: bug reports, kernel-config tweaks, new 
 
 - **Pull requests:** read [CONTRIBUTING.md](CONTRIBUTING.md) first. Keep changes scoped, run `./build-all.sh test` before pushing, and explain *why* in the PR description.
 - **Bug reports:** [open an issue](https://github.com/ExTV/Podroid/issues/new) with your device and Android version, a short repro, and the diagnostic log (**Settings → Export Diagnostic Log** in the app).
+
+## Related projects
+
+**[RikkaHub Agent](https://github.com/ExTV/rikkahub-agent)** is a fork of [RikkaHub](https://github.com/rikkahub/rikkahub), the native Android LLM chat client, that turns it into a real on-device agent: 80+ device tools, scheduled jobs, an AI-driven browser, a Linux workspace, SSH, screen automation and a remote Telegram bot, all opt-in. Its SSH tool can log into a running Podroid VM (`localhost:9922`), so an agent on your phone can build, run and inspect containers without you typing a command.
 
 ## Credits
 

@@ -1,6 +1,7 @@
 package com.excp.podroid
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.excp.podroid.data.repository.LanguageManager
+import com.excp.podroid.service.PodroidService
+import com.excp.podroid.service.VmControlReceiver
 import com.excp.podroid.ui.navigation.NavGraphViewModel
 import com.excp.podroid.ui.navigation.PodroidNavGraph
 import com.excp.podroid.ui.theme.PodroidTheme
@@ -33,6 +36,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            handleStartVmIntent(intent)
+        }
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
             val navVm: NavGraphViewModel = hiltViewModel()
@@ -86,6 +92,25 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleStartVmIntent(intent)
+    }
+
+    /**
+     * Foreground-launch path for automation: a cold background receiver may
+     * be denied a foreground-service start, but an Activity launch is always
+     * foreground, so this route is reliable on both cold start (onCreate,
+     * only when there is no saved state to restore) and warm delivery
+     * (onNewIntent).
+     */
+    private fun handleStartVmIntent(intent: Intent?) {
+        if (intent?.action == VmControlReceiver.ACTION_START_VM) {
+            PodroidService.start(this)
         }
     }
 }

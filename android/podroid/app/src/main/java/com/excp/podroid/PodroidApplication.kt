@@ -3,7 +3,7 @@
  * Copyright (C) 2024-2026 Podroid contributors
  *
  * Application class — extracts QEMU, kernel, and initrd assets on first run
- * (and on app upgrade when an asset's size changes).
+ * (and on app upgrade when the install-time stamp drifts).
  */
 package com.excp.podroid
 
@@ -19,10 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import com.excp.podroid.util.AssetExtractionSupport
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.io.File
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 @HiltAndroidApp
 class PodroidApplication : Application() {
@@ -32,9 +31,9 @@ class PodroidApplication : Application() {
     // Completion signal for asset extraction. The VM launch path
     // (PodroidService.launchPodroid) reads the extracted files synchronously,
     // so it MUST await this before starting the engine — see awaitAssetsReady.
-    // Completed (never failed) in extractAssets' finally so a waiter can never
-    // hang even if extraction throws; intactness is enforced by the size-check
-    // in QemuEngine/AvfEngine's own asset reads, not by this signal.
+    // Completes successfully only after every extraction task succeeds. A failed
+    // extraction completes exceptionally so the service does not start a VM with
+    // missing or partial assets.
     private val assetsReady = CompletableDeferred<Unit>()
 
     override fun onCreate() {
@@ -96,44 +95,22 @@ class PodroidApplication : Application() {
                 Log.i(TAG, "asset stamp drift ($previousStamp → $currentStamp) — forcing re-extract")
             }
 
-            // Drop any .tmp files left by a process killed mid-copy so they
-            // can't accumulate or shadow a fresh atomic write.
-            deleteStaleTmpFiles(filesDir)
-
             // Fan out the four top-level extractions across a small thread pool.
             // Disk-write throughput is the bottleneck for the squashfs (~225 MB),
-            // but decompression, asset-FD lookup, and skip-when-size-matches all
-            // overlap usefully across threads. Runs on a background coroutine
-            // (not the main thread); the VM launch path awaits awaitAssetsReady.
+            // but decompression, asset-FD lookup, and the skip-when-already-
+            // complete check all overlap usefully across threads. Runs on a
+            // background coroutine (not the main thread); the VM launch path
+            // awaits awaitAssetsReady.
             val tasks: List<() -> Unit> = listOf(
                 { copyAssetDir("qemu", filesDir, forceCopy) },
-                { copyAssetIfNeeded("vmlinuz-virt", filesDir, forceCopy) },
-                { copyAssetIfNeeded("initrd.img", filesDir, forceCopy) },
-                { copyAssetIfNeeded("alpine-rootfs.squashfs", filesDir, forceCopy) },
+                { copyAssetIfNeeded("vmlinuz-virt", File(filesDir, "vmlinuz-virt"), forceCopy) },
+                { copyAssetIfNeeded("initrd.img", File(filesDir, "initrd.img"), forceCopy) },
+                { copyAssetIfNeeded("alpine-rootfs.squashfs", File(filesDir, "alpine-rootfs.squashfs"), forceCopy) },
             )
-            val pool = Executors.newFixedThreadPool(tasks.size.coerceAtMost(4))
-            var allSucceeded = true
-            try {
-                // invokeAll blocks until every Callable finishes (or times out).
-                // Each Callable wraps the task so a thrown exception is captured
-                // in the returned Future rather than killing the worker silently.
-                val futures = pool.invokeAll(tasks.map { task ->
-                    java.util.concurrent.Callable<Unit> { task() }
-                })
-                for (f in futures) {
-                    try { f.get() } catch (e: Exception) {
-                        // copyAssetIfNeeded / copyAssetFileIfNeeded already log
-                        // their own failures; this catches anything that escaped.
-                        Log.w(TAG, "Asset extraction task failed", e)
-                        allSucceeded = false
-                    }
-                }
-            } finally {
-                pool.shutdown()
-                if (!pool.awaitTermination(30, TimeUnit.SECONDS)) {
-                    pool.shutdownNow()
-                    allSucceeded = false
-                }
+            // runTasks waits for every task so one failed asset does not leave
+            // the rest of the extraction work or its executor behind.
+            val allSucceeded = AssetExtractionSupport.runTasks(tasks) { e ->
+                Log.w(TAG, "Asset extraction task failed", e)
             }
 
             // Commit the new stamp ONLY if every extraction task succeeded.
@@ -142,58 +119,68 @@ class PodroidApplication : Application() {
             // current — and because mksquashfs is deterministic the size check
             // can't catch it either, so a stale rootfs would boot forever. On
             // failure we leave the stamp stale so the next launch re-extracts.
-            if (allSucceeded) {
-                runCatching { stampFile.writeText(currentStamp) }
-                    .onFailure { Log.w(TAG, "Failed to write assets stamp", it) }
-            } else {
-                Log.w(TAG, "asset extraction incomplete — leaving stamp stale to force re-extract next launch")
+            if (!allSucceeded) {
+                throw IllegalStateException("Asset extraction incomplete")
             }
-        } finally {
-            // Always release waiters — a failed/partial extract is detected by
-            // the per-file size-check on the next read, not by hanging here.
-            assetsReady.complete(Unit)
+            runCatching { stampFile.writeText(currentStamp) }
+                .onFailure { Log.w(TAG, "Failed to write assets stamp", it) }
+        } catch (e: Throwable) {
+            // Always expose a regular exception: PodroidService's existing
+            // startup failure branch deliberately rethrows cancellation, while
+            // ordinary extraction failures must tear down the service cleanly.
+            val failure = IllegalStateException("Asset extraction failed", e)
+            Log.e(TAG, "Asset extraction failed", failure)
+            assetsReady.completeExceptionally(failure)
+            return
         }
-    }
-
-    /** Recursively removes leftover `<name>.tmp` files under [dir]. */
-    private fun deleteStaleTmpFiles(dir: File) {
-        val children = dir.listFiles() ?: return
-        for (child in children) {
-            if (child.isDirectory) {
-                deleteStaleTmpFiles(child)
-            } else if (child.name.endsWith(TMP_SUFFIX)) {
-                runCatching { child.delete() }
-            }
-        }
+        assetsReady.complete(Unit)
     }
 
     /**
-     * Copies an asset to destDir if missing OR if the size differs OR if the
-     * install-time stamp drifted. The stamp is the key bit: `mksquashfs` is
-     * deterministic, so an upgrade can ship a same-size squashfs with
-     * different content (e.g. an init.d script edited) — size-only checks
-     * would silently keep the stale copy and the VM boots the old rootfs.
+     * Copies an asset to destFile unless it's already complete: destFile
+     * exists, forceCopy (install-stamp drift) is false, and either the size
+     * is unknown (assets.openFd() throws for the compressed assets shipped
+     * here: squashfs/initrd/kernel/qemu, so this is the common case) or it
+     * matches. Copies are atomic (tmp + fsync + rename), so an existing
+     * destination file is always complete, never partial. A stamp mismatch
+     * on upgrade is what forces a re-copy of same-size-but-different-content
+     * files (`mksquashfs` is deterministic, so size-only checks would
+     * silently keep a stale copy and the VM would boot the old rootfs).
+     * Exceptions from the copy propagate to the caller so the stamp is not
+     * committed after a failed extraction.
      */
-    private fun copyAssetIfNeeded(assetName: String, destDir: File, forceCopy: Boolean) {
-        val destFile = File(destDir, assetName)
-        try {
-            val assetSize = try { assets.openFd(assetName).use { it.length } } catch (_: Exception) { -1L }
-            if (!forceCopy && assetSize >= 0 && destFile.exists() && destFile.length() == assetSize) return
+    private fun copyAssetIfNeeded(assetPath: String, destFile: File, forceCopy: Boolean) {
+        val assetSize = try { assets.openFd(assetPath).use { it.length } } catch (_: Exception) { -1L }
+        // Only inspect the temporary sibling owned by this extraction
+        // destination. Never scan filesDir recursively: unrelated app data may
+        // legitimately use a .tmp suffix.
+        if (!AssetExtractionSupport.deleteStaleTemporaryFile(destFile)) {
+            Log.w(
+                TAG,
+                "Could not delete stale temporary asset " +
+                    "${AssetExtractionSupport.temporaryFileFor(destFile).path}; continuing",
+            )
+        }
+        if (!forceCopy && destFile.exists() && (assetSize < 0 || destFile.length() == assetSize)) return
 
-            destFile.parentFile?.mkdirs()
-            copyAssetAtomically(assetName, destFile)
+        destFile.parentFile?.mkdirs()
+        try {
+            copyAssetAtomically(assetPath, destFile)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract $assetName", e)
+            Log.w(TAG, "Failed to extract $assetPath", e)
+            throw e
         }
     }
 
     /**
-     * Walks an asset directory tree and mirrors it under destDir.
-     * Each file is copied if missing OR if its size differs OR if forceCopy
-     * is true (install-stamp drift).
+     * Walks an asset directory tree and mirrors it under destDir, delegating
+     * each file to [copyAssetIfNeeded]. Exceptions from a file copy propagate
+     * up through this walk to the caller.
      */
     private fun copyAssetDir(assetPath: String, destDir: File, forceCopy: Boolean) {
-        val entries = assets.list(assetPath) ?: return
+        val entries = assets.list(assetPath)
+            ?.takeIf { it.isNotEmpty() }
+            ?: throw IllegalStateException("Asset directory missing or empty: $assetPath")
         for (entry in entries) {
             val src = "$assetPath/$entry"
             val dest = File(destDir, entry)
@@ -202,19 +189,8 @@ class PodroidApplication : Application() {
                 dest.mkdirs()
                 copyAssetDir(src, dest, forceCopy)
             } else {
-                copyAssetFileIfNeeded(src, dest, forceCopy)
+                copyAssetIfNeeded(src, dest, forceCopy)
             }
-        }
-    }
-
-    private fun copyAssetFileIfNeeded(assetPath: String, destFile: File, forceCopy: Boolean) {
-        try {
-            val assetSize = try { assets.openFd(assetPath).use { it.length } } catch (_: Exception) { -1L }
-            if (!forceCopy && assetSize >= 0 && destFile.exists() && destFile.length() == assetSize) return
-
-            copyAssetAtomically(assetPath, destFile)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract $assetPath", e)
         }
     }
 
@@ -223,10 +199,11 @@ class PodroidApplication : Application() {
      * atomically renames it onto [destFile]. The final canonical path therefore
      * only ever holds a fully-written file — an async reader (the VM launch)
      * never sees a half-written squashfs/kernel. Throws on any failure so the
-     * caller logs it and the stale/missing file is caught by the next size-check.
+     * caller logs it and the extraction gate prevents startup with a missing
+     * or partial destination.
      */
     private fun copyAssetAtomically(assetPath: String, destFile: File) {
-        val tmpFile = File(destFile.parentFile, destFile.name + TMP_SUFFIX)
+        val tmpFile = AssetExtractionSupport.temporaryFileFor(destFile)
         try {
             assets.open(assetPath).use { input ->
                 java.io.FileOutputStream(tmpFile).use { output ->
@@ -246,6 +223,5 @@ class PodroidApplication : Application() {
 
     companion object {
         private const val TAG = "PodroidApp"
-        private const val TMP_SUFFIX = ".tmp"
     }
 }

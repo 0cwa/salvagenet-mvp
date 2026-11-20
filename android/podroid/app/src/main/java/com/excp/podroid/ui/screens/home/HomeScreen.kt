@@ -1,7 +1,12 @@
 package com.excp.podroid.ui.screens.home
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,8 +39,10 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -52,16 +60,25 @@ import com.excp.podroid.BuildConfig
 import com.excp.podroid.R
 import com.excp.podroid.engine.VmState
 import com.excp.podroid.engine.avf.AvfFailureGuidance
+import com.excp.podroid.service.PodroidService
 import com.excp.podroid.ui.components.AdaptiveContainer
+import com.excp.podroid.ui.components.PermissionRows
 import com.excp.podroid.ui.components.PodroidDestructiveButton
 import com.excp.podroid.ui.components.PodroidGhostButton
 import com.excp.podroid.ui.components.PodroidListRow
+import com.excp.podroid.ui.components.backendLabel
 import com.excp.podroid.ui.components.PodroidPrimaryButton
 import com.excp.podroid.ui.components.PodroidSectionLabel
 import com.excp.podroid.ui.components.PodroidStatus
 import com.excp.podroid.ui.components.PodroidStatusColors
 import com.excp.podroid.ui.components.PodroidTopBar
 import com.excp.podroid.ui.theme.PodroidTokens
+import com.excp.podroid.util.AppPermission
+import com.excp.podroid.util.AppPermissions
+import com.excp.podroid.util.isGranted
+import com.excp.podroid.util.missing
+import com.excp.podroid.util.openAppDetailsSettings
+import com.excp.podroid.util.requestBatteryOptimizationExemption
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,17 +91,21 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val updateOpenFailedMessage = stringResource(R.string.update_open_failed)
     val vmState by viewModel.vmState.collectAsStateWithLifecycle()
     val bootStage by viewModel.bootStage.collectAsStateWithLifecycle()
     val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
     val meta by viewModel.meta.collectAsStateWithLifecycle()
     val uptimeTick by viewModel.uptimeTicker.collectAsStateWithLifecycle()
     val showAvfHint by viewModel.showAvfHint.collectAsStateWithLifecycle()
+    val showBackendFallbackBanner by viewModel.backendFallbackBanner.collectAsStateWithLifecycle()
     val avfBootFailure by viewModel.avfBootFailure.collectAsStateWithLifecycle()
     val avfFailureAdvice by viewModel.avfFailureAdvice.collectAsStateWithLifecycle()
+    val avfNetWorkaroundFailed by viewModel.avfNetWorkaroundFailed.collectAsStateWithLifecycle()
     val stopping by viewModel.stopping.collectAsStateWithLifecycle()
     val containerCount by viewModel.containerCount.collectAsStateWithLifecycle()
+    val backendId by viewModel.backendId.collectAsStateWithLifecycle()
+    val engineSelection by viewModel.engineSelection.collectAsStateWithLifecycle()
+    val backendText = backendLabel(engineSelection, backendId)
 
     val isRunning  = vmState is VmState.Running
     val isStarting = vmState is VmState.Starting
@@ -99,16 +120,40 @@ fun HomeScreen(
     // Wi-Fi / hotspot change (the headline SSH use case) shows the new address
     // instead of a stale one for the screen's lifetime.
     var phoneIp by remember { mutableStateOf(viewModel.phoneIp()) }
+    // Bumped on ON_RESUME (and after a grant attempt) so the missing-permissions
+    // list is re-read from the live OS grant state, e.g. after the user comes
+    // back from the system settings screen.
+    var permissionsGrantVersion by remember { mutableIntStateOf(0) }
+    val missingPermissions = remember(permissionsGrantVersion) { AppPermissions.missing(context) }
+    var permissionsCardDismissed by rememberSaveable { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 phoneIp = viewModel.phoneIp()
-                viewModel.refreshContainerCount()
+                permissionsGrantVersion++
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val notifPermLauncher = rememberLauncherForActivityResult(RequestPermission()) { granted ->
+        if (!granted) {
+            val activity = context as? Activity
+            if (activity != null &&
+                !ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
+            ) {
+                AppPermissions.openAppDetailsSettings(context)
+            }
+        }
+        permissionsGrantVersion++
+    }
+    fun grantPermission(permission: AppPermission) {
+        when (permission) {
+            AppPermission.NOTIFICATIONS -> notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            AppPermission.BATTERY_OPTIMIZATION -> AppPermissions.requestBatteryOptimizationExemption(context)
+        }
     }
 
     updateInfo?.let { info ->
@@ -127,7 +172,7 @@ fun HomeScreen(
                     }.onFailure {
                         android.widget.Toast.makeText(
                             context,
-                            updateOpenFailedMessage,
+                            context.getString(R.string.update_open_failed),
                             android.widget.Toast.LENGTH_LONG,
                         ).show()
                     }
@@ -178,20 +223,31 @@ fun HomeScreen(
                             .padding(end = PodroidTokens.Spacing.XL2)
                             .verticalScroll(rememberScrollState()),
                     ) {
+                        if (missingPermissions.isNotEmpty() && !permissionsCardDismissed) {
+                            PermissionsNeededCard(
+                                permissions = missingPermissions,
+                                onGrant = ::grantPermission,
+                                onDismiss = { permissionsCardDismissed = true },
+                            )
+                        }
                         if (showAvfHint) {
                             AvfHintBanner(onDismiss = { viewModel.dismissAvfHint() })
+                        }
+                        if (showBackendFallbackBanner) {
+                            AvfFallbackBanner()
                         }
                         HomeStatusBlock(
                             isStarting, isRunning, isStopping, vmState, bootStage, meta, uptimeLabel,
                             containerCount = containerCount,
                             avfBootFailure = avfBootFailure,
                             avfFailureAdvice = avfFailureAdvice,
+                            avfNetWorkaroundFailed = avfNetWorkaroundFailed,
                             onUseOneCore = { viewModel.useOneCoreAndRetry() },
                             onSwitchToQemu = { viewModel.switchToQemuAndRetry() },
                             onRetry = { viewModel.restartVm() },
                         )
                         HomeDataSection(
-                            isRunning, isStopping, vmState, meta, phoneIp, containerCount,
+                            isRunning, isStopping, vmState, meta, phoneIp, containerCount, backendText,
                         )
                     }
                     Column(
@@ -223,8 +279,18 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(PodroidTokens.Spacing.MD),
                 ) {
                     Spacer(Modifier.height(PodroidTokens.Spacing.XL))
+                    if (missingPermissions.isNotEmpty() && !permissionsCardDismissed) {
+                        PermissionsNeededCard(
+                            permissions = missingPermissions,
+                            onGrant = ::grantPermission,
+                            onDismiss = { permissionsCardDismissed = true },
+                        )
+                    }
                     if (showAvfHint) {
                         AvfHintBanner(onDismiss = { viewModel.dismissAvfHint() })
+                    }
+                    if (showBackendFallbackBanner) {
+                        AvfFallbackBanner()
                     }
                     HomeStatusBlock(
                         isStarting = isStarting,
@@ -237,11 +303,12 @@ fun HomeScreen(
                         containerCount = containerCount,
                         avfBootFailure = avfBootFailure,
                         avfFailureAdvice = avfFailureAdvice,
+                        avfNetWorkaroundFailed = avfNetWorkaroundFailed,
                         onUseOneCore = { viewModel.useOneCoreAndRetry() },
                         onSwitchToQemu = { viewModel.switchToQemuAndRetry() },
                         onRetry = { viewModel.restartVm() },
                     )
-                    HomeDataSection(isRunning, isStopping, vmState, meta, phoneIp, containerCount)
+                    HomeDataSection(isRunning, isStopping, vmState, meta, phoneIp, containerCount, backendText)
                     Spacer(Modifier.weight(1f))
                     HomeActionButtons(
                         isRunning = isRunning,
@@ -256,6 +323,46 @@ fun HomeScreen(
                         onStatus = onNavigateToStatus,
                     )
                     Spacer(Modifier.height(PodroidTokens.Spacing.XL))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionsNeededCard(
+    permissions: List<AppPermission>,
+    onGrant: (AppPermission) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = PodroidTokens.Spacing.MD),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(PodroidTokens.Spacing.MD),
+            verticalArrangement = Arrangement.spacedBy(PodroidTokens.Spacing.SM),
+        ) {
+            Text(
+                stringResource(R.string.permissions_needed),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            PermissionRows(
+                permissions = permissions,
+                isGranted = { it.isGranted(context) },
+                onGrant = onGrant,
+            )
+            Row(
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.not_now))
                 }
             }
         }
@@ -302,6 +409,27 @@ private fun AvfHintBanner(onDismiss: () -> Unit) {
     }
 }
 
+/** Passive - no dismiss, no actions - just says why AVF (the selected
+ *  backend) is not what's actually running. See #66. */
+@Composable
+private fun AvfFallbackBanner() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = PodroidTokens.Spacing.MD),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Text(
+            text = stringResource(R.string.backend_fallback_banner),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(PodroidTokens.Spacing.MD),
+        )
+    }
+}
+
 @Composable
 private fun HomeStatusBlock(
     isStarting: Boolean,
@@ -314,26 +442,31 @@ private fun HomeStatusBlock(
     containerCount: Int? = null,
     avfBootFailure: Boolean = false,
     avfFailureAdvice: AvfFailureGuidance.Advice = AvfFailureGuidance.Advice.SWITCH_TO_QEMU,
+    avfNetWorkaroundFailed: Boolean = false,
     onUseOneCore: () -> Unit = {},
     onSwitchToQemu: () -> Unit = {},
     onRetry: () -> Unit = {},
 ) {
     PodroidSectionLabel(stringResource(R.string.vm_status))
-    Text(
-        text = when {
-            isStopping -> stringResource(R.string.status_stopping)
-            isStarting -> stringResource(R.string.status_starting)
-            isRunning  -> stringResource(R.string.status_running)
-            else       -> stringResource(R.string.status_stopped)
-        },
-        style = MaterialTheme.typography.displayLarge,
-        color = when {
-            isStopping -> MaterialTheme.colorScheme.tertiary
-            isRunning  -> MaterialTheme.colorScheme.primary
-            isStarting -> MaterialTheme.colorScheme.tertiary
-            else       -> MaterialTheme.colorScheme.onSurface
-        },
-    )
+    val statusText = when {
+        isStopping -> stringResource(R.string.status_stopping)
+        isStarting -> stringResource(R.string.status_starting)
+        isRunning  -> stringResource(R.string.status_running)
+        else       -> stringResource(R.string.status_stopped)
+    }
+    val statusColor = when {
+        isStopping -> MaterialTheme.colorScheme.tertiary
+        isRunning  -> MaterialTheme.colorScheme.primary
+        isStarting -> MaterialTheme.colorScheme.tertiary
+        else       -> MaterialTheme.colorScheme.onSurface
+    }
+    AnimatedContent(targetState = statusText to statusColor, label = "home_vm_status") { (text, color) ->
+        Text(
+            text = text,
+            style = MaterialTheme.typography.displayLarge,
+            color = color,
+        )
+    }
     Spacer(Modifier.height(PodroidTokens.Spacing.SM))
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -366,6 +499,14 @@ private fun HomeStatusBlock(
             text = meta.resourcesLabel,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (avfNetWorkaroundFailed) {
+        Spacer(Modifier.height(PodroidTokens.Spacing.MD))
+        Text(
+            text = stringResource(R.string.avf_net_workaround_failed),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
         )
     }
     if (!isRunning && !isStarting && !isStopping) {
@@ -432,6 +573,7 @@ private fun HomeDataSection(
     meta: HomeMeta,
     phoneIp: String,
     containerCount: Int?,
+    backendText: String,
 ) {
     val showStarting = vmState is VmState.Starting
     val showError = vmState is VmState.Error
@@ -445,9 +587,10 @@ private fun HomeDataSection(
             mono = true,
         )
         PodroidListRow(label = stringResource(R.string.phone_ip), value = phoneIp, mono = true)
+        PodroidListRow(label = stringResource(R.string.backend), value = backendText, mono = true)
         PodroidListRow(
             label = stringResource(R.string.ssh),
-            value = if (meta.sshEnabled) ":9922 · podroid" else stringResource(R.string.off),
+            value = if (meta.sshEnabled) ":${PodroidService.SSH_HOST_PORT} · podroid" else stringResource(R.string.off),
             mono = meta.sshEnabled,
         )
         PodroidListRow(
@@ -463,6 +606,7 @@ private fun HomeDataSection(
                 value = formatBootDuration(meta.lastBootDurationMs),
             )
         }
+        PodroidListRow(label = stringResource(R.string.backend), value = backendText, mono = true)
         PodroidListRow(
             label = stringResource(R.string.build),
             value = "v${BuildConfig.VERSION_NAME} · QEMU ${BuildConfig.QEMU_VERSION}",

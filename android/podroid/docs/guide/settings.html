@@ -33,7 +33,7 @@
       <h4>Going deeper</h4>
       <ul>
         <li><a href="performance.html">Performance &amp; why it's slow</a></li>
-        <li><a href="backends.html">Backends: QEMU &amp; AVF</a></li>
+        <li><a href="backends.html">Backends: QEMU, AVF &amp; UML</a></li>
         <li><a href="networking.html">Networking &amp; ports</a></li>
         <li><a href="packages.html">Packages &amp; services</a></li>
         <li><a href="migrations.html">Updates &amp; migrations</a></li>
@@ -114,8 +114,8 @@
           </tr>
           <tr>
             <td>RAM</td>
-            <td>512 MB / 1 GB / 2 GB / 4 GB</td>
-            <td>Memory allocated to the VM. Requires a VM restart. Locked while running.</td>
+            <td>512 MB to 16 GB</td>
+            <td>Memory allocated to the VM. The options run from 512 MB up to 16 GB, filtered to what the device can spare (total memory minus about 3 GB of headroom); small phones always keep at least 512 MB / 1 GB / 2 GB. Requires a VM restart. Locked while running.</td>
           </tr>
           <tr>
             <td>CPU cores</td>
@@ -124,8 +124,13 @@
           </tr>
           <tr>
             <td>Storage size</td>
-            <td>Set at first-run setup</td>
-            <td>The size of the persistent overlay image (<code>storage.img</code>). Set during setup; changing it requires a full VM reset.</td>
+            <td>2 GB to 512 GB, grow only</td>
+            <td>The size of the persistent overlay image (<code>storage.img</code>). Chosen during setup and can be increased here later; the list only offers sizes that fit the phone's free space, and it can never be shrunk. A larger size takes effect on the next VM start. Locked while the VM is running or Load balance is on.</td>
+          </tr>
+          <tr>
+            <td>Start VM on boot</td>
+            <td>Toggle</td>
+            <td>Off by default. When on, the VM boots after the phone starts - on a PIN-locked phone, after the first unlock. Automation apps can also start and stop the VM with the intent actions <code>com.excp.podroid.action.START_VM</code> (activity intent) and <code>com.excp.podroid.action.STOP_VM</code> (broadcast).</td>
           </tr>
         </tbody>
       </table>
@@ -147,8 +152,8 @@
           </tr>
           <tr>
             <td>Port forwards</td>
-            <td>Add / Remove</td>
-            <td>Add TCP, UDP, or both forwarding rules. Changes apply live via QMP without a VM restart. Can also be managed from inside the VM with <code>podroid-forward</code> (see <a href="networking.html">Networking</a>).</td>
+            <td>Add / Remove / Clean all</td>
+            <td>Add TCP, UDP, or both forwarding rules. Changes apply live via QMP without a VM restart. Clean all removes every user rule after a confirmation; the app-managed SSH, display, and audio rows are unaffected. Can also be managed from inside the VM with <code>podroid-forward</code> (see <a href="networking.html">Networking</a>). The rules the app manages itself - SSH, and the desktop's screen and audio channels - are listed above your own as read-only entries, so a port that is already taken is visible before you try to reuse it.</td>
           </tr>
           <tr>
             <td>Bandwidth limit</td>
@@ -163,7 +168,7 @@
           <tr>
             <td>USB passthrough</td>
             <td>Toggle</td>
-            <td>Passes a physically attached USB device (Wi-Fi adapter, storage, serial adapter, audio interface) into the VM, with no root. QEMU backend only. It adds a USB controller at boot, so the toggle takes effect only after a VM restart and is locked while the VM is running. When it is on, each device you attach prompts for permission once and then appears inside the guest while the app runs.</td>
+            <td>Passes a physically attached USB device (Wi-Fi adapter, storage, serial adapter, audio interface) into the VM, with no root. QEMU backend only. It adds a USB controller at boot, so the toggle takes effect only after a VM restart and is locked while the VM is running. When it is on, each device you attach prompts for permission once and then appears inside the guest while the app runs. A Wi-Fi adapter also needs firmware installed inside the guest before it will associate, since the guest image ships none: <code>apk add linux-firmware-rtw88</code> for RTL8821AU/8812AU/8814AU dongles, <code>apk add linux-firmware-rtlwifi</code> for RTL8188/8192 ones, then replug the adapter.</td>
           </tr>
         </tbody>
       </table>
@@ -180,8 +185,8 @@
         <tbody>
           <tr>
             <td>Backend</td>
-            <td>Auto / AVF (KVM) / QEMU (TCG)</td>
-            <td>Auto picks AVF when the device supports it, otherwise QEMU. Requires a VM restart. See the <a href="backends.html">Backends</a> page for details.</td>
+            <td>Auto / AVF (KVM) / QEMU (TCG) / UML (experimental)</td>
+            <td>Auto picks AVF when the device supports it, otherwise QEMU. Forcing AVF on a device that cannot run it falls back to QEMU, and the app says so: the AVF chip gains a caption with the reason, the Home screen shows a notice, and Status appends "AVF unavailable, running QEMU". UML (experimental) runs the guest kernel as a plain Android process and is never chosen by Auto; the first start with UML runs a short compatibility test, and if UML fails Podroid falls back to the Auto pick and Settings shows the reason with a <strong>Try UML again</strong> button (VM must be stopped). Requires a VM restart. See the <a href="backends.html">Backends</a> page for details.</td>
           </tr>
           <tr>
             <td>Extra QEMU args</td>
@@ -202,7 +207,7 @@
           <tr>
             <td>Reset VM</td>
             <td>Button</td>
-            <td>Wipes all VM data: the persistent overlay (<code>storage.img</code>) is deleted and recreated on next boot. Does not affect app settings.</td>
+            <td>Clears all application data: the persistent overlay (<code>storage.img</code>), your settings and your port forward rules. The app closes and returns to a freshly installed state, so the setup wizard runs again. There is no way to keep settings while wiping only the VM.</td>
           </tr>
         </tbody>
       </table>
@@ -219,7 +224,7 @@
         <a class="prev" href="desktop.html"><span class="dir">Previous</span>← Desktops &amp; X11 viewer</a>
         <a class="next" href="limitations.html"><span class="dir">Next</span>Limitations &amp; troubleshooting →</a>
       </div>
-      <p class="docfoot">Podroid is free software (GPL). Docs for v1.2.5. Found something inaccurate? <a href="https://github.com/ExTV/Podroid/issues">Open an issue</a>.</p>
+      <p class="docfoot">Podroid is free software (GPL). Docs for v1.3.0. Found something inaccurate? <a href="https://github.com/ExTV/Podroid/issues">Open an issue</a>.</p>
 
     </main>
   </div>

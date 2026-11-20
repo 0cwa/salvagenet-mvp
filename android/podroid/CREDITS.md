@@ -11,14 +11,14 @@ If something you maintain is included here and we missed you, please open an iss
 These projects make up the actual Linux system that runs inside Podroid.
 
 ### Linux kernel
-Podroid ships a custom build of the upstream Linux kernel (currently 7.0.10) configured specifically for OCI-compatible containers under QEMU TCG.
+Podroid ships a custom build of the upstream Linux kernel (currently 7.3) configured specifically for OCI-compatible containers under QEMU TCG.
 
 - Project: https://kernel.org
 - License: GNU General Public License v2.0
 - Maintainers: Linus Torvalds and the Linux kernel community
 
 ### Alpine Linux
-The guest userspace is a slightly customized Alpine Linux 3.23 root filesystem.
+The guest userspace is a slightly customized Alpine Linux 3.24 root filesystem.
 
 - Project: https://alpinelinux.org
 - License: per-package (see Alpine's individual package licenses)
@@ -59,13 +59,21 @@ The in-app X11 viewer is backed by these components running inside the VM. Podro
 ## Emulation
 
 ### QEMU
-QEMU provides the machine emulation that makes everything else possible. Podroid currently builds against QEMU 11.0.0, cross-compiled for arm64 Android.
+QEMU provides the machine emulation that makes everything else possible. Podroid currently builds against QEMU 11.1.2, cross-compiled for arm64 Android.
 
 - Project: https://www.qemu.org
 - Repository: https://gitlab.com/qemu-project/qemu
 - License: GNU General Public License v2.0 (and later)
 - Original author: Fabrice Bellard
 - Contributors: https://www.qemu.org/contributors/
+
+### User-Mode Linux (arm64 port)
+The experimental UML backend runs the guest as a User-Mode Linux kernel (the Linux kernel's `ARCH=um`). It is built from the out-of-tree arm64 port of User-Mode Linux by zalexdev, pinned at commit `32e5e10b8`, with Podroid's own patches and config fragments in `build-uml/kernel/`. The corresponding kernel source tarball is published with each release.
+
+- Project: https://github.com/zalexdev/linux-um-arm64
+- Upstream: https://kernel.org (User-Mode Linux, `ARCH=um`)
+- License: GNU General Public License v2.0
+- Author of the arm64 port: zalexdev
 
 ### libslirp
 SLIRP is QEMU's user-mode network stack. Podroid links it into the QEMU binary statically.
