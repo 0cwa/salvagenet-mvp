@@ -3,7 +3,9 @@ package com.excp.podroid.engine.hostbridge
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.excp.podroid.data.repository.AddRuleResult
 import com.excp.podroid.data.repository.PortForwardRule
+import com.excp.podroid.util.NetworkUtils
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 
@@ -35,14 +37,26 @@ private fun dispatcher(
     openUrl: suspend (String) -> String = { HostProtocol.ok() },
     power: suspend (String) -> String = { HostProtocol.ok() },
     setHeadless: suspend (String) -> String = { HostProtocol.ok() },
+    setContainerCount: suspend (Int) -> Unit = {},
+    phoneAddresses: suspend () -> List<NetworkUtils.LocalAddress> = { emptyList() },
+    addResult: AddRuleResult = AddRuleResult.ADDED,
 ) = HostRequestDispatcher(
     notifications = poster,
-    addForward = { r -> rules.removeAll { it.hostPort == r.hostPort && it.protocol == r.protocol }; rules.add(r) },
+    addForward = { r ->
+        if (addResult == AddRuleResult.ADDED) {
+            rules.removeAll { it.hostPort == r.hostPort && it.protocol == r.protocol }
+            rules.add(r)
+        }
+        addResult
+    },
     removeForward = { r -> rules.removeAll { it.hostPort == r.hostPort && it.protocol == r.protocol } },
     listForwards = { rules.toList() },
+    clearForwards = { val n = rules.size; rules.clear(); n },
     openUrl = openUrl,
     power = power,
     setHeadless = setHeadless,
+    setContainerCount = setContainerCount,
+    phoneAddresses = phoneAddresses,
 )
 
 class HostRequestDispatcherTest {
@@ -94,6 +108,23 @@ class HostRequestDispatcherTest {
         assertEquals("tcp", rules.single().protocol)
     }
 
+    @Test fun fwdAddReportsARefusedRuleInsteadOfOk() = runBlocking {
+        // The CLI printing OK for a rule the repository dropped is how a user ends
+        // up believing a thousand forwards exist when the table stopped taking them.
+        val rules = mutableListOf<PortForwardRule>()
+        val resp = dispatcher(rules = rules, addResult = AddRuleResult.TABLE_FULL)
+            .handle("FWD-ADD 8080 80 tcp")
+        assertTrue(resp.startsWith("ERR "))
+        // The reason rides base64 like every other free-text field on this wire.
+        assertTrue(HostProtocol.dec(resp.removePrefix("ERR "))!!.contains("full"))
+        assertEquals(0, rules.size)
+    }
+
+    @Test fun fwdAddReportsAReservedPort() = runBlocking {
+        val resp = dispatcher(addResult = AddRuleResult.RESERVED).handle("FWD-ADD 5900 5900 tcp")
+        assertTrue(resp.startsWith("ERR "))
+    }
+
     @Test fun fwdAddRejectsBadPort() = runBlocking {
         assertTrue(dispatcher().handle("FWD-ADD 0 80 tcp").startsWith("ERR "))
         assertTrue(dispatcher().handle("FWD-ADD 70000 80 tcp").startsWith("ERR "))
@@ -118,6 +149,21 @@ class HostRequestDispatcherTest {
         assertTrue(resp.startsWith("OK "))
         val table = HostProtocol.dec(resp.removePrefix("OK "))
         assertEquals("8080 80 tcp\n9000 90 udp", table)
+    }
+
+    @Test fun fwdCleanRemovesAllAndReportsCount() = runBlocking {
+        val rules = mutableListOf(PortForwardRule(8080, 80, "tcp"), PortForwardRule(9000, 90, "udp"))
+        val d = dispatcher(rules = rules)
+        assertEquals("OK removed 2", d.handle("FWD-CLEAN"))
+        assertEquals(emptyList<PortForwardRule>(), rules)
+    }
+
+    @Test fun fwdCleanRejectsExtraTokens() = runBlocking {
+        val rules = mutableListOf(PortForwardRule(8080, 80, "tcp"))
+        val d = dispatcher(rules = rules)
+        assertTrue(d.handle("FWD-CLEAN extra").startsWith("ERR "))
+        // Rejected request must not have cleared anything.
+        assertEquals(listOf(PortForwardRule(8080, 80, "tcp")), rules)
     }
 
     @Test fun pingPongs() = runBlocking {
@@ -156,5 +202,69 @@ class HostRequestDispatcherTest {
         assertEquals("OK", d.handle("HEADLESS on"))
         assertEquals("on", seen)
         assertTrue(d.handle("HEADLESS sideways").startsWith("ERR "))
+    }
+
+    @Test fun statsPersistsAndReturnsOk() = runBlocking {
+        var seen: Int? = null
+        val d = dispatcher(setContainerCount = { seen = it })
+        assertEquals("OK", d.handle("STATS containers=3"))
+        assertEquals(3, seen)
+    }
+
+    @Test fun statsRejectsMissingArg() = runBlocking {
+        var seen: Int? = null
+        val d = dispatcher(setContainerCount = { seen = it })
+        assertTrue(d.handle("STATS").startsWith("ERR "))
+        assertEquals(null, seen)
+    }
+
+    @Test fun statsRejectsNonNumeric() = runBlocking {
+        var seen: Int? = null
+        val d = dispatcher(setContainerCount = { seen = it })
+        assertTrue(d.handle("STATS containers=abc").startsWith("ERR "))
+        assertEquals(null, seen)
+    }
+
+    @Test fun statsRejectsNegative() = runBlocking {
+        var seen: Int? = null
+        val d = dispatcher(setContainerCount = { seen = it })
+        assertTrue(d.handle("STATS containers=-1").startsWith("ERR "))
+        assertEquals(null, seen)
+    }
+
+    @Test fun statsRejectsOverRange() = runBlocking {
+        var seen: Int? = null
+        val d = dispatcher(setContainerCount = { seen = it })
+        assertTrue(d.handle("STATS containers=100001").startsWith("ERR "))
+        assertEquals(null, seen)
+    }
+
+    @Test fun statsRejectsWrongKeyName() = runBlocking {
+        var seen: Int? = null
+        val d = dispatcher(setContainerCount = { seen = it })
+        assertTrue(d.handle("STATS count=3").startsWith("ERR "))
+        assertEquals(null, seen)
+    }
+
+    @Test fun phoneIpReturnsPrimaryFirstFormattedTable() = runBlocking {
+        val addresses = listOf(
+            NetworkUtils.LocalAddress("wlan0", "192.168.1.5"),
+            NetworkUtils.LocalAddress("rndis0", "192.168.42.1"),
+        )
+        val resp = dispatcher(phoneAddresses = { addresses }).handle("PHONE-IP")
+        assertTrue(resp.startsWith("OK "))
+        val table = HostProtocol.dec(resp.removePrefix("OK "))
+        assertEquals("wlan0 192.168.1.5\nrndis0 192.168.42.1", table)
+    }
+
+    @Test fun phoneIpEmptyIsError() = runBlocking {
+        val resp = dispatcher(phoneAddresses = { emptyList() }).handle("PHONE-IP")
+        assertTrue(resp.startsWith("ERR "))
+        assertEquals("no network", HostProtocol.dec(resp.removePrefix("ERR ")))
+    }
+
+    @Test fun phoneIpRejectsExtraTokens() = runBlocking {
+        val d = dispatcher(phoneAddresses = { listOf(NetworkUtils.LocalAddress("wlan0", "192.168.1.5")) })
+        assertTrue(d.handle("PHONE-IP extra").startsWith("ERR "))
     }
 }

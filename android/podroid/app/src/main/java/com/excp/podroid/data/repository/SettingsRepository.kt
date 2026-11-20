@@ -55,6 +55,8 @@ class SettingsRepository @Inject constructor(
         val KEY_TERMINAL_COLOR_THEME   = stringPreferencesKey("terminal_color_theme")
         val KEY_TERMINAL_FONT          = stringPreferencesKey("terminal_font")
         val KEY_QEMU_EXTRA_ARGS        = stringPreferencesKey("qemu_extra_args")
+        val KEY_UML_PROBE_RECORD       = stringPreferencesKey("uml_probe_record")
+        val KEY_UML_DEMOTION           = stringPreferencesKey("uml_demotion")
         val KEY_KERNEL_EXTRA_CMDLINE   = stringPreferencesKey("kernel_extra_cmdline")
         val KEY_SHOW_EXTRA_KEYS        = booleanPreferencesKey("show_extra_keys")
         val KEY_HAPTICS_ENABLED        = booleanPreferencesKey("haptics_enabled")
@@ -75,6 +77,8 @@ class SettingsRepository @Inject constructor(
         val KEY_LOAD_BALANCE_ENABLED    = booleanPreferencesKey("load_balance_enabled")
         /** Guest egress cap via `podroid.bandwidth=` cmdline + tc. 0 = unlimited. */
         val KEY_BANDWIDTH_MBPS          = intPreferencesKey("bandwidth_mbps")
+        /** Start the VM automatically on BOOT_COMPLETED. Read by VmControlReceiver. */
+        val KEY_AUTOSTART_ON_BOOT       = booleanPreferencesKey("autostart_on_boot")
 
         val KEY_X11_RES_MODE        = stringPreferencesKey("x11_resolution_mode")
         val KEY_X11_RES_PRESET      = stringPreferencesKey("x11_resolution_preset")
@@ -87,6 +91,7 @@ class SettingsRepository @Inject constructor(
         val KEY_X11_ROTATION        = stringPreferencesKey("x11_rotation_lock")
         val KEY_X11_SHOW_EXTRA_KEYS = booleanPreferencesKey("x11_show_extra_keys")
         val KEY_X11_DPI             = intPreferencesKey("x11_dpi")
+        val KEY_X11_RENDER_SCALE    = intPreferencesKey("x11_render_scale")
         val KEY_LANGUAGE              = stringPreferencesKey("language")
 
         /**
@@ -126,6 +131,21 @@ class SettingsRepository @Inject constructor(
     private suspend fun <T> set(key: Preferences.Key<T>, value: T) =
         context.dataStore.edit { it[key] = value }
 
+    /** Raw serialized UML probe result / demotion; parsed by UmlProbeStore. */
+    val umlProbeRecord: Flow<String?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[KEY_UML_PROBE_RECORD] }
+    val umlDemotion: Flow<String?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[KEY_UML_DEMOTION] }
+
+    suspend fun setUmlProbeRecord(v: String?) = context.dataStore.edit {
+        if (v == null) it.remove(KEY_UML_PROBE_RECORD) else it[KEY_UML_PROBE_RECORD] = v
+    }
+    suspend fun setUmlDemotion(v: String?) = context.dataStore.edit {
+        if (v == null) it.remove(KEY_UML_DEMOTION) else it[KEY_UML_DEMOTION] = v
+    }
+
     val darkTheme            = pref(KEY_DARK_THEME, true)
     val vmRamMb              = pref(KEY_VM_RAM, 512)
     // 2 vCPUs lets multi-threaded TCG (`thread=multi`) actually schedule
@@ -147,7 +167,6 @@ class SettingsRepository @Inject constructor(
     val hapticsEnabled       = pref(KEY_HAPTICS_ENABLED, true)
     val dynamicColorEnabled  = pref(KEY_DYNAMIC_COLOR_ENABLED, false)
     val lastBootDurationMs   = pref(KEY_LAST_BOOT_DURATION_MS, 0L)
-    val lastContainerCount   = pref(KEY_LAST_CONTAINER_COUNT, -1)
     // Routed through pref() so a corrupted store emits the "auto" default instead
     // of throwing into LanguageManager's locale collector.
     val language: Flow<String> = pref(KEY_LANGUAGE, "auto")
@@ -156,6 +175,7 @@ class SettingsRepository @Inject constructor(
     val usbPassthroughEnabled = pref(KEY_USB_PASSTHROUGH_ENABLED, false)
     val loadBalanceEnabled    = pref(KEY_LOAD_BALANCE_ENABLED, false)
     val bandwidthMbps         = pref(KEY_BANDWIDTH_MBPS, 0)
+    val autostartOnBoot       = pref(KEY_AUTOSTART_ON_BOOT, false)
     val avfVerboseLogging: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(androidx.datastore.preferences.core.emptyPreferences()) else throw e }
         .map { prefs -> prefs[KEY_AVF_VERBOSE_LOGGING] ?: false }
@@ -182,7 +202,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setTerminalFontSize(value: Int)          = set(KEY_FONT_SIZE, value)
     suspend fun setStorageSizeGb(value: Int)             = set(KEY_STORAGE_GB, value)
     suspend fun setStorageAccessEnabled(value: Boolean)  = set(KEY_STORAGE_ACCESS_ENABLED, value)
-    suspend fun markSetupDone()                          = set(KEY_SETUP_DONE, true)
     suspend fun setSshEnabled(value: Boolean)            = set(KEY_SSH_ENABLED, value)
     suspend fun setTerminalColorTheme(value: String)     = set(KEY_TERMINAL_COLOR_THEME, value)
     suspend fun setTerminalFont(value: String)           = set(KEY_TERMINAL_FONT, value)
@@ -193,10 +212,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setDynamicColorEnabled(value: Boolean)   = set(KEY_DYNAMIC_COLOR_ENABLED, value)
     suspend fun setLastBootDurationMs(value: Long)       = set(KEY_LAST_BOOT_DURATION_MS, value)
     suspend fun setLastContainerCount(value: Int)        = set(KEY_LAST_CONTAINER_COUNT, value)
-    suspend fun getLastContainerCount(): Int? {
-        val v = context.dataStore.data.first()[KEY_LAST_CONTAINER_COUNT] ?: -1
-        return if (v < 0) null else v
-    }
+    // Guest push over the host bridge (STATS verb) keeps this live; -1/missing means null.
+    val lastContainerCount: Flow<Int?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { (it[KEY_LAST_CONTAINER_COUNT] ?: -1).let { v -> if (v < 0) null else v } }
     suspend fun setLanguage(value: String)               = set(KEY_LANGUAGE, value)
     suspend fun setEngineSelection(value: EngineSelection) = set(KEY_ENGINE_SELECTION, value.name)
     suspend fun setAvfHintDismissed(value: Boolean)      = set(KEY_AVF_HINT_DISMISSED, value)
@@ -205,6 +224,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setUsbPassthroughEnabled(value: Boolean) = set(KEY_USB_PASSTHROUGH_ENABLED, value)
     suspend fun setLoadBalanceEnabled(value: Boolean)    = set(KEY_LOAD_BALANCE_ENABLED, value)
     suspend fun setBandwidthMbps(value: Int)             = set(KEY_BANDWIDTH_MBPS, value.coerceAtLeast(0))
+    suspend fun setAutostartOnBoot(value: Boolean)       = set(KEY_AUTOSTART_ON_BOOT, value)
 
     /**
      * Persists all first-run setup choices in a single transaction so a process
@@ -250,6 +270,7 @@ class SettingsRepository @Inject constructor(
             rotationLock = runCatching { com.excp.podroid.x11.RotationLock.valueOf(p[KEY_X11_ROTATION] ?: "AUTO") }.getOrDefault(com.excp.podroid.x11.RotationLock.AUTO),
             showExtraKeys = p[KEY_X11_SHOW_EXTRA_KEYS] ?: true,
             dpi = p[KEY_X11_DPI] ?: 96,
+            renderScale = (p[KEY_X11_RENDER_SCALE] ?: 100).let { if (it == 100 || it == 75 || it == 50) it else 100 },
         )
     }
 
@@ -265,6 +286,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setX11Rotation(v: String) = set(KEY_X11_ROTATION, v)
     suspend fun setX11ShowExtraKeys(v: Boolean) = set(KEY_X11_SHOW_EXTRA_KEYS, v)
     suspend fun setX11Dpi(v: Int) = set(KEY_X11_DPI, v)
+    suspend fun setX11RenderScale(v: Int) = set(KEY_X11_RENDER_SCALE, v)
     suspend fun getX11DpiSnapshot() = (x11Settings.first()).dpi
     suspend fun getLanguageSnapshot()                    = language.first()
 
@@ -274,7 +296,6 @@ class SettingsRepository @Inject constructor(
     suspend fun getVmCpusSnapshot()               = vmCpus.first()
     suspend fun getStorageSizeGbSnapshot()        = storageSizeGb.first()
     suspend fun getStorageAccessEnabledSnapshot() = storageAccessEnabled.first()
-    suspend fun isSetupDoneSnapshot()             = isSetupDone.first()
     suspend fun getTerminalColorThemeSnapshot()   = terminalColorTheme.first()
     suspend fun getTerminalFontSnapshot()         = terminalFont.first()
     suspend fun getQemuExtraArgsSnapshot()        = qemuExtraArgs.first()
@@ -283,6 +304,6 @@ class SettingsRepository @Inject constructor(
     suspend fun getAvfVerboseLoggingSnapshot()    = avfVerboseLogging.first()
     suspend fun getAvfCpuCapSnapshot()            = avfCpuCap.first()
     suspend fun getUsbPassthroughEnabledSnapshot() = usbPassthroughEnabled.first()
-    suspend fun getLoadBalanceEnabledSnapshot()    = loadBalanceEnabled.first()
     suspend fun getBandwidthMbpsSnapshot()         = bandwidthMbps.first()
+    suspend fun getAutostartOnBootSnapshot()       = autostartOnBoot.first()
 }

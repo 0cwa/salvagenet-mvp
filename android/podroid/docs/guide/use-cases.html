@@ -33,7 +33,7 @@
       <h4>Going deeper</h4>
       <ul>
         <li><a href="performance.html">Performance &amp; why it's slow</a></li>
-        <li><a href="backends.html">Backends: QEMU &amp; AVF</a></li>
+        <li><a href="backends.html">Backends: QEMU, AVF &amp; UML</a></li>
         <li><a href="networking.html">Networking &amp; ports</a></li>
         <li><a href="packages.html">Packages &amp; services</a></li>
         <li><a href="migrations.html">Updates &amp; migrations</a></li>
@@ -54,6 +54,21 @@
       <h2>Self-hosting via containers</h2>
       <p>Rootless Podman, Docker and LXC are all ready the moment the VM boots: Podman needs no daemon, and the Docker and LXC services are enabled in the default runlevel, so they start automatically. You can run any ARM64 container image from Docker Hub or GHCR.</p>
       <p>Port forwarding rules (see <a href="networking.html">Networking &amp; ports</a>) expose guest ports on the phone's real IP. Use a host port above 1024 for anything you expose, because an unprivileged Android app cannot bind host ports below 1024.</p>
+      <p>If you have never run a container before, start with this. It serves one page and proves the whole chain works, from the container to your phone's browser:</p>
+      <pre><code><span class="c"># 1. write a page for it to serve</span>
+<span class="p">$</span> mkdir -p ~/site &amp;&amp; echo '&lt;h1&gt;Hello from Podroid&lt;/h1&gt;' &gt; ~/site/index.html
+
+<span class="c"># 2. run nginx, serving that folder on guest port 80</span>
+<span class="p">$</span> podman run -d --name hello \
+    -p 8080:80 \
+    -v ~/site:/usr/share/nginx/html:ro \
+    docker.io/library/nginx:alpine
+
+<span class="c"># 3. check it from inside the VM</span>
+<span class="p">$</span> wget -qO- http://localhost:8080</code></pre>
+      <p>To open it from the phone's browser or another device, add a port forward for host port <code>8080</code> in Settings, then visit <code>http://&lt;phone-address&gt;:8080</code>. The <strong>Status</strong> screen lists the phone's addresses; use the one on the same network as the device you are browsing from.</p>
+
+      <p>The same pattern scales to real services:</p>
       <pre><code><span class="c"># Pi-hole (DNS + ad-blocking)</span>
 <span class="p">$</span> podman run -d --name pihole \
     -p 8080:80 -p 5353:53/tcp \
@@ -92,7 +107,7 @@
       <p>It uses a <code>podroid-backup</code> helper when one is present in the guest, and falls back to plain <code>podman save</code> / <code>podman export</code> otherwise. Backups are written inside the guest to <code>/mnt/downloads/Podroid/backups</code>. With <a href="settings.html">Downloads folder sharing</a> enabled, that path appears on the phone under <code>Download/Podroid/backups</code>; with sharing off, backups stay inside the VM at <code>/var/backups/podroid</code>.</p>
 
       <h2>Checking VM and phone status</h2>
-      <p>The <strong>Status</strong> screen (the home screen's <strong>Status</strong> button, or the monitor icon in the header) gives a single view of both sides of the system: phone RAM, storage, CPU cores, and load average (when readable) alongside the VM's status, uptime, active backend (QEMU or AVF), and the phone's IP.</p>
+      <p>The <strong>Status</strong> screen (the home screen's <strong>Status</strong> button, or the monitor icon in the header) gives a single view of both sides of the system: phone RAM, storage, CPU cores, and load average (when readable) alongside the VM's status, uptime, active backend (QEMU, AVF or UML), and the phone's IP. The backend shown is the one actually running: when a forced AVF selection falls back to QEMU, Status says so explicitly ("AVF unavailable, running QEMU").</p>
       <p>It also shows a VM CPU-load graph, available on the QEMU backend only - on AVF the screen shows a note that the graph is QEMU-only - plus the VM's allocated RAM, CPU cores, disk-image usage, and bandwidth limit.</p>
 
       <h2>Local Linux development environment</h2>
@@ -159,20 +174,19 @@
         <li><strong>Wayland desktops</strong> - GNOME Wayland, Plasma Wayland, sway, and Hyprland do not render in the X11 viewer. Use XFCE or another X11 session instead.</li>
         <li><strong>Heavy compilation on TCG</strong> - building LLVM, the Linux kernel, or large Rust crates inside the VM is feasible but very slow (hours, not minutes). Cross-compile on a real machine and copy the result over SSH.</li>
         <li><strong>x86 Docker images</strong> - pulling an <code>linux/amd64</code> image runs it under double emulation (QEMU TCG emulating ARM64 guest, which then runs QEMU user-mode emulating x86). Expect 50-100x slowdown. Always prefer <code>linux/arm64</code> images.</li>
-        <li><strong>UDP port forwarding on AVF</strong> - UDP rules are silently ignored on the AVF backend; switch to QEMU if you need UDP (e.g. a game server or DNS resolver serving LAN clients).</li>
         <li><strong>A full desktop environment at 512 MB RAM</strong> - XFCE with a browser open will page heavily into ZRAM swap at 512 MB. Set RAM to 1 GB or more in Settings if you plan to run a desktop regularly.</li>
       </ul>
 
       <div class="callout tip">
         <span class="label">Getting better performance</span>
-        <p>If TCG is too slow for your workload, the most impactful step is switching to the <a href="backends.html">AVF backend</a> on a Pixel 8 or later - it provides near-native CPU speed. Bumping RAM above 1 GB also helps containers and desktops avoid swap pressure. The <a href="performance.html">Performance &amp; why it's slow</a> page covers every tuning option in detail. For hard limits such as Wayland or UDP-on-AVF, see <a href="limitations.html">Limitations &amp; troubleshooting</a>.</p>
+        <p>If TCG is too slow for your workload, the most impactful step is switching to the <a href="backends.html">AVF backend</a> on a Pixel 8 or later - it provides near-native CPU speed. Bumping RAM above 1 GB also helps containers and desktops avoid swap pressure. The <a href="performance.html">Performance &amp; why it's slow</a> page covers every tuning option in detail. For hard limits such as Wayland, see <a href="limitations.html">Limitations &amp; troubleshooting</a>.</p>
       </div>
 
       <div class="pagenav">
         <a class="prev" href="limitations.html"><span class="dir">Previous</span>&larr; Limitations &amp; troubleshooting</a>
         <span></span>
       </div>
-      <p class="docfoot">Podroid is free software (GPL). Docs for v1.2.5. Found something inaccurate? <a href="https://github.com/ExTV/Podroid/issues">Open an issue</a>.</p>
+      <p class="docfoot">Podroid is free software (GPL). Docs for v1.3.0. Found something inaccurate? <a href="https://github.com/ExTV/Podroid/issues">Open an issue</a>.</p>
     </main>
   </div>
 

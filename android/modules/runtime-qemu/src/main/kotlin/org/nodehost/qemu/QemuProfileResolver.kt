@@ -151,7 +151,9 @@ class QemuProfileResolver {
     }
 
     private fun podroidKernelArguments() = listOf(
-        "console=ttyAMA0", "mitigations=off", "loglevel=1", "quiet", "mitigations=off",
+        // Podroid v1.3.0 disables MPAM for its Linux 7.3 guest; keep the workaround
+        // scoped to this direct-kernel profile rather than changing UEFI guests.
+        "console=ttyAMA0", "mitigations=off", "arm64.nompam", "loglevel=1", "quiet", "mitigations=off",
         "androidip=10.0.2.2", "ssh=1", "podroid.x11.dpi=96",
     )
 

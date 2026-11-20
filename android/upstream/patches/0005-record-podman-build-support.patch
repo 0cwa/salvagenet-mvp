@@ -1,5 +1,5 @@
 diff --git a/build-all.sh b/build-all.sh
-index 727151f..69e70ab 100755
+index cee5196..94e9ae1 100755
 --- a/build-all.sh
 +++ b/build-all.sh
 @@ -11,6 +11,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,20 +68,20 @@ index 727151f..69e70ab 100755
 -    docker rm podroid-extract >/dev/null
 +    "$CONTAINER_ENGINE" cp podroid-extract:/output/vmlinuz-virt "$ASSETS/vmlinuz-virt"
 +    "$CONTAINER_ENGINE" cp podroid-extract:/output/initrd.img "$ASSETS/initrd.img"
-+    "$CONTAINER_ENGINE" rm podroid-extract >/dev/null
++    "$CONTAINER_ENGINE" rm -f podroid-extract >/dev/null
      success "Kernel + initramfs ready."
  }
  
-@@ -124,7 +139,7 @@ build_rootfs() {
-     log "Building Alpine rootfs squashfs..."
-     local sysver
-     sysver=$(grep -E '^[[:space:]]*versionCode[[:space:]]*=' "${SCRIPT_DIR}/app/build.gradle.kts" | grep -oE '[0-9]+' | head -1)
+@@ -131,7 +146,7 @@ build_rootfs() {
+     mkdir -p "${SCRIPT_DIR}/build-rootfs/docs-guide"
+     cp "${SCRIPT_DIR}/docs/guide/"*.html "${SCRIPT_DIR}/docs/guide/style.css" "${SCRIPT_DIR}/build-rootfs/docs-guide/"
+ 
 -    docker build -f "${SCRIPT_DIR}/build-rootfs/Dockerfile.rootfs" \
 +    "$CONTAINER_ENGINE" build -f "${SCRIPT_DIR}/build-rootfs/Dockerfile.rootfs" \
          -t podroid-rootfs:latest \
          --build-arg "SYSTEM_VERSION=${sysver:-0}" \
          --output type=local,dest="${ASSETS}" \
-@@ -135,23 +150,23 @@ build_rootfs() {
+@@ -142,23 +157,23 @@ build_rootfs() {
  build_qemu() {
      local qemu_ver
      qemu_ver=$(grep -E '^podroidQemuVersion=' "${SCRIPT_DIR}/gradle.properties" | cut -d= -f2)
@@ -116,12 +116,43 @@ index 727151f..69e70ab 100755
      
      verify_16kb_align "$JNILIBS/libqemu-system-aarch64.so"
      success "QEMU and bridge ready."
-@@ -262,7 +277,7 @@ case "$1" in
+@@ -167,23 +182,23 @@ build_qemu() {
+ build_uml() {
+     local commit
+     commit=$(grep -E '^podroidUmlKernelCommit=' "${SCRIPT_DIR}/gradle.properties" | cut -d= -f2)
+-    log "Building UML kernels (4K + 16K pages) at ${commit} (Docker)..."
+-    docker build --network=host \
++    log "Building UML kernels (4K + 16K pages) at ${commit} (${CONTAINER_ENGINE})..."
++    "$CONTAINER_ENGINE" build --network=host \
+         --build-arg "UML_COMMIT=${commit}" \
+         --build-context "repo=${SCRIPT_DIR}" \
+         -f "${SCRIPT_DIR}/build-uml/Dockerfile.uml" \
+         -t podroid-uml-builder --target artifacts "${SCRIPT_DIR}/build-uml"
+ 
+     log "Extracting UML artifacts..."
+-    docker rm -f podroid-uml-extract 2>/dev/null || true
+-    docker create --name podroid-uml-extract podroid-uml-builder /bin/true
++    "$CONTAINER_ENGINE" rm -f podroid-uml-extract 2>/dev/null || true
++    "$CONTAINER_ENGINE" create --name podroid-uml-extract podroid-uml-builder /bin/true
+     mkdir -p "$JNILIBS" "${SCRIPT_DIR}/out"
+     local f
+     for f in libuml-4k.so libuml-16k.so libumlstub-4k.so libumlstub-16k.so libpodroid-uml.so; do
+-        docker cp "podroid-uml-extract:/${f}" "$JNILIBS/"
++        "$CONTAINER_ENGINE" cp "podroid-uml-extract:/${f}" "$JNILIBS/"
+     done
+-    docker cp "podroid-uml-extract:/uml-source-${commit}.tar.zst" "${SCRIPT_DIR}/out/"
+-    docker rm podroid-uml-extract >/dev/null
++    "$CONTAINER_ENGINE" cp "podroid-uml-extract:/uml-source-${commit}.tar.zst" "${SCRIPT_DIR}/out/"
++    "$CONTAINER_ENGINE" rm podroid-uml-extract >/dev/null
+ 
+     for f in libuml-4k.so libuml-16k.so libumlstub-4k.so libumlstub-16k.so libpodroid-uml.so; do
+         verify_16kb_align "$JNILIBS/$f"
+@@ -293,7 +308,7 @@ case "$1" in
      clean)
          log "Cleaning up..."
          ./gradlew clean
--        docker rmi podroid-builder podroid-qemu-builder podroid-rootfs:latest 2>/dev/null || true
-+        "$CONTAINER_ENGINE" rmi podroid-builder podroid-qemu-builder podroid-rootfs:latest 2>/dev/null || true
+-        docker rmi podroid-builder podroid-qemu-builder podroid-uml-builder podroid-rootfs:latest 2>/dev/null || true
++        "$CONTAINER_ENGINE" rmi podroid-builder podroid-qemu-builder podroid-uml-builder podroid-rootfs:latest 2>/dev/null || true
          success "Cleaned."
          ;;
      *)

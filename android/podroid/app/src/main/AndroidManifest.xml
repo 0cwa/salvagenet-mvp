@@ -28,8 +28,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- Autostart the VM on boot when the setting is enabled (#78) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Required on Android 13+ to show the foreground service notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Lets the setup wizard and Home permissions card show the direct battery
+         exemption dialog instead of the general system list -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Full storage access to share the Downloads folder with the VM -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
@@ -85,6 +92,7 @@
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.Podroid"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -113,6 +121,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Podman emulation via QEMU" />
         </service>
+
+        <!-- SalvageNet boot and remote control belong to node-shell's durable
+             supervisor and authenticated Host API. Upstream automation is not
+             registered as an independent runtime owner. -->
 
     </application>
 

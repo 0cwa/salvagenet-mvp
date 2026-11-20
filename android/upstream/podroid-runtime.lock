@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
   "source": {
-    "version": "v1.2.6",
-    "url": "https://github.com/ExTV/Podroid/releases/download/v1.2.6/Podroid-v1.2.6-release.apk",
-    "fileName": "Podroid-v1.2.6-release.apk",
-    "size": 314739363,
-    "sha256": "40ee65c248592e2c7249228417725a3f8f2b097bf38cca04ad8c88d9298b5d5e",
+    "version": "v1.3.0",
+    "url": "https://github.com/ExTV/Podroid/releases/download/v1.3.0/Podroid-v1.3.0-release.apk",
+    "fileName": "Podroid-v1.3.0-release.apk",
+    "size": 325165405,
+    "sha256": "705d7f400e32d8e0b0f49b52c97dc25cd20bc8719bcecc1d24eb070b4456d6a3",
     "publishedBy": "GitHub release asset digest"
   },
   "artifacts": [
     {
       "apkPath": "lib/arm64-v8a/libqemu-system-aarch64.so",
-      "size": 38360472,
-      "sha256": "78bf84a790d8d05774ed1816fea5a2616715874e5bd2ca45d65efda32a8f00d9",
+      "size": 38884752,
+      "sha256": "90774eb54d62fd3be17777288f760062ec625af0d97fc4ebf4b6ad9f90421254",
       "generated": true
     },
     {
@@ -35,20 +35,20 @@
     },
     {
       "apkPath": "assets/vmlinuz-virt",
-      "size": 20086848,
-      "sha256": "9be1095a3d21a488c6a41299ae937fecabec4481c390d27f7da0d4fb0ea72b4b",
+      "size": 20462614,
+      "sha256": "efabff6e9305f77a7fd545bc57d118bdb51aacc0600ecfcd80af3d31424de885",
       "generated": true
     },
     {
       "apkPath": "assets/initrd.img",
-      "size": 42195106,
-      "sha256": "7c245ce7bb144008bf2869722226f6abd87b129bdc8b341da9918d4be8392b80",
+      "size": 42720094,
+      "sha256": "946ba0070a7544289ed8775c4558bebbfecf545ecc34900c0b3d2a16066b4eef",
       "generated": true
     },
     {
       "apkPath": "assets/alpine-rootfs.squashfs",
-      "size": 228204544,
-      "sha256": "9c992e851df2a24c66c384267e3c49d3b46397041ba9e9047905c97f4e041631",
+      "size": 226885632,
+      "sha256": "c3a3599b58e54d82de7bc1723373484ce6331d6a249d8bc9a4ca8e45d4bfe0a1",
       "generated": true
     },
     {

@@ -29,7 +29,6 @@ import android.content.Context
 import android.util.Log
 import com.excp.podroid.data.repository.PortForwardRule
 import com.excp.podroid.util.HostMetrics
-import com.excp.podroid.util.LogProxy
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -83,14 +82,28 @@ class QemuEngine @Inject constructor(
     override val runningSinceMs: Long? get() = _runningSinceMs
 
     override fun emulatorRssMb(): Long? {
-        val proc = process?.takeIf { it.isAlive } ?: return null
-        val pid = HostMetrics.processPid(proc) ?: return null
+        val pid = emulatorPid() ?: return null
         return HostMetrics.processVmRssMb(pid)
     }
 
+    // The PID found for the current QEMU process; reset when `process` changes.
+    @Volatile
+    private var pidCache: Pair<Process, Int>? = null
+
     override fun emulatorPid(): Int? {
         val proc = process?.takeIf { it.isAlive } ?: return null
-        return HostMetrics.processPid(proc)
+        pidCache?.let { (p, pid) -> if (p === proc) return pid }
+        // libpodroid-launcher execv()s QEMU, so both names refer to the same PID.
+        val pid = HostMetrics.childPidByExecutable(
+            android.os.Process.myPid(),
+            setOf("libpodroid-launcher.so", "libqemu-system-aarch64.so"),
+        )
+        if (pid == null) {
+            Log.w(TAG, "QEMU is running but its PID was not found in /proc")
+            return null
+        }
+        pidCache = proc to pid
+        return pid
     }
 
     @Volatile
@@ -169,30 +182,11 @@ class QemuEngine @Inject constructor(
      * Lets us create the bridge session at boot-complete time (before the
      * terminal UI exists) and plug in the real ViewModel client later.
      */
-    @Volatile
-    override var sessionClientDelegate: TerminalSessionClient? = null
+    private val proxySessionClient = ProxySessionClient(TAG)
 
-    private val proxySessionClient = object : TerminalSessionClient {
-        override fun onTextChanged(s: TerminalSession) { sessionClientDelegate?.onTextChanged(s) }
-        override fun onTitleChanged(s: TerminalSession) { sessionClientDelegate?.onTitleChanged(s) }
-        override fun onSessionFinished(s: TerminalSession) { sessionClientDelegate?.onSessionFinished(s) }
-        override fun onCopyTextToClipboard(s: TerminalSession, text: String?) { sessionClientDelegate?.onCopyTextToClipboard(s, text) }
-        override fun onPasteTextFromClipboard(s: TerminalSession?) { sessionClientDelegate?.onPasteTextFromClipboard(s) }
-        override fun onBell(s: TerminalSession) { sessionClientDelegate?.onBell(s) }
-        override fun onColorsChanged(s: TerminalSession) { sessionClientDelegate?.onColorsChanged(s) }
-        override fun onTerminalCursorStateChange(state: Boolean) { sessionClientDelegate?.onTerminalCursorStateChange(state) }
-        override fun setTerminalShellPid(s: TerminalSession, pid: Int) { sessionClientDelegate?.setTerminalShellPid(s, pid) }
-        override fun getTerminalCursorStyle(): Int = sessionClientDelegate?.terminalCursorStyle ?: 0
-        override fun getTerminalVersionString(): String? = sessionClientDelegate?.terminalVersionString
-        override fun logError(tag: String?, msg: String?) = LogProxy.error(tag, TAG, msg)
-        override fun logWarn(tag: String?, msg: String?) = LogProxy.warn(tag, TAG, msg)
-        override fun logInfo(tag: String?, msg: String?) = LogProxy.info(tag, TAG, msg)
-        override fun logDebug(tag: String?, msg: String?) = LogProxy.debug(tag, TAG, msg)
-        override fun logVerbose(tag: String?, msg: String?) = LogProxy.verbose(tag, TAG, msg)
-        override fun logStackTraceWithMessage(tag: String?, msg: String?, e: Exception?) =
-            LogProxy.stackTraceWithMessage(tag, TAG, msg, e)
-        override fun logStackTrace(tag: String?, e: Exception?) = LogProxy.stackTrace(tag, TAG, e)
-    }
+    override var sessionClientDelegate: TerminalSessionClient?
+        get() = proxySessionClient.delegate
+        set(value) { proxySessionClient.delegate = value }
 
     private fun persistBootDuration() {
         if (bootStartTime == 0L) return
@@ -213,19 +207,12 @@ class QemuEngine @Inject constructor(
 
             // Bridge connects to terminal.sock (virtio-console, separate from serial).
             // No handoff with the boot monitor needed — they use different sockets.
-            val bridgeExe = File(context.applicationInfo.nativeLibraryDir, "libpodroid-bridge.so")
+            val bridgeExe = TerminalBridge.executable(context)
             if (!bridgeExe.exists()) return@post
 
-            val sess = TerminalSession(
-                bridgeExe.absolutePath,
-                context.filesDir.absolutePath,
-                arrayOf(bridgeExe.absolutePath, terminalSockPath, ctrlSockPath),
-                null,
-                2000,
-                proxySessionClient,
+            val sess = TerminalBridge.newSession(
+                context, terminalSockPath, ctrlSockPath, proxySessionClient, onResize = null,
             )
-            // Cell pixel dims default to 0 — TerminalView.updateSize() pushes real values once measured.
-        sess.updateSize(80, 24, 0, 0)
             _terminalSession = sess
             Log.d(TAG, "Bridge auto-started on terminal.sock")
         }
@@ -250,26 +237,31 @@ class QemuEngine @Inject constructor(
         }
 
         // Fallback: create session now
-        val bridgeExe = File(context.applicationInfo.nativeLibraryDir, "libpodroid-bridge.so")
+        val bridgeExe = TerminalBridge.executable(context)
         if (!bridgeExe.exists()) {
             throw IllegalStateException("podroid-bridge not found at ${bridgeExe.absolutePath}")
         }
 
-        val sess = TerminalSession(
-            bridgeExe.absolutePath,
-            context.filesDir.absolutePath,
-            arrayOf(bridgeExe.absolutePath, terminalSockPath, ctrlSockPath),
-            null,
-            2000,
-            proxySessionClient,
+        val sess = TerminalBridge.newSession(
+            context, terminalSockPath, ctrlSockPath, proxySessionClient, onResize = null,
         )
-
-        // Cell pixel dims default to 0 — TerminalView.updateSize() pushes real values once measured.
-        sess.updateSize(80, 24, 0, 0)
 
         _terminalSession = sess
         Log.d(TAG, "Terminal session created in Qemu singleton")
         return sess
+    }
+
+    /**
+     * Common early-error path in start(), before a process or scope exists:
+     * restores the "cleanedUp=false ⟺ a VM lifetime is in progress" invariant
+     * that the startMutex block already broke by setting cleanedUp=false and
+     * bootStartTime, matching the other error paths (which run cleanup()).
+     * Callers still `return` right after calling this.
+     */
+    private fun failEarlyStart(message: String) {
+        cleanedUp.set(true)
+        bootStartTime = 0L
+        _state.value = VmState.Error(message)
     }
 
     override suspend fun start(portForwards: List<PortForwardRule>, config: VmConfig) {
@@ -288,24 +280,14 @@ class QemuEngine @Inject constructor(
         }
 
         val qemuExe = qemuExecutable() ?: run {
-            // The startMutex block already set cleanedUp=false and bootStartTime;
-            // restore the "cleanedUp=false ⟺ a VM lifetime is in progress"
-            // invariant on this early-error return, matching the other error
-            // paths (which run cleanup()). No process/scope exists yet.
-            cleanedUp.set(true)
-            bootStartTime = 0L
-            _state.value = VmState.Error("QEMU binary not found.")
+            failEarlyStart("QEMU binary not found.")
             return
         }
 
         try {
-            ensureStorageImage(config.storageSizeGb)
+            ensureStorageImage(context.filesDir, config.storageSizeGb, TAG)
         } catch (e: java.io.IOException) {
-            // Restore the "cleanedUp=false ⟺ VM lifetime in progress" invariant
-            // (same as the qemuExecutable() path); no process/scope exists yet.
-            cleanedUp.set(true)
-            bootStartTime = 0L
-            _state.value = VmState.Error(e.message ?: "Could not prepare the VM disk image.")
+            failEarlyStart(e.message ?: "Could not prepare the VM disk image.")
             return
         }
 
@@ -550,7 +532,10 @@ class QemuEngine @Inject constructor(
         val userKernelExtras = config.kernelExtraCmdline.trim()
 
         args += "-M"; args += "virt,gic-version=3"
-        // pauth-impdef swaps QEMU's slow QARMA5 PAuth for a fast non-crypto impl (≤50% TCG win on aarch64-on-aarch64).
+        // pauth-impdef swaps QEMU's slow QARMA5 PAuth for a fast non-crypto impl. The 50%
+        // figure quoted upstream does not show up here: measured against a QARMA5 control
+        // it is worth a few percent on xz and bc and nothing on boot or sha256, because
+        // the Alpine musl userspace is not built with PAC branch protection. Still free.
         args += "-cpu"; args += "max,pauth-impdef=on"
         val tbSizeMb = if (config.ramMb >= 2048) 512 else 256
         // thread=multi: one host thread per vCPU; larger tb-size reduces re-translation for JIT-heavy guests.
@@ -565,12 +550,14 @@ class QemuEngine @Inject constructor(
             args += "-kernel"; args += kernelPath.absolutePath
             val cmdline = buildString {
                 // mitigations=off: speculative-exec attacks don't cross the TCG ISA boundary; 5–15% gain.
-                append("console=ttyAMA0 mitigations=off")
+                // arm64.nompam: same as AvfEngine (#108); the guest never uses MPAM.
+                append("console=ttyAMA0 mitigations=off arm64.nompam")
                 if (userKernelExtras.isNotEmpty()) append(" ").append(userKernelExtras)
                 append(" androidip=").append(config.androidIp)
                 if (config.sshEnabled) append(" ssh=1")
                 append(" podroid.x11.dpi=").append(config.x11Dpi)
                 if (config.bandwidthMbps > 0) append(" podroid.bandwidth=").append(config.bandwidthMbps)
+                if (config.dnsServers.isNotEmpty()) append(" podroid.dns=").append(config.dnsServers.joinToString(","))
             }
             args += "-append"; args += cmdline
         } else {
@@ -622,11 +609,10 @@ class QemuEngine @Inject constructor(
         if (config.storageAccessEnabled &&
             hasStorageAccess &&
             downloadsDir.exists()) {
-            // security_model=mapped-xattr keeps QEMU's 9p worker out of the
-            // chmod/chown syscall path that has triggered SIGILL on Tensor /
-            // ARMv9.2 PAC devices (Pixel 10) — uid/gid/mode are stored as
-            // xattrs on the host file instead of being applied directly.
-            // Falls back gracefully on filesystems without xattr support.
+            // security_model=none passes file ownership/mode straight through
+            // with no xattr mapping. mapped-xattr routed through QEMU's 9p
+            // chmod/chown syscall path, which triggered SIGILL on Tensor /
+            // ARMv9.2 PAC devices (Pixel 10), so it was reverted to none.
             args += "-fsdev"
             args += "local,id=fsdev0,path=${downloadsDir.absolutePath},security_model=none"
             args += "-device"
@@ -635,7 +621,10 @@ class QemuEngine @Inject constructor(
 
         val netdevArg = buildString {
             append("user,id=net0,ipv6=off")
-            for (rule in portForwards) {
+            // Only the implicit forwards go here; user rules arrive over QMP once
+            // the VM is up. See inlineLaunchRules for why that distinction is
+            // load-bearing rather than cosmetic.
+            for (rule in inlineLaunchRules(portForwards)) {
                 // hostfwd hostaddr: empty = 0.0.0.0 (LAN-reachable, user rules);
                 // 127.0.0.1 for loopbackOnly rules (implicit VNC/audio) so they
                 // aren't exposed to the network.
@@ -688,48 +677,6 @@ class QemuEngine @Inject constructor(
             listOf(launcher.absolutePath, qemuExe.absolutePath) + args
         } else {
             listOf(qemuExe.absolutePath) + args
-        }
-    }
-
-    private fun ensureStorageImage(storageSizeGb: Int) {
-        val storageFile = File(context.filesDir, "storage.img")
-        val desiredBytes = storageSizeGb.toLong() * 1024L * 1024L * 1024L
-
-        if (storageFile.exists()) {
-            val current = storageFile.length()
-            when {
-                current == desiredBytes -> return
-                // NEVER delete: storage.img is the persistent ext4 overlay (every
-                // apk add, container, user file). Deleting on mismatch could wipe
-                // all guest data if the size ever changes (a corrupted DataStore
-                // falling back to the 2GB default, or a future resize UI). Grow in
-                // place when larger — the guest's first-boot resize2fs claims the
-                // new space; truncating to shrink would corrupt the filesystem.
-                desiredBytes > current -> {
-                    runCatching {
-                        java.io.RandomAccessFile(storageFile, "rw").use { it.setLength(desiredBytes) }
-                    }.onSuccess {
-                        Log.i(TAG, "storage.img grown ${current / (1024 * 1024)}MB → ${storageSizeGb}GB (guest resize2fs on next boot)")
-                    }.onFailure { Log.e(TAG, "Failed to grow storage.img", it) }
-                    return
-                }
-                else -> {
-                    Log.w(TAG, "storage.img (${current / (1024 * 1024)}MB) larger than requested ${storageSizeGb}GB; keeping existing image (shrink would corrupt the filesystem)")
-                    return
-                }
-            }
-        }
-
-        try {
-            java.io.RandomAccessFile(storageFile, "rw").use { it.setLength(desiredBytes) }
-            Log.d(TAG, "Created storage.img (${storageSizeGb}GB)")
-        } catch (e: Exception) {
-            // Don't swallow: a 0-byte / missing storage.img would otherwise boot
-            // into an opaque early-boot stop. Surface it so start() can report a
-            // clear storage error (mirrors the AVF disk-create path).
-            Log.e(TAG, "Failed to create storage.img", e)
-            runCatching { storageFile.delete() }
-            throw java.io.IOException("Couldn't create the ${storageSizeGb} GB VM disk image: ${e.message}", e)
         }
     }
 
@@ -792,9 +739,43 @@ class QemuEngine @Inject constructor(
         }
     }
 
+    /**
+     * QEMU applies only the implicit forwards while launching; the rest have to
+     * be pushed in over QMP once the VM is Running.
+     */
+    override fun rulesAppliedAtLaunch(all: Collection<PortForwardRule>): Set<PortForwardRule> =
+        inlineLaunchRules(all).toSet()
+
     companion object {
         private const val TAG = "QemuEngine"
         private const val STDERR_TAIL_LINES = 40
+
+        /**
+         * The port forwards allowed onto QEMU's launch command line.
+         *
+         * SLIRP treats a hostfwd it cannot set up as fatal: QEMU exits 1 before
+         * the machine starts. Rules are persisted, so anything inlined here can
+         * make the VM permanently unstartable, with the app offering no way to
+         * edit the rules that are blocking it. One user hit exactly that by
+         * scripting 1005 forwards, most of them inside Android's ephemeral port
+         * range where something is always already bound; the VM never booted
+         * again and they wiped it believing the data was gone.
+         *
+         * So the command line carries only what the app injects itself and needs
+         * from the first instant: the loopback-bound VNC and audio pair behind
+         * the in-app viewer, and SSH (guest port 22), which is the way back in
+         * when everything else is broken. Those are three fixed ports the app
+         * controls, all below the ephemeral range.
+         *
+         * User rules go in through [addPortForward] on the →Running edge, where
+         * a rule that cannot bind fails alone and is retried on the next diff.
+         * This also un-bricks anyone already stuck: their rules simply stop being
+         * a launch argument.
+         */
+        fun inlineLaunchRules(all: Collection<PortForwardRule>): List<PortForwardRule> =
+            all.filter { it.loopbackOnly || it.guestPort == SSH_GUEST_PORT }
+
+        private const val SSH_GUEST_PORT = 22
 
         /** Shared deadline for start()'s socket-readiness loop and the boot monitor's connect wait. */
         private const val SOCKET_READY_TIMEOUT_MS = 10_000L

@@ -11,13 +11,16 @@
  *   podroid-open      CLI: open a URL on Android (ACTION_VIEW).
  *   podroid-power     CLI: stop/restart the VM, or query status.
  *   podroid-headless  CLI (alias podroid-server): toggle server mode.
+ *   podroid-phone-ip  CLI: print the phone's reachable IPv4 address(es).
  *
  * Daemon transport (one request line -> one response line, serialized):
  *   AVF  (podroid.backend=avf in /proc/cmdline): listen AF_VSOCK :9101, accept
  *        the Android connection.
+ *   UML  (podroid.backend=uml): open /dev/ttyS2.
  *   QEMU (otherwise): open /dev/hvc2.
  */
 #define _GNU_SOURCE
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
@@ -27,17 +30,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/inotify.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 #define SOCK_PATH   "/run/podroid-host.sock"
 #define HVC_PATH    "/dev/hvc2"
+#define UML_PATH    "/dev/ttyS2"  /* host channel under User-Mode Linux */
 #define VSOCK_PORT  9101
 #define HOST_TIMEOUT_S 5
+
+/* Podman container count, pushed to Android over the host channel instead of
+ * being polled: graphroot is pinned in
+ * build-rootfs/files/etc/containers/storage.conf, and podman creates one
+ * subdirectory per container here, named by its 64-char hex id. */
+#define STATS_DIR "/var/lib/containers/storage/overlay-containers"
+#define STATS_DEBOUNCE_MS 500
+#define STATS_SLOW_TICK_MS 15000
+#define STATS_WATCH_MASK (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF)
 
 /* base64 (standard alphabet, no wrap) */
 static const char B64[] =
@@ -110,25 +125,18 @@ static int write_line(int fd, const char *s) {
     return write_all(fd, "\n", 1);
 }
 
-/* Reads one LF-terminated line into buf (NUL-terminated, LF stripped).
- * Returns line length, 0 on EOF, -1 on error/timeout. */
-static int read_line(int fd, char *buf, size_t cap) {
-    size_t n = 0;
-    while (n < cap - 1) {
-        char c;
-        ssize_t r = read(fd, &c, 1);
-        if (r < 0) { if (errno == EINTR) continue; return -1; }
-        if (r == 0) return n == 0 ? 0 : (int)n;
-        if (c == '\n') break;
-        buf[n++] = c;
-    }
-    buf[n] = '\0';
-    return (int)n;
-}
+/* A line longer than the caller's buffer. Distinct from -1 so callers can say
+ * so instead of acting on a silently cut-off line: a truncated FWD-LIST used to
+ * print as a short but plausible-looking table, and truncated base64 decodes to
+ * garbage rather than failing. */
+#define LINE_TOO_LONG (-2)
 
-/* Like read_line but waits at most timeout_s for activity before each byte;
- * returns line length, 0 on EOF, -1 on error/timeout. poll() works on both
- * char devices (/dev/hvc2) and sockets, unlike SO_RCVTIMEO. */
+/* Reads one LF-terminated line into buf (NUL-terminated, LF stripped), waiting
+ * at most timeout_s for activity before each byte. Returns line length, 0 on
+ * EOF, -1 on error or timeout, LINE_TOO_LONG if the line did not fit. In that
+ * case the rest of the line is consumed, so the stream is still positioned at
+ * the start of the next one. poll() works on both char devices (/dev/hvc2) and
+ * sockets, unlike SO_RCVTIMEO. */
 static int read_line_timeout(int fd, char *buf, size_t cap, int timeout_s) {
     size_t n = 0;
     while (n < cap - 1) {
@@ -140,11 +148,26 @@ static int read_line_timeout(int fd, char *buf, size_t cap, int timeout_s) {
         ssize_t r = read(fd, &c, 1);
         if (r < 0) { if (errno == EINTR) continue; return -1; }
         if (r == 0) return n == 0 ? 0 : (int)n;
-        if (c == '\n') break;
+        if (c == '\n') { buf[n] = '\0'; return (int)n; }
         buf[n++] = c;
     }
     buf[n] = '\0';
-    return (int)n;
+    /* Buffer full. If the next byte ends the line then it fit exactly; otherwise
+     * discard the overflow so the next read starts on a line boundary. Either
+     * way the terminator is consumed, which the plain loop above cannot do. */
+    int over = 0;
+    for (;;) {
+        struct pollfd pfd = { .fd = fd, .events = POLLIN };
+        int pr = poll(&pfd, 1, timeout_s * 1000);
+        if (pr < 0) { if (errno == EINTR) continue; return -1; }
+        if (pr == 0) return -1;
+        char c;
+        ssize_t r = read(fd, &c, 1);
+        if (r < 0) { if (errno == EINTR) continue; return -1; }
+        if (r == 0 || c == '\n') break;
+        over = 1;
+    }
+    return over ? LINE_TOO_LONG : (int)n;
 }
 
 /* Discard any bytes already readable on the host channel before we send a new
@@ -172,9 +195,21 @@ static int cli_roundtrip(const char *req, char *resp, size_t cap) {
     strncpy(sa.sun_path, SOCK_PATH, sizeof(sa.sun_path) - 1);
     if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) { close(fd); return -1; }
     if (write_line(fd, req) < 0) { close(fd); return -1; }
-    int n = read_line(fd, resp, cap);
+    /* Bound the response read: a daemon wedged waiting on the host channel
+     * must not hang the CLI forever too. */
+    int n = read_line_timeout(fd, resp, cap, HOST_TIMEOUT_S);
     close(fd);
+    if (n == LINE_TOO_LONG) return LINE_TOO_LONG;
     return n <= 0 ? -1 : 0;
+}
+
+/* Both failures are < 0, so callers keep a single error branch. */
+static int cli_roundtrip_failed(int rc) {
+    if (rc == LINE_TOO_LONG)
+        fprintf(stderr, "podroid: the reply is too long to show in full\n");
+    else
+        fprintf(stderr, "podroid: host bridge not available\n");
+    return 1;
 }
 
 static int cli_report(const char *resp, int list_decode) {
@@ -238,9 +273,8 @@ static int cli_notify(int argc, char **argv) {
     }
 
     char resp[8192];
-    if (cli_roundtrip(req, resp, sizeof(resp)) < 0) {
-        fprintf(stderr, "podroid: host bridge not available\n"); return 1;
-    }
+    int rc = cli_roundtrip(req, resp, sizeof(resp));
+    if (rc < 0) return cli_roundtrip_failed(rc);
     return cli_report(resp, 0);
 }
 
@@ -258,19 +292,21 @@ static int cli_forward(int argc, char **argv) {
     } else if (argc >= 2 && strcmp(argv[1], "list") == 0) {
         snprintf(req, sizeof(req), "FWD-LIST");
         list_decode = 1;
+    } else if (argc >= 2 && strcmp(argv[1], "clean") == 0) {
+        snprintf(req, sizeof(req), "FWD-CLEAN");
     } else {
         fprintf(stderr,
             "usage:\n"
             "  podroid-forward <hostPort> <guestPort>\n"
             "  podroid-forward add <hostPort> <guestPort> [tcp|udp]\n"
             "  podroid-forward remove <hostPort> [tcp|udp]\n"
-            "  podroid-forward list\n");
+            "  podroid-forward list\n"
+            "  podroid-forward clean\n");
         return 2;
     }
     char resp[8192];
-    if (cli_roundtrip(req, resp, sizeof(resp)) < 0) {
-        fprintf(stderr, "podroid: host bridge not available\n"); return 1;
-    }
+    int rc = cli_roundtrip(req, resp, sizeof(resp));
+    if (rc < 0) return cli_roundtrip_failed(rc);
     return cli_report(resp, list_decode);
 }
 
@@ -278,12 +314,17 @@ static int cli_open(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: podroid-open <url>\n"); return 2; }
     char *b64 = b64encode((const unsigned char *)argv[1], strlen(argv[1]));
     char req[8192];
-    snprintf(req, sizeof(req), "OPEN %s", b64 ? b64 : "");
+    int reqlen = snprintf(req, sizeof(req), "OPEN %s", b64 ? b64 : "");
     free(b64);
-    char resp[8192];
-    if (cli_roundtrip(req, resp, sizeof(resp)) < 0) {
-        fprintf(stderr, "podroid: host bridge not available\n"); return 1;
+    /* A URL over ~6 KB truncates the base64 mid-string, which the host decodes
+     * as a confusing "bad url encoding". Report a clear error instead. */
+    if (reqlen < 0 || (size_t)reqlen >= sizeof(req)) {
+        fprintf(stderr, "podroid: url too long\n");
+        return 2;
     }
+    char resp[8192];
+    int rc = cli_roundtrip(req, resp, sizeof(resp));
+    if (rc < 0) return cli_roundtrip_failed(rc);
     return cli_report(resp, 0);
 }
 
@@ -292,9 +333,8 @@ static int cli_power(int argc, char **argv) {
     char req[64];
     snprintf(req, sizeof(req), "POWER %s", argv[1]);
     char resp[256];
-    if (cli_roundtrip(req, resp, sizeof(resp)) < 0) {
-        fprintf(stderr, "podroid: host bridge not available\n"); return 1;
-    }
+    int rc = cli_roundtrip(req, resp, sizeof(resp));
+    if (rc < 0) return cli_roundtrip_failed(rc);
     return cli_report(resp, 0);
 }
 
@@ -303,10 +343,57 @@ static int cli_headless(int argc, char **argv) {
     char req[64];
     snprintf(req, sizeof(req), "HEADLESS %s", argv[1]);
     char resp[256];
-    if (cli_roundtrip(req, resp, sizeof(resp)) < 0) {
-        fprintf(stderr, "podroid: host bridge not available\n"); return 1;
-    }
+    int rc = cli_roundtrip(req, resp, sizeof(resp));
+    if (rc < 0) return cli_roundtrip_failed(rc);
     return cli_report(resp, 0);
+}
+
+/* Default output is the primary address alone (one bare line) so
+ * `$(podroid-phone-ip)` works in scripts; -a/--all prints every "iface
+ * address" line the host reports, primary first. */
+static int cli_phone_ip(int argc, char **argv) {
+    int all = 0;
+    if (argc >= 2) {
+        if (strcmp(argv[1], "-a") == 0 || strcmp(argv[1], "--all") == 0) {
+            all = 1;
+        } else if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+            printf("usage: podroid-phone-ip [-a|--all]\n");
+            return 0;
+        } else {
+            fprintf(stderr, "usage: podroid-phone-ip [-a|--all]\n");
+            return 2;
+        }
+    }
+    char resp[8192];
+    int rc = cli_roundtrip("PHONE-IP", resp, sizeof(resp));
+    if (rc < 0) return cli_roundtrip_failed(rc);
+    if (strncmp(resp, "ERR ", 4) == 0) {
+        char *msg = b64decode(resp + 4);
+        fprintf(stderr, "podroid: %s\n", msg ? msg : "error");
+        free(msg);
+        return 1;
+    }
+    if (strncmp(resp, "OK ", 3) != 0) {
+        fprintf(stderr, "podroid: unexpected response: %s\n", resp);
+        return 1;
+    }
+    char *table = b64decode(resp + 3);
+    if (!table || !*table) {
+        fprintf(stderr, "podroid: no network\n");
+        free(table);
+        return 1;
+    }
+    if (all) {
+        printf("%s\n", table);
+    } else {
+        /* First line is "iface address"; print the address field only. */
+        char *nl = strchr(table, '\n');
+        if (nl) *nl = '\0';
+        char *sp = strchr(table, ' ');
+        printf("%s\n", sp ? sp + 1 : table);
+    }
+    free(table);
+    return 0;
 }
 
 /* On QEMU the host channel is /dev/hvc2, a virtio-console TTY that defaults to
@@ -330,6 +417,15 @@ static int is_avf(void) {
     if (n <= 0) return 0;
     buf[n] = '\0';
     return strstr(buf, "podroid.backend=avf") != NULL;
+}
+
+static int is_uml(void) {
+    int fd = open("/proc/cmdline", O_RDONLY);
+    if (fd < 0) return 0;
+    char buf[4096]; ssize_t n = read(fd, buf, sizeof(buf) - 1); close(fd);
+    if (n <= 0) return 0;
+    buf[n] = '\0';
+    return strstr(buf, "podroid.backend=uml") != NULL;
 }
 
 static int make_unix_listener(void) {
@@ -361,6 +457,174 @@ static int make_vsock_listener(void) {
     return fd;
 }
 
+/* Opens the host channel if not already open: accepts Android's vsock
+ * connection on AVF (bounded by HOST_TIMEOUT_S so a slow or absent Android
+ * side can't wedge the caller), or opens /dev/hvc2 on QEMU (/dev/ttyS2 on UML). No-op if already
+ * connected. Returns 1 if this call established a fresh connection, 0 if
+ * already connected, -1 on failure. */
+static int ensure_host_fd(int *host_fd, int avf, int vsock_listener) {
+    if (*host_fd >= 0) return 0;
+    if (avf) {
+        struct pollfd pfd = { .fd = vsock_listener, .events = POLLIN };
+        int pr;
+        do { pr = poll(&pfd, 1, HOST_TIMEOUT_S * 1000); } while (pr < 0 && errno == EINTR);
+        if (pr > 0) *host_fd = accept(vsock_listener, NULL, NULL);
+    } else {
+        *host_fd = open(is_uml() ? UML_PATH : HVC_PATH, O_RDWR | O_NOCTTY);
+    }
+    if (*host_fd < 0) return -1;
+    set_raw_if_tty(*host_fd);
+    return 1;
+}
+
+/* Writes `req` to the already-open host channel and reads one response line
+ * into resp, draining any stale bytes first so resp always corresponds to
+ * req. Same return convention as read_line_timeout. The one path to the host
+ * channel - both CLI relaying and the daemon's own STATS push go through it. */
+static int host_roundtrip(int host_fd, const char *req, char *resp, size_t cap) {
+    drain_pending(host_fd);  /* clear any stale/orphaned bytes so resp matches this req */
+    if (write_line(host_fd, req) < 0) return -1;
+    return read_line_timeout(host_fd, resp, cap, HOST_TIMEOUT_S);
+}
+
+static long long mono_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* podman names one overlay-containers subdirectory per container after its
+ * 64-character lowercase hex id. */
+static int is_container_id(const char *name) {
+    size_t len = strlen(name);
+    if (len != 64) return 0;
+    for (size_t i = 0; i < len; i++) {
+        char c = name[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return 0;
+    }
+    return 1;
+}
+
+/* Counts podman containers by counting STATS_DIR subdirectories whose name is
+ * a container id. Never execs podman or parses JSON. A missing directory (no
+ * containers created yet) counts as 0. */
+static int count_containers(void) {
+    DIR *dir = opendir(STATS_DIR);
+    if (!dir) {
+        if (errno != ENOENT)
+            fprintf(stderr, "podroid-hostd: opendir %s: %s\n", STATS_DIR, strerror(errno));
+        return 0;
+    }
+    int count = 0;
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (!is_container_id(ent->d_name)) continue;
+        if (ent->d_type == DT_DIR) {
+            count++;
+        } else if (ent->d_type == DT_UNKNOWN) {
+            /* Some filesystems never fill d_type in; fall back to stat(). */
+            char path[sizeof(STATS_DIR) + 66];
+            snprintf(path, sizeof(path), "%s/%s", STATS_DIR, ent->d_name);
+            struct stat st;
+            if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) count++;
+        }
+    }
+    closedir(dir);
+    return count;
+}
+
+/* Guest-side state for the STATS push: change detection (inotify), debounce
+ * and the last count Android acknowledged. No threads - this lives entirely
+ * in the daemon's single event loop. */
+struct stats_state {
+    int inotify_fd;              /* -1 if inotify_init1 failed: feature disabled */
+    int wd;                      /* -1 if STATS_DIR isn't currently watched */
+    int last_acked;              /* -1 = nothing acknowledged yet (forces a first push) */
+    int dirty;                   /* 1 = current count may differ from last_acked */
+    long long debounce_until_ms; /* 0 = no debounce pending */
+    long long next_slow_tick_ms;
+};
+
+/* Establishes the inotify watch on STATS_DIR if it isn't already watched.
+ * Safe to call when the directory doesn't exist yet (podman hasn't created a
+ * container) - just retried on the next slow tick. */
+static void stats_try_watch(struct stats_state *st) {
+    if (st->inotify_fd < 0 || st->wd >= 0) return;
+    int wd = inotify_add_watch(st->inotify_fd, STATS_DIR, STATS_WATCH_MASK);
+    if (wd >= 0) {
+        st->wd = wd;
+        st->dirty = 1;  /* may have missed changes while unwatched */
+    } else if (errno != ENOENT) {
+        fprintf(stderr, "podroid-hostd: inotify_add_watch %s: %s\n", STATS_DIR, strerror(errno));
+    }
+}
+
+static void stats_init(struct stats_state *st) {
+    st->inotify_fd = inotify_init1(IN_NONBLOCK);
+    if (st->inotify_fd < 0)
+        fprintf(stderr, "podroid-hostd: inotify_init1: %s\n", strerror(errno));
+    st->wd = -1;
+    st->last_acked = -1;
+    st->dirty = 1;  /* push the current count once the host channel is up */
+    st->debounce_until_ms = 0;
+    st->next_slow_tick_ms = mono_ms() + STATS_SLOW_TICK_MS;
+    stats_try_watch(st);
+}
+
+/* Drains pending inotify events (the fd is O_NONBLOCK, so this never blocks)
+ * and marks the count dirty with a fresh debounce deadline, so a burst of
+ * events (e.g. `podman run --rm`) coalesces into one push. */
+static void stats_drain_inotify(struct stats_state *st) {
+    char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+    for (;;) {
+        ssize_t n = read(st->inotify_fd, buf, sizeof(buf));
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            break;  /* EAGAIN: drained */
+        }
+        if (n == 0) break;
+        ssize_t off = 0;
+        while (off < n) {
+            struct inotify_event *ev = (struct inotify_event *)(buf + off);
+            if (ev->mask & (IN_DELETE_SELF | IN_MOVE_SELF | IN_IGNORED)) {
+                /* The watched directory itself is gone; the slow tick
+                 * re-establishes the watch once it reappears. */
+                st->wd = -1;
+            }
+            off += (ssize_t)(sizeof(struct inotify_event) + ev->len);
+        }
+        st->dirty = 1;
+        st->debounce_until_ms = mono_ms() + STATS_DEBOUNCE_MS;
+    }
+}
+
+/* Sends the current count over the host channel, reusing ensure_host_fd() /
+ * host_roundtrip() - no second code path to the host channel. Unless `force`,
+ * skips the roundtrip entirely when the count already matches the last value
+ * Android acknowledged. Leaves `dirty` set on any failure (no channel, no
+ * reply, unexpected reply) so the caller retries on the next slow tick;
+ * never busy-loops and never blocks longer than ensure_host_fd's own
+ * HOST_TIMEOUT_S bound. */
+static void stats_push(struct stats_state *st, int *host_fd, int avf, int vsock_listener, int force) {
+    int count = count_containers();
+    if (!force && count == st->last_acked) { st->dirty = 0; return; }
+    if (ensure_host_fd(host_fd, avf, vsock_listener) < 0) { st->dirty = 1; return; }
+    char req[64], resp[32];
+    snprintf(req, sizeof(req), "STATS containers=%d", count);
+    int hn = host_roundtrip(*host_fd, req, resp, sizeof(resp));
+    if (hn <= 0) {
+        if (hn != LINE_TOO_LONG) { close(*host_fd); *host_fd = -1; }
+        st->dirty = 1;
+        return;
+    }
+    if (strcmp(resp, "OK") == 0) {
+        st->last_acked = count;
+        st->dirty = 0;
+    } else {
+        st->dirty = 1;  /* unexpected reply: don't assume it was acknowledged */
+    }
+}
+
 static int daemon_main(void) {
     signal(SIGPIPE, SIG_IGN);
     int avf = is_avf();
@@ -373,8 +637,50 @@ static int daemon_main(void) {
         if (vsock_listener < 0) { perror("podroid-hostd: vsock listener"); return 1; }
     }
 
+    struct stats_state stats;
+    stats_init(&stats);
+
     int host_fd = -1;
     for (;;) {
+        struct pollfd pfds[2];
+        pfds[0].fd = cli_listener; pfds[0].events = POLLIN; pfds[0].revents = 0;
+        int nfds = 1;
+        int inotify_idx = -1;
+        if (stats.inotify_fd >= 0) {
+            inotify_idx = nfds;
+            pfds[nfds].fd = stats.inotify_fd; pfds[nfds].events = POLLIN; pfds[nfds].revents = 0;
+            nfds++;
+        }
+
+        long long now = mono_ms();
+        long long deadline = stats.next_slow_tick_ms;
+        if (stats.debounce_until_ms != 0 && stats.debounce_until_ms < deadline)
+            deadline = stats.debounce_until_ms;
+        int timeout_ms = (int)(deadline > now ? deadline - now : 0);
+
+        int pr = poll(pfds, (nfds_t)nfds, timeout_ms);
+        if (pr < 0) { if (errno == EINTR) continue; break; }
+
+        if (inotify_idx >= 0 && (pfds[inotify_idx].revents & POLLIN))
+            stats_drain_inotify(&stats);
+
+        /* Act on whichever timer fired: re-establish the watch if it's down,
+         * and push a dirty count once the debounce (or the slow-tick catch-all
+         * for a failed/missed push) elapses. */
+        now = mono_ms();
+        int slow_tick_due = now >= stats.next_slow_tick_ms;
+        int debounce_due = stats.debounce_until_ms != 0 && now >= stats.debounce_until_ms;
+        if (slow_tick_due) {
+            stats.next_slow_tick_ms = now + STATS_SLOW_TICK_MS;
+            if (stats.wd < 0) stats_try_watch(&stats);
+        }
+        if (slow_tick_due || debounce_due) {
+            stats.debounce_until_ms = 0;
+            if (stats.dirty) stats_push(&stats, &host_fd, avf, vsock_listener, 0);
+        }
+
+        if (!(pfds[0].revents & POLLIN)) continue;
+
         int cli = accept(cli_listener, NULL, NULL);
         if (cli < 0) { if (errno == EINTR) continue; break; }
 
@@ -384,22 +690,21 @@ static int daemon_main(void) {
          * hang every other podroid-* call. The host channel below already uses
          * the same timeout; the CLI side must too. */
         int rn = read_line_timeout(cli, req, sizeof(req), HOST_TIMEOUT_S);
+        /* "request too long": relaying a cut-off request would have Android act
+         * on a mangled command rather than reject it. */
+        if (rn == LINE_TOO_LONG) { write_line(cli, "ERR cmVxdWVzdCB0b28gbG9uZw=="); close(cli); continue; }
         if (rn <= 0) { close(cli); continue; }
 
-        if (host_fd < 0) {
-            if (avf) {
-                host_fd = accept(vsock_listener, NULL, NULL);
-            } else {
-                host_fd = open(HVC_PATH, O_RDWR | O_NOCTTY);
-            }
-            if (host_fd >= 0) set_raw_if_tty(host_fd);
-        }
-        if (host_fd < 0) { write_line(cli, "ERR aG9zdCBjaGFubmVsIG5vdCBjb25uZWN0ZWQ="); close(cli); continue; }
+        int conn = ensure_host_fd(&host_fd, avf, vsock_listener);
+        if (conn < 0) { write_line(cli, "ERR aG9zdCBjaGFubmVsIG5vdCBjb25uZWN0ZWQ="); close(cli); continue; }
 
         char resp[8192];
-        drain_pending(host_fd);  /* clear any stale/orphaned bytes so resp matches this req */
-        if (write_line(host_fd, req) < 0 ||
-            read_line_timeout(host_fd, resp, sizeof(resp), HOST_TIMEOUT_S) <= 0) {
+        int hn = host_roundtrip(host_fd, req, resp, sizeof(resp));
+        /* "response too long": the channel is still aligned, since the reader
+         * consumed the rest of the line, so keep the connection and just refuse
+         * to pass on a half a reply. */
+        if (hn == LINE_TOO_LONG) { write_line(cli, "ERR cmVzcG9uc2UgdG9vIGxvbmc="); close(cli); continue; }
+        if (hn <= 0) {
             close(host_fd); host_fd = -1;
             write_line(cli, "ERR dGltZW91dA==");
             close(cli);
@@ -407,6 +712,11 @@ static int daemon_main(void) {
         }
         write_line(cli, resp);
         close(cli);
+
+        /* A fresh host connection means Android's server just (re)started (or
+         * this is the first connection since boot); push the current count
+         * once instead of waiting on the next change or slow tick. */
+        if (conn == 1) stats_push(&stats, &host_fd, avf, vsock_listener, 1);
     }
     return 0;
 }
@@ -418,5 +728,6 @@ int main(int argc, char **argv) {
     if (strcmp(base, "podroid-open") == 0) return cli_open(argc, argv);
     if (strcmp(base, "podroid-power") == 0) return cli_power(argc, argv);
     if (strcmp(base, "podroid-headless") == 0 || strcmp(base, "podroid-server") == 0) return cli_headless(argc, argv);
+    if (strcmp(base, "podroid-phone-ip") == 0) return cli_phone_ip(argc, argv);
     return daemon_main();
 }

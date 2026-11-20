@@ -15,14 +15,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.excp.podroid.BuildConfig
 import com.excp.podroid.R
+import com.excp.podroid.data.repository.AddRuleResult
 import com.excp.podroid.data.repository.LanguageManager
 import com.excp.podroid.data.repository.PortForwardRepository
 import com.excp.podroid.data.repository.PortForwardRule
 import com.excp.podroid.data.repository.SettingsRepository
 import com.excp.podroid.di.ApplicationScope
+import com.excp.podroid.engine.EngineHolder
 import com.excp.podroid.engine.EngineSelection
-import com.excp.podroid.engine.VmEngine
 import com.excp.podroid.engine.VmState
+import com.excp.podroid.engine.uml.UmlInfo
+import com.excp.podroid.engine.uml.UmlStatus
 import com.excp.podroid.util.DeviceResourcePolicy
 import com.excp.podroid.util.NetworkUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -67,34 +70,45 @@ data class SettingsUiState(
     val bandwidthMbps: Int = 0,
 )
 
+// Typed intermediates for the three sub-combines below, so a reordered flow
+// is a compile error instead of a silently cross-wired setting (the previous
+// arrayOf<Any> packing cast back by index).
+private data class VmRowsGroup(
+    val vmRamMb: Int,
+    val vmCpus: Int,
+    val storageSizeGb: Int,
+    val sshEnabled: Boolean,
+    val loadBalanceEnabled: Boolean,
+)
+
+private data class MiscRowsGroup(
+    val storageAccessEnabled: Boolean,
+    val qemuExtraArgs: String,
+    val kernelExtraCmdline: String,
+    val darkTheme: Boolean,
+    val dynamicColorEnabled: Boolean,
+)
+
+private data class LocaleRowsGroup(
+    val bandwidthMbps: Int,
+    val engineSelection: EngineSelection,
+    val language: String,
+    val systemDefaultLanguage: String,
+)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val portForwardRepository: PortForwardRepository,
-    private val engine: VmEngine,
+    private val engine: EngineHolder,
     private val languageManager: LanguageManager,
     @ApplicationScope private val externalScope: CoroutineScope,
 ) : ViewModel() {
 
-    val vmRamMb: StateFlow<Int> = settingsRepository.vmRamMb
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 512)
-
-    val vmCpus: StateFlow<Int> = settingsRepository.vmCpus
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
-
-    val qemuExtraArgs: StateFlow<String> = settingsRepository.qemuExtraArgs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsRepository.DEFAULT_QEMU_EXTRA_ARGS)
-
-    val kernelExtraCmdline: StateFlow<String> = settingsRepository.kernelExtraCmdline
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsRepository.DEFAULT_KERNEL_EXTRA_CMDLINE)
-
     /**
      * Single combined stream of the 8 form-style rows. SettingsScreen can collect
      * this once with collectAsStateWithLifecycle instead of subscribing 8 times.
-     * The original per-flow StateFlows above are kept so callers that want one
-     * value (e.g. the About section reading storageSizeGb) don't pay for the
-     * combined object on every emit.
      */
     val uiState: StateFlow<SettingsUiState> = combine(
         combine(
@@ -104,7 +118,7 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.sshEnabled,
             settingsRepository.loadBalanceEnabled,
         ) { ram, cpus, storage, ssh, loadBal ->
-            arrayOf(ram, cpus, storage, ssh, loadBal)
+            VmRowsGroup(ram, cpus, storage, ssh, loadBal)
         },
         combine(
             settingsRepository.storageAccessEnabled,
@@ -113,7 +127,7 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.darkTheme,
             settingsRepository.dynamicColorEnabled,
         ) { storageAccess, qemu, kernel, dark, dyn ->
-            arrayOf(storageAccess, qemu, kernel, dark, dyn)
+            MiscRowsGroup(storageAccess, qemu, kernel, dark, dyn)
         },
         combine(
             settingsRepository.bandwidthMbps,
@@ -121,24 +135,24 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.language,
             languageManager.language,
         ) { bandwidth, engineSel, lang, sysLang ->
-            arrayOf(bandwidth, engineSel, lang, sysLang)
+            LocaleRowsGroup(bandwidth, engineSel, lang, sysLang)
         },
-    ) { a, b, c ->
+    ) { vm, misc, locale ->
         SettingsUiState(
-            vmRamMb = a[0] as Int,
-            vmCpus = a[1] as Int,
-            storageSizeGb = a[2] as Int,
-            sshEnabled = a[3] as Boolean,
-            storageAccessEnabled = b[0] as Boolean,
-            qemuExtraArgs = b[1] as String,
-            kernelExtraCmdline = b[2] as String,
-            darkTheme = b[3] as Boolean,
-            dynamicColorEnabled = b[4] as Boolean,
-            engineSelection = c[1] as EngineSelection,
-            language = c[2] as String,
-            systemDefaultLanguage = c[3] as String,
-            loadBalanceEnabled = a[4] as Boolean,
-            bandwidthMbps = c[0] as Int,
+            vmRamMb = vm.vmRamMb,
+            vmCpus = vm.vmCpus,
+            storageSizeGb = vm.storageSizeGb,
+            sshEnabled = vm.sshEnabled,
+            storageAccessEnabled = misc.storageAccessEnabled,
+            qemuExtraArgs = misc.qemuExtraArgs,
+            kernelExtraCmdline = misc.kernelExtraCmdline,
+            darkTheme = misc.darkTheme,
+            dynamicColorEnabled = misc.dynamicColorEnabled,
+            engineSelection = locale.engineSelection,
+            language = locale.language,
+            systemDefaultLanguage = locale.systemDefaultLanguage,
+            loadBalanceEnabled = vm.loadBalanceEnabled,
+            bandwidthMbps = locale.bandwidthMbps,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsUiState())
 
@@ -163,9 +177,6 @@ class SettingsViewModel @Inject constructor(
     fun resetKernelExtraCmdline() {
         externalScope.launch { settingsRepository.setKernelExtraCmdline(SettingsRepository.DEFAULT_KERNEL_EXTRA_CMDLINE) }
     }
-
-    val storageSizeGb: StateFlow<Int> = settingsRepository.storageSizeGb
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2)
 
     fun setSshEnabled(value: Boolean) {
         viewModelScope.launch { settingsRepository.setSshEnabled(value) }
@@ -210,6 +221,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setUsbPassthroughEnabled(value) }
     }
 
+    val autostartOnBoot: StateFlow<Boolean> = settingsRepository.autostartOnBoot
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setAutostartOnBoot(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setAutostartOnBoot(value) }
+    }
+
     suspend fun setLanguage(value: String) {
         Log.d(TAG, "setLanguage: $value")
         languageManager.setLanguage(value)
@@ -220,6 +238,17 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.setLoadBalanceEnabled(false)
             settingsRepository.setVmRamMb(value)
+        }
+    }
+
+    fun setStorageSizeGb(value: Int) {
+        viewModelScope.launch {
+            // storage.img is never shrunk; the disabled chips already stop this in
+            // the UI, this is defence in depth against a stale/racing value.
+            val current = settingsRepository.getStorageSizeGbSnapshot()
+            if (value < current) return@launch
+            settingsRepository.setLoadBalanceEnabled(false)
+            settingsRepository.setStorageSizeGb(value)
         }
     }
 
@@ -254,18 +283,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setTerminalFontSize(value: Int) {
-        viewModelScope.launch { settingsRepository.setTerminalFontSize(value) }
-    }
-
-    fun setTerminalColorTheme(value: String) {
-        viewModelScope.launch { settingsRepository.setTerminalColorTheme(value) }
-    }
-
-    fun setTerminalFont(value: String) {
-        viewModelScope.launch { settingsRepository.setTerminalFont(value) }
-    }
-
     // "both" expands into separate TCP + UDP rules. Returns true if at least one
     // rule was added; false if every expansion was already present (duplicate).
     // The caller uses the return value to show feedback instead of silently
@@ -282,8 +299,18 @@ class SettingsViewModel @Inject constructor(
         }
         if (toAdd.isEmpty()) return false
         viewModelScope.launch {
-            toAdd.forEach { proto ->
-                portForwardRepository.addRule(PortForwardRule(hostPort, guestPort, proto))
+            // "both" can add TCP then hit the table ceiling on UDP (or vice
+            // versa): the dialog already closed on the true return below, so
+            // that partial outcome would otherwise vanish silently.
+            val notAdded = toAdd.filter { proto ->
+                portForwardRepository.addRule(PortForwardRule(hostPort, guestPort, proto)) != AddRuleResult.ADDED
+            }
+            if (notAdded.isNotEmpty() && notAdded.size < toAdd.size) {
+                _portForwardPartialWarning.value = context.getString(
+                    R.string.port_forward_partial_add,
+                    hostPort,
+                    notAdded.joinToString(", ") { it.uppercase() },
+                )
             }
         }
         return true
@@ -296,11 +323,40 @@ class SettingsViewModel @Inject constructor(
     fun activeBackendId(): String = engine.backendId
 
     /**
-     * USB passthrough rides the QEMU QMP control socket (add-fd + device_add
-     * usb-host); the AVF backend has no QMP channel, so it can never pass a
-     * device through. QEMU-only.
+     * Reactive mirror of [activeBackendId] for the UI: a backend swap (or the
+     * async first pick resolving after this screen is already composed) must
+     * update the AVF diagnostic dialog and the USB row without the user having
+     * to leave and reopen Settings. See #66.
      */
-    fun isUsbPassthroughAvailable(): Boolean = engine.backendId == "qemu"
+    val activeBackendIdFlow: StateFlow<String> = engine.backendIdFlow
+
+    /** Non-null when the current pick's backend differs from what the raw
+     *  selection would naively suggest: a forced AVF selection fell back to
+     *  QEMU, or an AUTO selection avoided AVF because the OEM build has
+     *  networking compiled out (#43). The @StringRes ID for the Settings
+     *  backend caption. The screen resolves it in the current locale. See #66. */
+    val backendFallback: StateFlow<Int?> = engine.backendFallback
+
+    /** True when AVF can start on this device (drives the "AVF is faster than UML" note). */
+    val avfUsable: StateFlow<Boolean> = engine.avfUsable
+
+    /** UML probe/demotion status and reason, for the backend caption and Diagnostics. */
+    val umlInfo: StateFlow<UmlInfo> = engine.umlInfo
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UmlInfo(UmlStatus.NOT_PROBED, null))
+
+    private val _umlRetryMessage = MutableStateFlow<String?>(null)
+    /** One-shot message when "Try UML again" is refused because a VM is active; clear
+     *  after showing with [clearUmlRetryMessage]. */
+    val umlRetryMessage: StateFlow<String?> = _umlRetryMessage.asStateFlow()
+
+    fun clearUmlRetryMessage() { _umlRetryMessage.value = null }
+
+    /** "Try UML again": clears the demotion and re-picks (refused while a VM runs). */
+    fun retryUml() {
+        if (!engine.retryUml()) {
+            _umlRetryMessage.value = context.getString(R.string.uml_retry_vm_active)
+        }
+    }
 
     private val _exportError = MutableStateFlow<String?>(null)
     /** One-shot export failure message; clear after showing with [clearExportError]. */
@@ -308,8 +364,21 @@ class SettingsViewModel @Inject constructor(
 
     fun clearExportError() { _exportError.value = null }
 
+    private val _portForwardPartialWarning = MutableStateFlow<String?>(null)
+    /** One-shot warning when a "both" add only added one protocol (e.g. the
+     *  table filled between the TCP and UDP rule); clear after showing with
+     *  [clearPortForwardPartialWarning]. */
+    val portForwardPartialWarning: StateFlow<String?> = _portForwardPartialWarning.asStateFlow()
+
+    fun clearPortForwardPartialWarning() { _portForwardPartialWarning.value = null }
+
     fun removePortForward(rule: PortForwardRule) {
         viewModelScope.launch { portForwardRepository.removeRule(rule) }
+    }
+
+    /** Removes every persisted user rule. Implicit forwards (SSH/VNC/audio) are in-memory and unaffected. */
+    fun clearPortForwards() {
+        viewModelScope.launch { portForwardRepository.clearRules() }
     }
 
     fun resetVm() {
@@ -506,10 +575,13 @@ class SettingsViewModel @Inject constructor(
          * new component starts logging, or its lines won't reach the export.
          */
         private val APP_LOG_TAGS = listOf(
-            "AudioStreamer", "AvfEngine", "AvfReflect", "ConsoleFanout",
-            "EngineHolder", "PodroidApp", "PodroidService", "PodroidVM-err",
-            "QemuEngine", "QmpClient", "SettingsViewModel", "TerminalVM",
-            "VsockControlChannel", "VsockPortForwarder",
+            "AudioStreamer", "AvfDownloadsShare", "AvfEngine", "AvfReflect",
+            "ConsoleFanout", "EngineHolder", "HomeViewModel", "HostRequestServer",
+            "LanguageManager", "Ninep2000LServer", "PodroidApp", "PodroidService",
+            "PodroidVM-err", "QemuBootMonitor", "QemuEngine", "QmpClient",
+            "SettingsViewModel", "TerminalVM", "UpdateRepository", "UsbPassthrough",
+            "VmControlReceiver", "VsockControlChannel", "VsockPortForwarder",
+            "VsockUdpForwarder", "X11Stats", "X11ViewModel",
         )
     }
 }

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SalvageNet debug candidates use tests/hil through the real Host API.
+     Do not register upstream's independent UML execution harness. -->
+<manifest />

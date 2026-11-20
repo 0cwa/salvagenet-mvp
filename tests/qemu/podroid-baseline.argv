@@ -1,4 +1,5 @@
-# Exact normalized argv emitted by pinned Podroid for the inputs in the metadata fixture.
+# Exact SalvageNet direct-kernel argv, derived from the pinned Podroid snapshot.
+# See podroid-upstream.argv and podroid-baseline.metadata.json for the upstream command and adaptations.
 # One argv element per line; ${NATIVE_LIB} and ${FILES} replace device-specific paths.
 ${NATIVE_LIB}/libpodroid-launcher.so
 ${NATIVE_LIB}/libqemu-system-aarch64.so
@@ -15,7 +16,7 @@ tcg,thread=multi,tb-size=256
 -kernel
 ${FILES}/vms/default/artifacts/vmlinuz-virt
 -append
-console=ttyAMA0 mitigations=off loglevel=1 quiet mitigations=off androidip=${ANDROID_IP} ssh=1 podroid.x11.dpi=96
+console=ttyAMA0 mitigations=off arm64.nompam loglevel=1 quiet mitigations=off androidip=${ANDROID_IP} ssh=1 podroid.x11.dpi=96
 -initrd
 ${FILES}/vms/default/artifacts/initrd.img
 -object
