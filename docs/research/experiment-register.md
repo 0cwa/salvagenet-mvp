@@ -23,6 +23,6 @@ Append concise results here; do not paste full logs. `SOFTWARE-PASS/HARDWARE-OPE
 | E10 | — | `docs/architecture/debt-register.md` | — | DEFERRED | Qualified/trusted guests only until stronger process/UID isolation exists. |
 | E11 | — | `docs/roadmap/acceptance-ledger.md` | — | BLOCKED-BASE-MVP | USB remains MVP+ and cannot enter executable scope before every B gate passes. |
 
-| PODROID13 | 2026-11-20 | `docs/research/experiments/PODROID13.md` | Repository and GitHub CI | IN PROGRESS | User-requested dedicated sync to Podroid v1.3.0; preserve source/runtime provenance and the single-supervisor boundary. No acceptance gate changes. |
+| PODROID13 | 2026-11-20 | `docs/research/experiments/PODROID13.md`, PR #101 checks/artifacts | Repository, pinned runtime inputs, GitHub CI | SOURCE/RUNTIME-INPUT-PASS; HARDWARE-OPEN | Podroid v1.3.0 source and six patches reconstruct exactly; matching QEMU runtime inputs verify. Rebuilt candidate checks are recorded on the PR. No acceptance gate changes. |
 
 Store full machine-readable output under ignored `.local/experiments/<ID>/` or attach it to CI/PR artifacts.

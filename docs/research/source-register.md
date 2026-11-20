@@ -12,6 +12,13 @@ This register records sources used to choose the scaffold and strategic roadmap.
 
 - Repository: `https://github.com/ExTV/Podroid`
 - Pinned MVP import: see `android/upstream/podroid.lock`.
+- Current sync evidence: [v1.3.0 release](https://github.com/ExTV/Podroid/releases/tag/v1.3.0),
+  source `d5f7210182db9fbbee3ce6780ddd4b3e520e304b`, matching release APK identity in
+  `android/upstream/podroid-runtime.lock`, and `docs/research/experiments/PODROID13.md`.
+- This sync retains QEMU 11.1.2/Linux 7.3 and the new direct-kernel MPAM workaround.
+  Upstream's optional UML payloads and independent automation registrations are
+  excluded from the SalvageNet runtime/control boundary; physical qualification
+  remains separate from source and package verification.
 - Relevant upstream areas: `QemuEngine.kt`, `QmpClient.kt`, `PodroidService.kt`, `EngineHolder.kt`, `podroid-launcher.c`, `build-all.sh`, native build Dockerfile, initramfs/rootfs scripts, kernel config.
 - Key learning: QEMU is an ELF executable packaged in the APK native-library directory and launched with `ProcessBuilder`; preserve launcher/thread/socket behavior through physical proof.
 
