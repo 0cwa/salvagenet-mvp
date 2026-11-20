@@ -31,11 +31,12 @@ The imported source advances by 126 upstream commits. The two newer upstream
 source/release/runtime provenance contract. The subtree remains squashed; source
 and adaptation commits remain separately reviewable.
 
-The seven ordered patches retain the workspace/build hooks, startup composition,
+The eight ordered patches retain the workspace/build hooks, startup composition,
 backup exclusions, notification permission guard, Android 26 stat compatibility,
 enrollment row, terminal test configuration, and Podman/Docker build selection.
-Obsolete resource and X11 formatting hunks were replaced by upstream's current
-implementations. `make podroid-verify` reconstructs the complete tracked subtree,
+Obsolete backup-screen and X11 formatting hunks were replaced by upstream's
+current implementations; Home and Settings resource fixes were adapted to the
+refreshed UI. `make podroid-verify` reconstructs the complete tracked subtree,
 including modes, from the exact tag and these patches.
 
 Upstream's new exported VM receiver, launcher intent dispatch, control provider,
@@ -71,7 +72,7 @@ checks establish input integrity, not the rebuilt APK or physical execution.
 | Check | Recorded result |
 |---|---|
 | `make validate` | PASS on starting main and the updated tree |
-| `make podroid-verify` | PASS: exact v1.3.0 tree plus seven patches |
+| `make podroid-verify` | PASS: exact v1.3.0 tree plus eight patches |
 | `python3 tools/vendor/check-podroid-provenance.py` | PASS: release tag, SHA, and subject agree |
 | QEMU fixture tests | PASS: four tests, including source-pin and adaptation agreement |
 | Android control-surface tests | PASS: eight tests covering source and decoded manifests plus explicit Activity dispatch |
@@ -98,6 +99,12 @@ at all. Patch 0007 uses `CoroutineStart.UNDISPATCHED` to establish the running
 relay before cancellation, retaining the real sockets, deadline, and both
 closure assertions. Production's separate pre-start ownership cleanup is already
 covered by `VsockPortForwarderTest`; no relay runtime change was needed.
+
+The next CI run passed the app and sibling unit tests and verified the packaged
+runtime, then lint found five Compose resource lookup errors. Patch 0008 restores
+the still-required Home/Settings adaptation using `stringResource` and
+`LocalResources.current`, including upstream's new port-forward table limit
+message. Lint remains enabled without a new suppression or baseline.
 
 Existing compatibility-monitor PR [#100](https://github.com/0cwa/salvagenet-mvp/pull/100)
 remains separate. Its recorded canaries stop at patch conflicts and its normal

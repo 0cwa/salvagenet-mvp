@@ -16,11 +16,14 @@ The series separates the downstream concerns:
 - `0006` excludes upstream's new automation and debug execution registrations,
   including explicit-intent dispatch in the exported launcher Activity;
 - `0007` starts the cancellation test's relay before cancelling it, avoiding a
-  coroutine scheduling race while retaining both socket-closure assertions.
+  coroutine scheduling race while retaining both socket-closure assertions;
+- `0008` keeps Home and Settings resource lookups aware of Compose configuration
+  changes, including the new port-forward table limit message.
 
-The v1.3.0 refresh drops obsolete Compose-resource and X11 formatting hunks:
-upstream has replaced those UI paths. The current queue is derived from the
-exact v1.3.0 tag; it is not a partial application of the v1.2.6 patches.
+The v1.3.0 refresh drops obsolete backup-screen and X11 formatting hunks, while
+adapting the still-required Home and Settings resource fixes to the refreshed
+UI. The current queue is derived from the exact v1.3.0 tag; it is not a partial
+application of the v1.2.6 patches.
 
 SalvageNet-owned composition, runtime preparation, and package verification
 live outside the subtree. New project behavior should remain in sibling modules

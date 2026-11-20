@@ -6,3 +6,4 @@
 0005-record-podman-build-support.patch
 0006-preserve-node-control-boundary.patch
 0007-stabilize-relay-cancellation-test.patch
+0008-restore-compose-resource-lookups.patch

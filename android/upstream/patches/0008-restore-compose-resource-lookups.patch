@@ -1,0 +1,78 @@
+diff --git a/app/src/main/java/com/excp/podroid/ui/screens/home/HomeScreen.kt b/app/src/main/java/com/excp/podroid/ui/screens/home/HomeScreen.kt
+index 09d64df..ecbd443 100644
+--- a/app/src/main/java/com/excp/podroid/ui/screens/home/HomeScreen.kt
++++ b/app/src/main/java/com/excp/podroid/ui/screens/home/HomeScreen.kt
+@@ -91,6 +91,7 @@ fun HomeScreen(
+     viewModel: HomeViewModel = hiltViewModel(),
+ ) {
+     val context = LocalContext.current
++    val updateOpenFailedMessage = stringResource(R.string.update_open_failed)
+     val vmState by viewModel.vmState.collectAsStateWithLifecycle()
+     val bootStage by viewModel.bootStage.collectAsStateWithLifecycle()
+     val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+@@ -172,7 +173,7 @@ fun HomeScreen(
+                     }.onFailure {
+                         android.widget.Toast.makeText(
+                             context,
+-                            context.getString(R.string.update_open_failed),
++                            updateOpenFailedMessage,
+                             android.widget.Toast.LENGTH_LONG,
+                         ).show()
+                     }
+diff --git a/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt b/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt
+index 0ec6c98..ab8c456 100644
+--- a/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt
++++ b/app/src/main/java/com/excp/podroid/ui/screens/settings/SettingsScreen.kt
+@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.focus.onFocusChanged
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.LocalResources
+ import androidx.compose.ui.platform.LocalUriHandler
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.font.FontFamily
+@@ -141,6 +142,7 @@ fun SettingsScreen(
+     var avfRunning by remember { mutableStateOf(false) }
+     val avfScope = rememberCoroutineScope()
+     val ctx = LocalContext.current
++    val probingAvfMessage = stringResource(R.string.probing_avf)
+     val vmNotRunning = vmState !is VmState.Running && vmState !is VmState.Starting
+ 
+     // Reactive: a backend swap (or the async first pick resolving after this
+@@ -156,7 +158,7 @@ fun SettingsScreen(
+     val runAvfDiagnostic: () -> Unit = {
+         if (!avfRunning) {
+             avfRunning = true
+-            avfReportText = ctx.getString(R.string.probing_avf)
++            avfReportText = probingAvfMessage
+             avfScope.launch {
+                 val probe = AvfDiagnostics.probe(ctx)
+                 val smoke = if (probe.featureSupported && probe.managePermissionGranted) {
+@@ -1053,7 +1055,7 @@ private fun AddPortForwardDialog(
+     var protocol by remember { mutableStateOf("tcp") }
+     var error by remember { mutableStateOf<String?>(null) }
+     val invalidPortsMsg = stringResource(R.string.enter_valid_ports)
+-    val context = LocalContext.current
++    val resources = LocalResources.current
+ 
+     AlertDialog(
+         onDismissRequest = onDismiss,
+@@ -1112,15 +1114,15 @@ private fun AddPortForwardDialog(
+                     return@TextButton
+                 }
+                 if (hp in PortForwardRepository.RESERVED_HOST_PORTS) {
+-                    error = context.getString(R.string.port_reserved, hp)
++                    error = resources.getString(R.string.port_reserved, hp)
+                     return@TextButton
+                 }
+                 if (tableFull) {
+-                    error = context.getString(R.string.port_forward_table_full, MAX_PORT_FORWARD_RULES)
++                    error = resources.getString(R.string.port_forward_table_full, MAX_PORT_FORWARD_RULES)
+                     return@TextButton
+                 }
+                 val added = onAdd(hp, gp, protocol)
+-                if (!added) error = context.getString(R.string.port_already_forwarded, hp, protocol.uppercase())
++                if (!added) error = resources.getString(R.string.port_already_forwarded, hp, protocol.uppercase())
+             }) {
+                 Text(stringResource(R.string.add))
+             }
