@@ -24,6 +24,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
@@ -94,10 +95,16 @@ class UsbPassthroughManager @Inject constructor(
      */
     fun start() {
         if (started) return
+        // QEMU only. UML has a QMP socket too, but it belongs to the guest-less
+        // SLIRP router, so a usb-host device_add there would fail silently; AVF
+        // has no QMP at all. Don't arm the receiver or pop a permission dialog
+        // that would lead nowhere; Settings explains the setting is unavailable.
+        val backend = engine.backendId
+        if (!backendSupportsPassthrough(backend)) {
+            Log.i(TAG, "USB passthrough not armed: not available on the $backend backend")
+            return
+        }
         if (engine.qmpClient == null) {
-            // No QMP channel means no way to hand an fd to the guest (e.g. the AVF
-            // backend). USB passthrough is QEMU-only, so don't arm the receiver or
-            // pop a permission dialog that would lead nowhere.
             Log.i(TAG, "USB passthrough not armed: active backend has no QMP channel")
             return
         }
@@ -137,6 +144,11 @@ class UsbPassthroughManager @Inject constructor(
 
     private fun requestAndAttach(device: UsbDevice) {
         if (active.containsKey(device.deviceName)) return
+        val interfaceClasses = (0 until device.interfaceCount).map { device.getInterface(it).interfaceClass }
+        if (!isPassthroughCandidate(device.deviceClass, interfaceClasses)) {
+            Log.i(TAG, "Keeping input device ${device.deviceName} with Android (HID interface)")
+            return
+        }
         if (usbManager.hasPermission(device)) {
             scope.launch { attach(device) }
         } else {
@@ -161,6 +173,7 @@ class UsbPassthroughManager @Inject constructor(
             if (!started || engine.state.value !is VmState.Running) return
             if (active.containsKey(device.deviceName)) return
 
+            if (!backendSupportsPassthrough(engine.backendId)) return
             val qmp = engine.qmpClient
             if (qmp == null) {
                 Log.w(TAG, "No QMP client — USB passthrough needs the QEMU backend")
@@ -237,5 +250,19 @@ class UsbPassthroughManager @Inject constructor(
     companion object {
         private const val TAG = "UsbPassthrough"
         private const val ACTION_USB_PERMISSION = "com.excp.podroid.action.USB_PERMISSION"
+
+        /** USB passthrough needs QEMU's own QMP (`add-fd` + `device_add usb-host`). */
+        fun backendSupportsPassthrough(backendId: String): Boolean = backendId == "qemu"
+
+        /**
+         * Whether a device may be handed to the guest. usb-host takes the whole
+         * device, so anything exposing a HID interface (keyboard, mouse,
+         * trackpad, touchscreen, often bundled in a dock alongside other
+         * functions) is kept with Android: passing it through would leave the
+         * phone with no input.
+         */
+        fun isPassthroughCandidate(deviceClass: Int, interfaceClasses: List<Int>): Boolean =
+            deviceClass != UsbConstants.USB_CLASS_HID &&
+                interfaceClasses.none { it == UsbConstants.USB_CLASS_HID }
     }
 }

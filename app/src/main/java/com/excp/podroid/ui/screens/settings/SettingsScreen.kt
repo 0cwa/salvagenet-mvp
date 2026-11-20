@@ -11,15 +11,16 @@ import androidx.activity.result.contract.ActivityResultContracts.RequestPermissi
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,9 +48,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +59,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,11 +69,16 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.excp.podroid.BuildConfig
 import com.excp.podroid.R
+import com.excp.podroid.data.repository.MAX_PORT_FORWARD_RULES
 import com.excp.podroid.data.repository.PortForwardRepository
 import com.excp.podroid.data.repository.PortForwardRule
 import com.excp.podroid.engine.EngineSelection
 import com.excp.podroid.engine.VmState
 import com.excp.podroid.engine.avf.AvfDiagnostics
+import com.excp.podroid.engine.uml.UmlInfo
+import com.excp.podroid.engine.uml.umlRetryOffered
+import com.excp.podroid.service.PodroidService
+import com.excp.podroid.x11.X11Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -87,6 +91,7 @@ import com.excp.podroid.ui.components.PodroidListRow
 import com.excp.podroid.ui.components.VmBandwidthChips
 import com.excp.podroid.ui.components.VmCpuChips
 import com.excp.podroid.ui.components.VmRamChips
+import com.excp.podroid.ui.components.VmStorageChips
 import com.excp.podroid.ui.components.PodroidChipColors
 import com.excp.podroid.ui.components.PodroidSectionLabel
 import com.excp.podroid.ui.components.PodroidSwitch
@@ -109,7 +114,6 @@ private fun languageDisplayName(language: String, systemDefaultLanguage: String)
 fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onThemeOrFontChanged: () -> Unit = {},
     onLanguageChanged: () -> Unit = {},
     onNavigateToContainerBackup: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -118,22 +122,54 @@ fun SettingsScreen(
     val portForwardRules by viewModel.portForwardRules.collectAsStateWithLifecycle()
     val vmState by viewModel.vmState.collectAsStateWithLifecycle()
     val exportError by viewModel.exportError.collectAsStateWithLifecycle()
+    val portForwardPartialWarning by viewModel.portForwardPartialWarning.collectAsStateWithLifecycle()
+    val umlRetryMessage by viewModel.umlRetryMessage.collectAsStateWithLifecycle()
     val usbPassthrough by viewModel.usbPassthroughEnabled.collectAsStateWithLifecycle()
+    val autostartOnBoot by viewModel.autostartOnBoot.collectAsStateWithLifecycle()
 
-    var advancedExpanded by remember { mutableStateOf(false) }
-    var showAddDialog by remember { mutableStateOf(false) }
-    var showResetDialog by remember { mutableStateOf(false) }
-    var showLanguageDialog by remember { mutableStateOf(false) }
-    var avfReportText by remember { mutableStateOf<String?>(null) }
+    // rememberSaveable: changing the language calls activity.recreate(), which
+    // would otherwise silently close any open dialog and collapse Advanced.
+    var advancedExpanded by rememberSaveable { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var showResetDialog by rememberSaveable { mutableStateOf(false) }
+    var showLanguageDialog by rememberSaveable { mutableStateOf(false) }
+    var avfReportText by rememberSaveable { mutableStateOf<String?>(null) }
+    // Not rememberSaveable: this flag only tracks the in-flight avfScope coroutine
+    // below, which is cancelled on activity.recreate(); restoring a saved `true`
+    // would permanently disable the diagnostic button since nothing would ever
+    // clear it back to false.
     var avfRunning by remember { mutableStateOf(false) }
     val avfScope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val vmNotRunning = vmState !is VmState.Running && vmState !is VmState.Starting
 
-    // Memoize: both values are constant for the process lifetime / until a backend
-    // swap, so there's no point re-running reflection on every recomposition.
-    val isUsbPassthroughAvailable = remember { viewModel.isUsbPassthroughAvailable() }
-    val activeBackendId = remember { viewModel.activeBackendId() }
+    // Reactive: a backend swap (or the async first pick resolving after this
+    // screen is already composed) must update the AVF diagnostic dialog and
+    // the USB row without a re-navigation. A `remember { }` with no key used
+    // to cache these forever, including a pre-first-pick QEMU seed (#66).
+    val activeBackendId by viewModel.activeBackendIdFlow.collectAsStateWithLifecycle()
+    val isUsbPassthroughAvailable = activeBackendId == "qemu"
+    val backendFallback by viewModel.backendFallback.collectAsStateWithLifecycle()
+    val avfUsable by viewModel.avfUsable.collectAsStateWithLifecycle()
+    val umlInfo by viewModel.umlInfo.collectAsStateWithLifecycle()
+
+    val runAvfDiagnostic: () -> Unit = {
+        if (!avfRunning) {
+            avfRunning = true
+            avfReportText = ctx.getString(R.string.probing_avf)
+            avfScope.launch {
+                val probe = AvfDiagnostics.probe(ctx)
+                val smoke = if (probe.featureSupported && probe.managePermissionGranted) {
+                    withContext(Dispatchers.IO) { AvfDiagnostics.runSmokeTest(ctx) }
+                } else null
+                avfReportText = probe.copy(
+                    smokeTestResult = smoke,
+                    activeBackend = activeBackendId,
+                ).pretty()
+                avfRunning = false
+            }
+        }
+    }
 
     // Re-sync the persisted storageAccessEnabled flag against the real OS grant on
     // every resume (user may have denied all-files-access on the system screen we
@@ -157,6 +193,16 @@ fun SettingsScreen(
         val msg = exportError ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(msg)
         viewModel.clearExportError()
+    }
+    LaunchedEffect(portForwardPartialWarning) {
+        val msg = portForwardPartialWarning ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        viewModel.clearPortForwardPartialWarning()
+    }
+    LaunchedEffect(umlRetryMessage) {
+        val msg = umlRetryMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        viewModel.clearUmlRetryMessage()
     }
 
     Scaffold(
@@ -188,78 +234,35 @@ fun SettingsScreen(
                     .padding(horizontal = PodroidTokens.Spacing.XL),
             ) {
                 // ── APPEARANCE ────────────────────────────────────────
-                PodroidSectionLabel(stringResource(R.string.appearance))
-                PodroidListRow(
-                    label = stringResource(R.string.dark_theme),
-                    rightSlot = {
-                        PodroidSwitch(
-                            checked = ui.darkTheme,
-                            onCheckedChange = {
-                                viewModel.setDarkTheme(it)
-                                onThemeOrFontChanged()
-                            },
-                        )
-                    },
-                )
-                PodroidListRow(
-                    label = stringResource(R.string.dynamic_color),
-                    rightSlot = {
-                        PodroidSwitch(
-                            checked = ui.dynamicColorEnabled,
-                            onCheckedChange = {
-                                viewModel.setDynamicColorEnabled(it)
-                                onThemeOrFontChanged()
-                            },
-                        )
-                    },
+                AppearanceSection(
+                    darkTheme = ui.darkTheme,
+                    onDarkThemeChange = viewModel::setDarkTheme,
+                    dynamicColorEnabled = ui.dynamicColorEnabled,
+                    onDynamicColorChange = viewModel::setDynamicColorEnabled,
                 )
 
                 // ── LANGUAGE ───────────────────────────────────────────
-                PodroidSectionLabel(stringResource(R.string.language_label))
-                PodroidListRow(
-                    label = stringResource(R.string.language_label),
-                    value = languageDisplayName(ui.language, ui.systemDefaultLanguage),
+                LanguageSection(
+                    language = ui.language,
+                    systemDefaultLanguage = ui.systemDefaultLanguage,
                     onClick = { showLanguageDialog = true },
                 )
 
                 // ── VM RESOURCES ──────────────────────────────────────
-                PodroidSectionLabel(stringResource(R.string.vm_resources))
-                if (!vmNotRunning) {
-                    Text(
-                        text = stringResource(R.string.stop_vm_to_change),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = PodroidTokens.Spacing.SM),
-                    )
-                }
-                PodroidListRow(
-                    label = stringResource(R.string.load_balance),
-                    rightSlot = {
-                        PodroidSwitch(
-                            checked = ui.loadBalanceEnabled,
-                            onCheckedChange = { viewModel.setLoadBalanceEnabled(it) },
-                            enabled = vmNotRunning,
-                        )
-                    },
-                )
-                VmRamChips(
-                    currentMb = ui.vmRamMb,
-                    onChange = viewModel::setVmRamMb,
-                    enabled = vmNotRunning && !ui.loadBalanceEnabled,
-                )
-                VmCpuChips(
-                    currentCpus = ui.vmCpus,
-                    onChange = viewModel::setVmCpus,
-                    enabled = vmNotRunning && !ui.loadBalanceEnabled,
-                )
-                VmBandwidthChips(
-                    currentMbps = ui.bandwidthMbps,
-                    onChange = viewModel::setBandwidthMbps,
-                    enabled = vmNotRunning && !ui.loadBalanceEnabled,
-                )
-                PodroidListRow(
-                    label = stringResource(R.string.storage),
-                    value = "${ui.storageSizeGb} GB",
+                VmResourcesSection(
+                    vmNotRunning = vmNotRunning,
+                    loadBalanceEnabled = ui.loadBalanceEnabled,
+                    onLoadBalanceChange = viewModel::setLoadBalanceEnabled,
+                    vmRamMb = ui.vmRamMb,
+                    onVmRamChange = viewModel::setVmRamMb,
+                    vmCpus = ui.vmCpus,
+                    onVmCpusChange = viewModel::setVmCpus,
+                    bandwidthMbps = ui.bandwidthMbps,
+                    onBandwidthChange = viewModel::setBandwidthMbps,
+                    storageSizeGb = ui.storageSizeGb,
+                    onStorageSizeChange = viewModel::setStorageSizeGb,
+                    autostartOnBoot = autostartOnBoot,
+                    onAutostartChange = viewModel::setAutostartOnBoot,
                 )
 
                 // ── NETWORK ───────────────────────────────────────────
@@ -271,6 +274,7 @@ fun SettingsScreen(
                 )
                 PodroidListRow(
                     label = stringResource(R.string.ssh),
+                    onClick = { if (vmNotRunning) viewModel.setSshEnabled(!ui.sshEnabled) },
                     rightSlot = {
                         PodroidSwitch(
                             checked = ui.sshEnabled,
@@ -281,8 +285,10 @@ fun SettingsScreen(
                 )
                 PortForwardSection(
                     rules = portForwardRules,
+                    sshEnabled = ui.sshEnabled,
                     onAdd = { showAddDialog = true },
                     onRemove = { viewModel.removePortForward(it) },
+                    onClean = { viewModel.clearPortForwards() },
                 )
 
                 // ── STORAGE / SHARING ─────────────────────────────────
@@ -321,7 +327,7 @@ fun SettingsScreen(
                 if (advancedExpanded) {
                     PodroidSectionLabel(stringResource(R.string.backend))
                     Spacer(Modifier.height(PodroidTokens.Spacing.SM))
-                    Row(
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
                     ) {
@@ -336,12 +342,80 @@ fun SettingsScreen(
                                             EngineSelection.AUTO -> stringResource(R.string.auto)
                                             EngineSelection.AVF  -> stringResource(R.string.avf_kvm)
                                             EngineSelection.QEMU -> stringResource(R.string.qemu_tcg)
+                                            EngineSelection.UML  -> stringResource(R.string.backend_uml_experimental)
                                         },
                                         fontFamily = FontFamily.Monospace,
                                     )
                                 },
                                 shape = RoundedCornerShape(PodroidTokens.Radius.Chip),
                                 colors = PodroidChipColors(),
+                            )
+                        }
+                    }
+                    // Annotate, don't disable: the user may grant AVF permissions
+                    // later, so the chip stays selectable while explaining why the
+                    // VM is actually running on QEMU right now.
+                    if (ui.engineSelection == EngineSelection.AVF) {
+                        backendFallback?.let { reasonResId ->
+                            Spacer(Modifier.height(PodroidTokens.Spacing.XS))
+                            Text(
+                                text = stringResource(
+                                    R.string.backend_avf_unavailable,
+                                    stringResource(reasonResId),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
+                            )
+                        }
+                    } else if (ui.engineSelection == EngineSelection.UML) {
+                        // UML failed its probe, or was demoted after misbehaving: say why
+                        // the VM is running elsewhere and offer a retry.
+                        backendFallback?.let { reasonResId ->
+                            Spacer(Modifier.height(PodroidTokens.Spacing.XS))
+                            Text(
+                                text = stringResource(reasonResId),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
+                            )
+                        }
+                        if (umlRetryOffered(umlInfo.status)) {
+                            umlInfo.reason?.let { reason ->
+                                Text(
+                                    text = stringResource(R.string.uml_reason_detail, reason),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
+                                )
+                            }
+                            Spacer(Modifier.height(PodroidTokens.Spacing.XS))
+                            PodroidGhostButton(
+                                text = stringResource(R.string.uml_try_again),
+                                onClick = viewModel::retryUml,
+                            )
+                        }
+                        if (avfUsable) {
+                            Spacer(Modifier.height(PodroidTokens.Spacing.XS))
+                            Text(
+                                text = stringResource(R.string.backend_uml_avf_better_note),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
+                            )
+                        }
+                    } else if (ui.engineSelection == EngineSelection.AUTO) {
+                        // Not an error: Auto did its job and kept the VM on QEMU
+                        // because this device's AVF build has networking off
+                        // (#43). Plain secondary text, not the AVF-forced error
+                        // styling above.
+                        backendFallback?.takeIf { it == R.string.backend_fallback_reason_network }?.let { reasonResId ->
+                            Spacer(Modifier.height(PodroidTokens.Spacing.XS))
+                            Text(
+                                text = stringResource(reasonResId),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
                             )
                         }
                     }
@@ -354,56 +428,20 @@ fun SettingsScreen(
                         onQemuReset = viewModel::resetQemuExtraArgs,
                         onKernelReset = viewModel::resetKernelExtraCmdline,
                         enabled = vmNotRunning,
+                        umlActive = activeBackendId == "uml",
                     )
                 }
 
                 // ── ABOUT ─────────────────────────────────────────────
-                PodroidSectionLabel(stringResource(R.string.about))
-                PodroidListRow(label = stringResource(R.string.version_label), value = "v${BuildConfig.VERSION_NAME}", mono = true)
-                PodroidListRow(label = stringResource(R.string.qemu_label), value = "v${BuildConfig.QEMU_VERSION}", mono = true)
-                PodroidListRow(label = stringResource(R.string.architecture), value = "AArch64", mono = true)
-                PodroidListRow(label = stringResource(R.string.linux_distro), value = "Alpine 3.23", mono = true)
-                Spacer(Modifier.height(PodroidTokens.Spacing.MD))
-                val uriHandler = LocalUriHandler.current
-                PodroidGhostButton(
-                    text = stringResource(R.string.documentation),
-                    onClick = { uriHandler.openUri("https://extv.github.io/Podroid/guide/") },
-                )
-                Spacer(Modifier.height(PodroidTokens.Spacing.SM))
-                PodroidGhostButton(
-                    text = stringResource(R.string.export_diagnostic_log),
-                    onClick = { viewModel.exportConsoleLogs() },
-                )
-                Spacer(Modifier.height(PodroidTokens.Spacing.SM))
                 // Use lifecycle-aware collection to match the rest of the screen.
                 val avfVerbose by viewModel.avfVerboseLogging.collectAsStateWithLifecycle()
-                PodroidListRow(
-                    label = stringResource(R.string.verbose_avf_logging),
-                    rightSlot = {
-                        PodroidSwitch(
-                            checked = avfVerbose,
-                            onCheckedChange = { viewModel.setAvfVerboseLogging(it) },
-                        )
-                    },
-                )
-                PodroidGhostButton(
-                    text = if (avfRunning) stringResource(R.string.running_avf_diagnostic) else stringResource(R.string.avf_diagnostic),
-                    onClick = {
-                        if (avfRunning) return@PodroidGhostButton
-                        avfRunning = true
-                        avfReportText = ctx.getString(R.string.probing_avf)
-                        avfScope.launch {
-                            val probe = AvfDiagnostics.probe(ctx)
-                            val smoke = if (probe.featureSupported && probe.managePermissionGranted) {
-                                withContext(Dispatchers.IO) { AvfDiagnostics.runSmokeTest(ctx) }
-                            } else null
-                            avfReportText = probe.copy(
-                                smokeTestResult = smoke,
-                                activeBackend = activeBackendId,
-                            ).pretty()
-                            avfRunning = false
-                        }
-                    },
+                AboutSection(
+                    avfVerboseLogging = avfVerbose,
+                    onAvfVerboseLoggingChange = viewModel::setAvfVerboseLogging,
+                    avfRunning = avfRunning,
+                    onRunAvfDiagnostic = runAvfDiagnostic,
+                    onExportLogs = { viewModel.exportConsoleLogs() },
+                    umlInfo = umlInfo.takeIf { ui.engineSelection == EngineSelection.UML },
                 )
 
                 Spacer(Modifier.height(PodroidTokens.Spacing.XL2))
@@ -414,6 +452,7 @@ fun SettingsScreen(
     if (showAddDialog) {
         AddPortForwardDialog(
             onDismiss = { showAddDialog = false },
+            tableFull = portForwardRules.size >= MAX_PORT_FORWARD_RULES,
             onAdd = { hostPort, guestPort, protocol ->
                 // Only close the dialog when the rule was actually added.
                 // addPortForward returns false if the (hostPort, protocol) pair
@@ -426,110 +465,361 @@ fun SettingsScreen(
     }
 
     avfReportText?.let { report ->
-        AlertDialog(
-            onDismissRequest = { avfReportText = null },
-            title = { Text(stringResource(R.string.avf_diagnostic)) },
-            text = {
-                androidx.compose.material3.Card(
-                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(PodroidTokens.Spacing.SM),
-                    ) {
-                        Text(
-                            text = report,
-                            fontFamily = FontFamily.Monospace,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.sp,
-                                lineHeight = 14.sp,
-                            ),
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { avfReportText = null }) { Text(stringResource(R.string.close)) }
-            },
+        AvfDiagnosticDialog(
+            report = report,
+            onDismiss = { avfReportText = null },
         )
     }
 
     if (showResetDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetDialog = false },
-            title = { Text(stringResource(R.string.reset_vm_description)) },
-            text = {
-                Text(stringResource(R.string.reset_vm_text))
+        ResetVmDialog(
+            onConfirm = {
+                viewModel.resetVm()
+                showResetDialog = false
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.resetVm()
-                    showResetDialog = false
-                }) {
-                    Text(stringResource(R.string.reset_everything), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+            onDismiss = { showResetDialog = false },
         )
     }
 
     if (showLanguageDialog) {
-        AlertDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            title = { Text(stringResource(R.string.language_label)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        "auto" to stringResource(R.string.system_default),
-                        "zh" to stringResource(R.string.language_zh),
-                        "en" to stringResource(R.string.language_en),
-                    ).forEach { (code, label) ->
-                        FilterChip(
-                            selected = ui.language == code,
-                            onClick = {
-                                avfScope.launch {
-                                    viewModel.setLanguage(code)
-                                    showLanguageDialog = false
-                                    onLanguageChanged()
-                                }
-                            },
-                            label = { Text(label) },
-                            shape = RoundedCornerShape(PodroidTokens.Radius.Chip),
-                            colors = PodroidChipColors(),
-                        )
-                    }
+        LanguagePickerDialog(
+            selectedLanguage = ui.language,
+            onSelect = { code ->
+                avfScope.launch {
+                    viewModel.setLanguage(code)
+                    showLanguageDialog = false
+                    onLanguageChanged()
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+            onDismiss = { showLanguageDialog = false },
         )
     }
 }
 
 @Composable
+private fun AppearanceSection(
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    dynamicColorEnabled: Boolean,
+    onDynamicColorChange: (Boolean) -> Unit,
+) {
+    PodroidSectionLabel(stringResource(R.string.appearance))
+    PodroidListRow(
+        label = stringResource(R.string.dark_theme),
+        onClick = { onDarkThemeChange(!darkTheme) },
+        rightSlot = {
+            PodroidSwitch(
+                checked = darkTheme,
+                onCheckedChange = onDarkThemeChange,
+            )
+        },
+    )
+    PodroidListRow(
+        label = stringResource(R.string.dynamic_color),
+        onClick = { onDynamicColorChange(!dynamicColorEnabled) },
+        rightSlot = {
+            PodroidSwitch(
+                checked = dynamicColorEnabled,
+                onCheckedChange = onDynamicColorChange,
+            )
+        },
+    )
+}
+
+@Composable
+private fun LanguageSection(
+    language: String,
+    systemDefaultLanguage: String,
+    onClick: () -> Unit,
+) {
+    PodroidSectionLabel(stringResource(R.string.language_label))
+    PodroidListRow(
+        label = stringResource(R.string.language_label),
+        value = languageDisplayName(language, systemDefaultLanguage),
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun VmResourcesSection(
+    vmNotRunning: Boolean,
+    loadBalanceEnabled: Boolean,
+    onLoadBalanceChange: (Boolean) -> Unit,
+    vmRamMb: Int,
+    onVmRamChange: (Int) -> Unit,
+    vmCpus: Int,
+    onVmCpusChange: (Int) -> Unit,
+    bandwidthMbps: Int,
+    onBandwidthChange: (Int) -> Unit,
+    storageSizeGb: Int,
+    onStorageSizeChange: (Int) -> Unit,
+    autostartOnBoot: Boolean,
+    onAutostartChange: (Boolean) -> Unit,
+) {
+    PodroidSectionLabel(stringResource(R.string.vm_resources))
+    if (!vmNotRunning) {
+        Text(
+            text = stringResource(R.string.stop_vm_to_change),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = PodroidTokens.Spacing.SM),
+        )
+    }
+    PodroidListRow(
+        label = stringResource(R.string.load_balance),
+        onClick = { if (vmNotRunning) onLoadBalanceChange(!loadBalanceEnabled) },
+        rightSlot = {
+            PodroidSwitch(
+                checked = loadBalanceEnabled,
+                onCheckedChange = onLoadBalanceChange,
+                enabled = vmNotRunning,
+            )
+        },
+    )
+    VmRamChips(
+        currentMb = vmRamMb,
+        onChange = onVmRamChange,
+        enabled = vmNotRunning && !loadBalanceEnabled,
+    )
+    VmCpuChips(
+        currentCpus = vmCpus,
+        onChange = onVmCpusChange,
+        enabled = vmNotRunning && !loadBalanceEnabled,
+    )
+    VmBandwidthChips(
+        currentMbps = bandwidthMbps,
+        onChange = onBandwidthChange,
+        enabled = vmNotRunning && !loadBalanceEnabled,
+    )
+    VmStorageChips(
+        currentGb = storageSizeGb,
+        onChange = onStorageSizeChange,
+        minGb = storageSizeGb,
+        enabled = vmNotRunning && !loadBalanceEnabled,
+    )
+    PodroidListRow(
+        label = stringResource(R.string.autostart_on_boot),
+        onClick = { onAutostartChange(!autostartOnBoot) },
+        rightSlot = {
+            PodroidSwitch(
+                checked = autostartOnBoot,
+                onCheckedChange = onAutostartChange,
+            )
+        },
+    )
+    Text(
+        text = stringResource(R.string.autostart_on_boot_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(
+            start = PodroidTokens.Spacing.MD,
+            end = PodroidTokens.Spacing.MD,
+            bottom = PodroidTokens.Spacing.SM,
+        ),
+    )
+}
+
+@Composable
+private fun AboutSection(
+    avfVerboseLogging: Boolean,
+    onAvfVerboseLoggingChange: (Boolean) -> Unit,
+    avfRunning: Boolean,
+    onRunAvfDiagnostic: () -> Unit,
+    onExportLogs: () -> Unit,
+    umlInfo: UmlInfo?,
+) {
+    PodroidSectionLabel(stringResource(R.string.about))
+    PodroidListRow(label = stringResource(R.string.version_label), value = "v${BuildConfig.VERSION_NAME}", mono = true)
+    PodroidListRow(label = stringResource(R.string.qemu_label), value = "v${BuildConfig.QEMU_VERSION}", mono = true)
+    PodroidListRow(label = stringResource(R.string.architecture), value = "AArch64", mono = true)
+    PodroidListRow(label = stringResource(R.string.linux_distro), value = "Alpine 3.24", mono = true)
+    Spacer(Modifier.height(PodroidTokens.Spacing.MD))
+    val uriHandler = LocalUriHandler.current
+    PodroidGhostButton(
+        text = stringResource(R.string.documentation),
+        onClick = { uriHandler.openUri("https://extv.github.io/Podroid/guide/") },
+    )
+    Spacer(Modifier.height(PodroidTokens.Spacing.SM))
+    PodroidGhostButton(
+        text = stringResource(R.string.export_diagnostic_log),
+        onClick = onExportLogs,
+    )
+    if (umlInfo != null) {
+        val status = umlInfo.status.name.lowercase()
+        Text(
+            text = umlInfo.reason?.let { stringResource(R.string.uml_diag_status_reason, status, it) }
+                ?: stringResource(R.string.uml_diag_status, status),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = PodroidTokens.Spacing.MD),
+        )
+    }
+    Spacer(Modifier.height(PodroidTokens.Spacing.SM))
+    PodroidListRow(
+        label = stringResource(R.string.verbose_avf_logging),
+        onClick = { onAvfVerboseLoggingChange(!avfVerboseLogging) },
+        rightSlot = {
+            PodroidSwitch(
+                checked = avfVerboseLogging,
+                onCheckedChange = onAvfVerboseLoggingChange,
+            )
+        },
+    )
+    PodroidGhostButton(
+        text = if (avfRunning) stringResource(R.string.running_avf_diagnostic) else stringResource(R.string.avf_diagnostic),
+        onClick = onRunAvfDiagnostic,
+    )
+}
+
+@Composable
+private fun AvfDiagnosticDialog(
+    report: String,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.avf_diagnostic)) },
+        text = {
+            androidx.compose.material3.Card(
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(PodroidTokens.Spacing.SM),
+                ) {
+                    Text(
+                        text = report,
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp,
+                        ),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        },
+    )
+}
+
+@Composable
+private fun ResetVmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.reset_vm_description)) },
+        text = {
+            Text(stringResource(R.string.reset_vm_text))
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.reset_everything), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun LanguagePickerDialog(
+    selectedLanguage: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.language_label)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "auto" to stringResource(R.string.system_default),
+                    "zh" to stringResource(R.string.language_zh),
+                    "en" to stringResource(R.string.language_en),
+                ).forEach { (code, label) ->
+                    FilterChip(
+                        selected = selectedLanguage == code,
+                        onClick = { onSelect(code) },
+                        label = { Text(label) },
+                        shape = RoundedCornerShape(PodroidTokens.Radius.Chip),
+                        colors = PodroidChipColors(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
 private fun PortForwardSection(
     rules: List<PortForwardRule>,
+    sshEnabled: Boolean,
     onAdd: () -> Unit,
     onRemove: (PortForwardRule) -> Unit,
+    onClean: () -> Unit,
 ) {
+    var showCleanConfirm by remember { mutableStateOf(false) }
+
     PodroidListRow(
         label = stringResource(R.string.port_forwards_count, rules.size),
-        rightSlot = { PodroidInlineAction(label = stringResource(R.string.add_btn), onClick = onAdd) },
+        rightSlot = {
+            Row(horizontalArrangement = Arrangement.spacedBy(PodroidTokens.Spacing.SM)) {
+                if (rules.isNotEmpty()) {
+                    PodroidInlineAction(
+                        label = stringResource(R.string.port_forwards_clean),
+                        onClick = { showCleanConfirm = true },
+                    )
+                }
+                PodroidInlineAction(label = stringResource(R.string.add_btn), onClick = onAdd)
+            }
+        },
     )
-    rules.forEach { rule ->
-        key(rule.hostPort, rule.protocol) {
+
+    // The forwards Podroid sets up itself. They never appear in the rule list
+    // because they are not user rules, which left people reading netstat in the
+    // guest and guessing what had claimed a port, or trying to add a rule on one
+    // and getting a refusal with no visible reason.
+    ReservedForwardRow(
+        hostPort = PodroidService.SSH_HOST_PORT,
+        guestPort = 22,
+        purpose = stringResource(
+            if (sshEnabled) R.string.port_forward_purpose_ssh else R.string.port_forward_purpose_ssh_off
+        ),
+        dimmed = !sshEnabled,
+    )
+    ReservedForwardRow(
+        hostPort = X11Constants.VNC_PORT,
+        guestPort = X11Constants.VNC_PORT,
+        purpose = stringResource(R.string.port_forward_purpose_vnc),
+        dimmed = false,
+    )
+    ReservedForwardRow(
+        hostPort = X11Constants.AUDIO_PORT,
+        guestPort = X11Constants.AUDIO_PORT,
+        purpose = stringResource(R.string.port_forward_purpose_audio),
+        dimmed = false,
+    )
+    LazyColumn(
+        modifier = Modifier.heightIn(max = 360.dp),
+    ) {
+        items(rules, key = { "${it.protocol}:${it.hostPort}" }) { rule ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -558,6 +848,62 @@ private fun PortForwardSection(
             )
         }
     }
+
+    if (showCleanConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCleanConfirm = false },
+            title = { Text(stringResource(R.string.port_forwards_clean_confirm_title)) },
+            text = { Text(stringResource(R.string.port_forwards_clean_confirm_body, rules.size)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClean()
+                    showCleanConfirm = false
+                }) {
+                    Text(stringResource(R.string.port_forwards_clean_confirm_btn), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCleanConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+/** One of Podroid's own forwards: shown for reference, with no delete action. */
+@Composable
+private fun ReservedForwardRow(
+    hostPort: Int,
+    guestPort: Int,
+    purpose: String,
+    dimmed: Boolean,
+) {
+    val tint = MaterialTheme.colorScheme.onSurfaceVariant
+        .copy(alpha = if (dimmed) 0.5f else 1f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = PodroidTokens.Spacing.SM),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = "$hostPort → $guestPort (tcp)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = tint,
+            fontFamily = PodroidTokens.mono(),
+        )
+        Text(
+            text = purpose,
+            style = MaterialTheme.typography.bodySmall,
+            color = tint,
+        )
+    }
+    HorizontalDivider(
+        color = MaterialTheme.colorScheme.outline,
+        thickness = 1.dp,
+    )
 }
 
 /**
@@ -589,25 +935,28 @@ private fun DownloadsSharingRow(
         )
     }
 
+    fun toggleDownloadsSharing(checked: Boolean) {
+        onToggle(checked)
+        if (checked) {
+            if (canManageAllFiles && !Environment.isExternalStorageManager()) {
+                openAllFilesAccessSettings()
+            } else if (!canManageAllFiles &&
+                ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                writeStoragePermLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }
+    }
+
     PodroidListRow(
         label = stringResource(R.string.downloads_sharing),
+        onClick = { if (vmNotRunning) toggleDownloadsSharing(!enabled) },
         rightSlot = {
             PodroidSwitch(
                 checked = enabled,
-                onCheckedChange = { checked ->
-                    onToggle(checked)
-                    if (checked) {
-                        if (canManageAllFiles && !Environment.isExternalStorageManager()) {
-                            openAllFilesAccessSettings()
-                        } else if (!canManageAllFiles &&
-                            ContextCompat.checkSelfPermission(
-                                context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            writeStoragePermLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                        }
-                    }
-                },
+                onCheckedChange = { checked -> toggleDownloadsSharing(checked) },
                 enabled = vmNotRunning,
             )
         },
@@ -631,6 +980,7 @@ private fun UsbPassthroughRow(
 ) {
     PodroidListRow(
         label = stringResource(R.string.usb_passthrough_settings_label),
+        onClick = { if (vmNotRunning && available) onToggle(!(enabled && available)) },
         rightSlot = {
             PodroidSwitch(
                 checked = enabled && available,
@@ -642,6 +992,8 @@ private fun UsbPassthroughRow(
     Text(
         text = if (available) {
             stringResource(R.string.usb_passthrough_settings_description_available)
+        } else if (activeBackendId == "uml") {
+            stringResource(R.string.usb_not_available_on_uml)
         } else {
             stringResource(R.string.usb_passthrough_settings_description_unavailable, activeBackendId)
         },
@@ -664,6 +1016,7 @@ private fun AdvancedFieldsBlock(
     onQemuReset: () -> Unit,
     onKernelReset: () -> Unit,
     enabled: Boolean,
+    umlActive: Boolean,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(PodroidTokens.Spacing.MD),
@@ -680,7 +1033,7 @@ private fun AdvancedFieldsBlock(
             )
         }
         AdvancedTextSetting(
-            label = stringResource(R.string.extra_qemu_args),
+            label = stringResource(if (umlActive) R.string.qemu_extra_args_qemu_only else R.string.extra_qemu_args),
             helper = stringResource(R.string.qemu_args_helper),
             value = qemuExtraArgs,
             enabled = enabled,
@@ -703,6 +1056,9 @@ private fun AdvancedFieldsBlock(
 @Composable
 private fun AddPortForwardDialog(
     onDismiss: () -> Unit,
+    // The repository refuses rules past its ceiling. Checking here too keeps the
+    // message truthful: without it a refusal would surface as "already forwarded".
+    tableFull: Boolean,
     // Returns true if the rule was added, false if it was a duplicate.
     // The dialog shows an error and stays open on false.
     onAdd: (hostPort: Int, guestPort: Int, protocol: String) -> Boolean,
@@ -774,6 +1130,10 @@ private fun AddPortForwardDialog(
                     error = context.getString(R.string.port_reserved, hp)
                     return@TextButton
                 }
+                if (tableFull) {
+                    error = context.getString(R.string.port_forward_table_full, MAX_PORT_FORWARD_RULES)
+                    return@TextButton
+                }
                 val added = onAdd(hp, gp, protocol)
                 if (!added) error = context.getString(R.string.port_already_forwarded, hp, protocol.uppercase())
             }) {
@@ -820,6 +1180,7 @@ private fun AdvancedTextSetting(
             }
         }
     }
+    var showResetConfirm by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -852,9 +1213,30 @@ private fun AdvancedTextSetting(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onReset, enabled = enabled) {
+            TextButton(onClick = { showResetConfirm = true }, enabled = enabled) {
                 Text(stringResource(R.string.reset))
             }
         }
+    }
+
+    if (showResetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = { Text(stringResource(R.string.reset_field_confirm_title, label)) },
+            text = { Text(stringResource(R.string.reset_field_confirm_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onReset()
+                    showResetConfirm = false
+                }) {
+                    Text(stringResource(R.string.reset), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Backends: QEMU &amp; AVF · Podroid docs</title>
-  <meta name="description" content="How to choose between QEMU (TCG) and AVF (pKVM), how to grant AVF permissions, and what differs between the two backends." />
+  <title>Backends: QEMU, AVF &amp; UML · Podroid docs</title>
+  <meta name="description" content="How to choose between QEMU (TCG), AVF (pKVM) and the experimental UML backend, how to grant AVF permissions, and what differs between the three backends." />
   <link rel="icon" type="image/png" href="../logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,7 +33,7 @@
       <h4>Going deeper</h4>
       <ul>
         <li><a href="performance.html">Performance &amp; why it's slow</a></li>
-        <li><a href="backends.html" class="active">Backends: QEMU &amp; AVF</a></li>
+        <li><a href="backends.html" class="active">Backends: QEMU, AVF &amp; UML</a></li>
         <li><a href="networking.html">Networking &amp; ports</a></li>
         <li><a href="packages.html">Packages &amp; services</a></li>
         <li><a href="migrations.html">Updates &amp; migrations</a></li>
@@ -48,15 +48,16 @@
     </aside>
 
     <main class="content">
-      <h1>Backends: QEMU &amp; AVF</h1>
-      <p class="lead">Podroid has two VM engines behind one setting. The default uses QEMU with software CPU emulation and works on any device. On Pixel 8/9/10 and similar devices that ship pKVM, the AVF backend runs the guest on real CPU cores for near-native speed.</p>
+      <h1>Backends: QEMU, AVF &amp; UML</h1>
+      <p class="lead">Podroid has two main VM engines behind one setting, plus an experimental third. The default uses QEMU with software CPU emulation and works on any device. On Pixel 8/9/10 and similar devices that ship pKVM, the AVF backend runs the guest on real CPU cores for near-native speed. The opt-in UML backend runs the guest kernel as an ordinary Android process.</p>
 
       <h2>Choosing a backend</h2>
-      <p>Go to <strong>Settings &rarr; Advanced &rarr; Backend</strong>. The three options are:</p>
+      <p>Go to <strong>Settings &rarr; Advanced &rarr; Backend</strong>. The options are:</p>
       <ul>
         <li><strong>Auto</strong> (default) - Podroid probes the device at startup and uses AVF if the feature, both permissions, and non-protected VM support are all present; otherwise it falls back to QEMU. This is the right choice for most users.</li>
-        <li><strong>AVF (KVM)</strong> - always use AVF; the VM will fail to start if the prerequisites are not met.</li>
+        <li><strong>AVF (KVM)</strong> - always use AVF. On a device that cannot run it, the VM runs on QEMU instead, and the app states why: a notice on Home, a suffix on the Status screen, and a caption under the AVF chip in Settings.</li>
         <li><strong>QEMU (TCG)</strong> - always use software emulation, even on a device that supports AVF.</li>
+        <li><strong>UML (experimental)</strong> - run the guest kernel as a plain Android process. Opt-in only: Auto never chooses it. See <a href="#uml">UML (experimental)</a> below.</li>
       </ul>
 
       <div class="callout note">
@@ -94,8 +95,31 @@
       <h3>Permission lifetime</h3>
       <p>The two <code>pm grant</code> permissions <strong>persist across reboots and in-place app updates</strong>. You do not need to re-grant them after an OTA or a Podroid update installed over the existing app. However, they are <strong>lost on uninstall</strong>: if you uninstall and reinstall Podroid, run the two <code>pm grant</code> commands again before using AVF.</p>
 
+      <h2 id="uml">UML (experimental)</h2>
+      <p>User-Mode Linux (UML) runs the guest Linux kernel as an ordinary Android process. Guest code therefore runs natively on the CPU instead of being emulated instruction by instruction as on QEMU. It needs no special permission and no root, and works on any ARM64 Android 8+ device. In short: AVF (hardware virtualization) is the fastest but only exists on devices that support it and needs a one-time permission grant; QEMU works everywhere and is the default where AVF is unavailable; UML is an experimental option that is faster than QEMU for many workloads on devices without AVF.</p>
+
+      <p>On the device used for the measurements, UML booted and ran CPU-heavy work 2-4x faster than QEMU. These are single-device numbers and results vary; see <a href="performance.html#uml-speed">Performance</a> for the table. UML is not as fast as AVF, so on a device that supports AVF, use AVF.</p>
+
+      <h3>Turning it on</h3>
+      <p>Go to <strong>Settings &rarr; Advanced &rarr; Backend</strong> (turn on <strong>Show advanced</strong> if the section is hidden) and pick <strong>UML (experimental)</strong>. Auto never selects it, so you have to choose it yourself. The VM must be stopped first; the change applies at the next start. The Home and Status screens show which backend is active.</p>
+
+      <h3>Compatibility test and automatic fallback</h3>
+      <p>The first time you start the VM with UML selected, Podroid runs a short compatibility test (a few seconds, at most about a minute). The test includes a DNS lookup, so it needs a working network connection: if the phone is offline, the test fails.</p>
+      <p>If the test fails, or UML later crashes or does not finish booting within 120 seconds, Podroid switches UML off for that device and starts the VM on the backend Auto would pick (AVF if usable, otherwise QEMU), with a notification. Your data lives on the same disk on every backend, so nothing is lost by the switch.</p>
+      <p>After a fallback, Settings shows the reason and a <strong>Try UML again</strong> button. The VM must be stopped to use it. The failure record is also cleared automatically after an app or Android update.</p>
+
+      <h3>What is different on UML</h3>
+      <ul>
+        <li><strong>No USB passthrough.</strong> USB devices need the QEMU backend.</li>
+        <li><strong>Every guest process is an Android process.</strong> This includes every container process. On Android 12 and later the system limits how many child processes background apps may have (the phantom-process limit), so container-heavy workloads can have processes killed. See <a href="limitations.html">Limitations &amp; troubleshooting</a> for how to lift the limit; on Android 14 and later, the Developer options switch <strong>Disable child process restrictions</strong> does the same.</li>
+        <li><strong>Not a security sandbox.</strong> The Downloads folder share works on UML and is restricted to the Downloads folder, but the guest kernel runs with the app's own privileges. Do not run untrusted code in it expecting VM-grade isolation.</li>
+        <li><strong>Slower shutdown.</strong> A clean guest shutdown takes about 15 to 30 seconds, longer than on QEMU.</li>
+        <li><strong>Different kernel build and interface name.</strong> The guest kernel is a different build from the QEMU/AVF one (<code>uname -r</code> differs), and the network interface is named <code>vec0</code> instead of <code>eth0</code>. Networking otherwise behaves like QEMU: the same 10.0.2.15 address, and port forwards and SSH on 9922 work the same way.</li>
+        <li><strong>Limited testing.</strong> UML has not yet been tested on devices with 16 KB memory pages or on very old Android kernels, which is part of why it is marked experimental.</li>
+      </ul>
+
       <h2>How Auto-selection works</h2>
-      <p>When the backend is set to Auto, Podroid checks four conditions at startup: (1) the <code>android.software.virtualization_framework</code> feature is present, (2) <code>MANAGE_VIRTUAL_MACHINE</code> is granted, (3) <code>USE_CUSTOM_VIRTUAL_MACHINE</code> is granted, and (4) the device advertises support for <strong>non-protected VMs</strong>. All four must pass. If any fails, Podroid silently falls back to QEMU - no error, the VM just starts with software emulation.</p>
+      <p>When the backend is set to Auto, Podroid checks four conditions at startup: (1) the <code>android.software.virtualization_framework</code> feature is present, (2) <code>MANAGE_VIRTUAL_MACHINE</code> is granted, (3) <code>USE_CUSTOM_VIRTUAL_MACHINE</code> is granted, and (4) the device advertises support for <strong>non-protected VMs</strong>. All four must pass. If any fails, Podroid falls back to QEMU and the VM starts with software emulation - announced in the same places as a forced-AVF fallback: a Home notice, a Status suffix, and a caption under the AVF chip in Settings.</p>
 
       <p>Condition (4) is the non-obvious one. pKVM can operate in two modes: <em>protected</em> (guest memory is encrypted and the host cannot inspect it) and <em>non-protected</em>. Podroid's guest image is a standard Alpine Linux squashfs - it does not meet the signing and measurement requirements for protected VMs. A device that only advertises protected VM support cannot run Podroid's image under AVF, so Auto falls back to QEMU on such devices.</p>
 
@@ -133,7 +157,7 @@
           <tr>
             <td>Port forwarding protocols</td>
             <td>TCP and UDP</td>
-            <td>TCP only (UDP rules are silently ignored)</td>
+            <td>TCP and UDP</td>
           </tr>
           <tr>
             <td>vCPU count</td>
@@ -172,7 +196,7 @@
         <a class="prev" href="performance.html"><span class="dir">Previous</span>&larr; Performance</a>
         <a class="next" href="networking.html"><span class="dir">Next</span>Networking &amp; ports &rarr;</a>
       </div>
-      <p class="docfoot">Podroid is free software (GPL). Docs for v1.2.5. Found something inaccurate? <a href="https://github.com/ExTV/Podroid/issues">Open an issue</a>.</p>
+      <p class="docfoot">Podroid is free software (GPL). Docs for v1.3.0. Found something inaccurate? <a href="https://github.com/ExTV/Podroid/issues">Open an issue</a>.</p>
     </main>
   </div>
 

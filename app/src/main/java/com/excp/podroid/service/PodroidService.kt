@@ -14,6 +14,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -41,10 +42,61 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.combine
 import javax.inject.Inject
 
+/**
+ * Runs [action], swallowing a denied foreground-service start instead of
+ * letting it crash the caller. Both a cold [VmControlReceiver] dispatch and
+ * a guest-requested [PodroidService.scheduleRestart] can call
+ * [PodroidService.start] outside a foreground context, where Android may
+ * deny it with a [android.app.ForegroundServiceStartNotAllowedException]
+ * (API 31+, extends [IllegalStateException]; pre-31 the same denial surfaces
+ * as a plain [IllegalStateException] from `startService()`). Never silent:
+ * logs one warning naming the cure (launch Podroid so its START_VM activity
+ * intent runs in the foreground, or exempt the app from battery
+ * optimization).
+ */
+private fun runIgnoringBackgroundFgsDenial(tag: String, action: () -> Unit) {
+    try {
+        action()
+    } catch (e: IllegalStateException) {
+        val backgroundFgsDenied = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            e is android.app.ForegroundServiceStartNotAllowedException
+        Log.w(
+            tag,
+            "could not start/stop the VM from the background " +
+                "(${if (backgroundFgsDenied) "foreground service start disallowed" else e.message}) - " +
+                "launch Podroid so its START_VM activity intent runs in the foreground, " +
+                "or exempt the app from battery optimization",
+            e,
+        )
+    }
+}
+
+/**
+ * Awaits application asset readiness and publishes a user-visible VM error if
+ * readiness fails. The original exception is rethrown so the service's normal
+ * startup-failure cleanup still releases the WakeLock and foreground service.
+ */
+internal suspend fun awaitAssetsReadyForVm(
+    awaitReady: suspend () -> Unit,
+    failureMessage: String,
+    reportFailure: (String) -> Unit,
+) {
+    try {
+        awaitReady()
+    } catch (c: CancellationException) {
+        throw c
+    } catch (e: Exception) {
+        reportFailure(failureMessage)
+        throw e
+    }
+}
+
 @AndroidEntryPoint
 class PodroidService : Service() {
 
     @Inject lateinit var engine: VmEngine
+    // The same @Singleton as [engine]; injected by type for its UML fallback notices.
+    @Inject lateinit var engineHolder: com.excp.podroid.engine.EngineHolder
     @Inject lateinit var portForwardRepository: PortForwardRepository
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var usbPassthroughManager: UsbPassthroughManager
@@ -57,8 +109,6 @@ class PodroidService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
 
     private var notificationBuilder: NotificationCompat.Builder? = null
-    private var stopPendingIntent: PendingIntent? = null
-    private var openPendingIntent: PendingIntent? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -191,6 +241,26 @@ class PodroidService : Service() {
         notificationJob = serviceScope.launch {
             launch { observeStateForNotification() }
             launch { observeStateForShutdown() }
+            launch { observeUmlFallbackNotices() }
+        }
+    }
+
+    /** Tells the user when a failing UML VM was restarted on another backend. */
+    private suspend fun observeUmlFallbackNotices() {
+        engineHolder.umlFallbackNotices.collect { backendId ->
+            if (!notificationPoster.notificationsPermitted()) {
+                Log.w(TAG, "UML fell back to $backendId; notifications not permitted, notice not posted")
+                return@collect
+            }
+            val localized = com.excp.podroid.data.repository.LanguageManager.wrapContextForLocale(
+                this, com.excp.podroid.data.repository.LanguageManager.getSavedLanguage(this),
+            )
+            notificationPoster.post(
+                title = null,
+                body = localized.getString(R.string.uml_fallback_notice, backendId.uppercase(java.util.Locale.ROOT)),
+                priority = com.excp.podroid.engine.hostbridge.HostProtocol.PRIO_NORMAL,
+                id = null,
+            )
         }
     }
 
@@ -285,9 +355,12 @@ class PodroidService : Service() {
             addForward = { portForwardRepository.addRule(it) },
             removeForward = { portForwardRepository.removeRule(it) },
             listForwards = { portForwardRepository.getRulesSnapshot() },
+            clearForwards = { portForwardRepository.clearRules() },
             openUrl = { handleOpenUrl(it) },
             power = { handlePowerRequest(it) },
             setHeadless = { handleHeadlessRequest(it) },
+            setContainerCount = { settingsRepository.setLastContainerCount(it) },
+            phoneAddresses = { withContext(Dispatchers.IO) { NetworkUtils.allLocalIpv4(this@PodroidService) } },
         )
         return com.excp.podroid.engine.hostbridge.HostRequestServer(
             openTransport = { engine.openHostTransport() },
@@ -321,7 +394,13 @@ class PodroidService : Service() {
                     // reads vmlinuz/initrd/squashfs synchronously in start(), so
                     // we MUST block here until extraction has fully completed or
                     // the VM could launch against a partial/missing file.
-                    (application as? PodroidApplication)?.awaitAssetsReady()
+                    (application as? PodroidApplication)?.let { app ->
+                        awaitAssetsReadyForVm(
+                            awaitReady = { app.awaitAssetsReady() },
+                            failureMessage = getString(R.string.asset_extraction_failed),
+                            reportFailure = engine::reportStartFailure,
+                        )
+                    }
 
                     val rules = portForwardRepository.getRulesSnapshot().toMutableList()
                     val sshEnabled = settingsRepository.getSshEnabledSnapshot()
@@ -348,6 +427,7 @@ class PodroidService : Service() {
                         cpus = settingsRepository.getVmCpusSnapshot(),
                         sshEnabled = sshEnabled,
                         androidIp = NetworkUtils.localIpv4(this@PodroidService),
+                        dnsServers = NetworkUtils.dnsServers(this@PodroidService),
                         storageSizeGb = settingsRepository.getStorageSizeGbSnapshot(),
                         storageAccessEnabled = settingsRepository.getStorageAccessEnabledSnapshot(),
                         qemuExtraArgs = settingsRepository.getQemuExtraArgsSnapshot(),
@@ -362,8 +442,10 @@ class PodroidService : Service() {
                         serviceScope.launch { observeStateForUsb() }
                     }
                     engine.start(rules, config)
+                } catch (c: CancellationException) {
+                    throw c // a stop/teardown cancelled this launch; not a start failure
                 } catch (e: Exception) {
-                    Log.e(TAG, "QEMU failed to start", e)
+                    Log.e(TAG, "VM failed to start", e)
                     // A Service-side throw here (failed asset extraction, a
                     // snapshot read, or engine.start()) can happen before the
                     // engine state ever leaves Idle. In that window the shutdown
@@ -413,9 +495,6 @@ class PodroidService : Service() {
             Intent(this, PodroidService::class.java).apply { action = ACTION_STOP },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        openPendingIntent = openIntent
-        stopPendingIntent = stopIntent
-
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Podroid")
             .setSmallIcon(R.drawable.ic_vm_notification)
@@ -452,17 +531,23 @@ class PodroidService : Service() {
         }
     }
 
+    // HostRequestDispatcher.handleHeadless already rejects any action other
+    // than on/off/status before calling this, so the else branch here can
+    // never run.
     private fun handleHeadlessRequest(action: String): String = when (action) {
         "on" -> { headlessModeManager.setActive(true); com.excp.podroid.engine.hostbridge.HostProtocol.ok() }
         "off" -> { headlessModeManager.setActive(false); com.excp.podroid.engine.hostbridge.HostProtocol.ok() }
         "status" -> com.excp.podroid.engine.hostbridge.HostProtocol.ok(if (headlessModeManager.active.value) "on" else "off")
-        else -> com.excp.podroid.engine.hostbridge.HostProtocol.err("usage: on|off|status")
+        else -> error("unreachable: action=$action")
     }
 
     // Reply returned now; the stop/restart is posted to the main looper so the
     // bridge flushes the response before the VM (and this service) tear down. The
     // Handler callbacks capture the app-scoped engine + applicationContext (NOT
     // `this`), so they survive this service's death.
+    // HostRequestDispatcher.handlePower already rejects any action other than
+    // stop/restart/status before calling this, so the else branch here can
+    // never run.
     private fun handlePowerRequest(action: String): String {
         val proto = com.excp.podroid.engine.hostbridge.HostProtocol
         return when (action) {
@@ -482,7 +567,7 @@ class PodroidService : Service() {
                 proto.ok()
             }
             "restart" -> { scheduleRestart(); proto.ok() }
-            else -> proto.err("usage: stop|restart|status")
+            else -> error("unreachable: action=$action")
         }
     }
 
@@ -501,10 +586,10 @@ class PodroidService : Service() {
                     // it as terminal could fire start() during a teardown blip.
                     val terminal = s is VmState.Stopped || s is VmState.Error
                     when {
-                        terminal -> PodroidService.start(ctx)
+                        terminal -> runIgnoringBackgroundFgsDenial(TAG) { PodroidService.start(ctx) }
                         tries++ >= 40 -> {
                             Log.w(TAG, "restart: VM did not reach a stopped state in time (state=$s); starting anyway")
-                            PodroidService.start(ctx)
+                            runIgnoringBackgroundFgsDenial(TAG) { PodroidService.start(ctx) }
                         }
                         else -> main.postDelayed(this, 250)
                     }
@@ -535,5 +620,57 @@ class PodroidService : Service() {
                 action = ACTION_STOP
             })
         }
+    }
+}
+
+/**
+ * Boot autostart + Tasker/automation intent entry point (#78). Exported with no
+ * required permission (see the manifest declaration): automation apps can't hold
+ * custom permissions, and every action here only starts/stops the VM through
+ * [PodroidService]'s own companion, so there's nothing privileged to gate. Kept
+ * dumb on purpose - no work beyond dispatching to the existing start()/stop().
+ *
+ * Fix round (device-observed): a cold background receiver may NOT be allowed
+ * to start the foreground service - Android denies it with
+ * "Background started FGS: Disallowed" and throws
+ * ForegroundServiceStartNotAllowedException (API 31+, extends
+ * IllegalStateException; pre-31 the same denial surfaces as a plain
+ * IllegalStateException from startService()). BOOT_COMPLETED itself is
+ * platform-exempt, but START_VM/STOP_VM fired cold are not. [dispatch] keeps
+ * every call here from crashing the receiver process on that denial.
+ */
+class VmControlReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.action) {
+            Intent.ACTION_BOOT_COMPLETED -> {
+                // The DataStore read is async; goAsync() keeps the receiver
+                // (and process) alive long enough for it to complete, since a
+                // BroadcastReceiver's onReceive is normally torn down the
+                // instant it returns.
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val settingsRepository = SettingsRepository(context.applicationContext)
+                        if (settingsRepository.getAutostartOnBootSnapshot()) {
+                            dispatch { PodroidService.start(context.applicationContext) }
+                        }
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
+            ACTION_START_VM -> dispatch { PodroidService.start(context.applicationContext) }
+            ACTION_STOP_VM  -> dispatch { PodroidService.stop(context.applicationContext) }
+        }
+    }
+
+    /** See [runIgnoringBackgroundFgsDenial] for what this guards against. */
+    private fun dispatch(action: () -> Unit) = runIgnoringBackgroundFgsDenial(TAG, action)
+
+    companion object {
+        private const val TAG = "VmControlReceiver"
+        const val ACTION_START_VM = "com.excp.podroid.action.START_VM"
+        const val ACTION_STOP_VM  = "com.excp.podroid.action.STOP_VM"
     }
 }

@@ -68,6 +68,15 @@ interface VmEngine {
      */
     var sessionClientDelegate: TerminalSessionClient?
 
+    /**
+     * Publishes a launch failure that happened before a concrete backend's
+     * [start] method was entered. EngineHolder layers this into [state] so the
+     * existing UI error handling can explain service-side preflight failures.
+     * Concrete backends keep the default because these failures happen outside
+     * them.
+     */
+    fun reportStartFailure(message: String) = Unit
+
     suspend fun start(portForwards: List<PortForwardRule>, config: VmConfig)
     fun stop()
 
@@ -82,6 +91,19 @@ interface VmEngine {
      */
     suspend fun addPortForward(rule: PortForwardRule)
     suspend fun removePortForward(rule: PortForwardRule)
+
+    /**
+     * Of the rules handed to [start], the ones this backend has actually applied
+     * by the time the VM reaches Running. Everything else must be pushed in
+     * afterwards through [addPortForward].
+     *
+     * EngineHolder seeds its reconciliation state from this, so an engine that
+     * over-reports here loses the difference silently: those rules are recorded
+     * as live and never applied. Defaults to all of them, which is true for AVF
+     * (its forwarder takes the whole set at start). QEMU narrows it, because a
+     * forward on its command line can stop the VM booting at all.
+     */
+    fun rulesAppliedAtLaunch(all: Collection<PortForwardRule>): Set<PortForwardRule> = all.toSet()
 
     /**
      * Backend-specific diagnostics for the export log: AVF stop/crash reason +
@@ -100,6 +122,7 @@ data class VmConfig(
     val cpus: Int = 1,
     val sshEnabled: Boolean = false,
     val androidIp: String = "unknown",
+    val dnsServers: List<String> = emptyList(),
     val storageSizeGb: Int = 2,
     val storageAccessEnabled: Boolean = false,
     val qemuExtraArgs: String = "",

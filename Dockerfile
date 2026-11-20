@@ -7,7 +7,7 @@
 # SECTION 0: Custom Kernel Build (aarch64) — Image + modules
 # ==============================================================================
 FROM debian:bookworm AS kernel-builder
-ARG KERNEL_VERSION=7.0.10
+ARG KERNEL_VERSION=7.3
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget ca-certificates xz-utils make gcc gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
@@ -76,6 +76,9 @@ RUN printf '%s\n' \
     'CONFIG_SQUASHFS_ZSTD=y' \
     'CONFIG_DECOMPRESS_ZSTD=y' \
     'CONFIG_ZSTD_DECOMPRESS=y' \
+    'CONFIG_NET_9P=y' \
+    'CONFIG_NET_9P_VIRTIO=y' \
+    'CONFIG_NET_9P_FD=y' \
     'CONFIG_IKCONFIG=y' \
     'CONFIG_IKCONFIG_PROC=y' \
     'CONFIG_IP_NF_RAW=y' \
@@ -90,6 +93,7 @@ RUN printf '%s\n' \
     'CONFIG_IP_VS_PROTO_TCP=y' \
     'CONFIG_IP_VS_PROTO_UDP=y' \
     'CONFIG_IP_VS_RR=y' \
+    'CONFIG_NETFILTER_XT_MATCH_IPVS=y' \
     'CONFIG_NFT_FIB=y' \
     'CONFIG_NFT_FIB_IPV4=y' \
     'CONFIG_NFT_FIB_IPV6=y' \
@@ -117,6 +121,21 @@ RUN printf '%s\n' \
     'CONFIG_VSOCKETS=y' \
     'CONFIG_VSOCKETS_DIAG=y' \
     'CONFIG_VIRTIO_VSOCKETS=y' \
+    'CONFIG_NFSD=y' \
+    'CONFIG_NFSD_V4=y' \
+    'CONFIG_NFS_FS=y' \
+    'CONFIG_NFS_V4=y' \
+    'CONFIG_CONFIGFS_FS=y' \
+    'CONFIG_TARGET_CORE=y' \
+    'CONFIG_TCM_IBLOCK=y' \
+    'CONFIG_TCM_FILEIO=y' \
+    'CONFIG_ISCSI_TARGET=y' \
+    'CONFIG_ISCSI_TCP=y' \
+    'CONFIG_SCSI_ISCSI_ATTRS=y' \
+    'CONFIG_ANDROID_BINDER_IPC=y' \
+    'CONFIG_ANDROID_BINDERFS=y' \
+    'CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"' \
+    'CONFIG_PSI=y' \
     > /tmp/forced_builtin.config
 RUN cd linux-${KERNEL_VERSION} \
     && make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig \
@@ -131,9 +150,11 @@ RUN cd linux-${KERNEL_VERSION} \
                   IP_NF_TARGET_MASQUERADE IP6_NF_TARGET_MASQUERADE \
                   NETFILTER_XT_TARGET_MASQUERADE NF_NAT_MASQUERADE \
                   NFT_COMPAT NFT_MASQ NFT_NAT \
+                  NETFILTER_XT_MATCH_IPVS \
                   VETH TUN NF_TABLES NF_NAT NETFILTER OVERLAY_FS FUSE_FS \
                   EXT4_FS_SECURITY SQUASHFS_XATTR SQUASHFS_ZSTD \
                   DECOMPRESS_ZSTD ZSTD_DECOMPRESS \
+                  NET_9P NET_9P_VIRTIO NET_9P_FD \
                   IKCONFIG IKCONFIG_PROC BINFMT_MISC \
                   VSOCKETS VIRTIO_VSOCKETS \
                   RFKILL LEDS_CLASS CFG80211 MAC80211 RTW88 BT \
@@ -141,7 +162,10 @@ RUN cd linux-${KERNEL_VERSION} \
                   RTW88_8821AU RTW88_8812AU RTW88_8814AU \
                   FW_LOADER_COMPRESS FW_LOADER_COMPRESS_ZSTD UNICODE \
                   USB_XHCI_HCD USB_XHCI_PCI USB_STORAGE USB_UAS \
-                  SCSI BLK_DEV_SD VFAT_FS EXFAT_FS; do \
+                  SCSI BLK_DEV_SD VFAT_FS EXFAT_FS \
+                  NFSD NFSD_V4 NFS_FS NFS_V4 SUNRPC CONFIGFS_FS \
+                  TARGET_CORE TCM_IBLOCK TCM_FILEIO ISCSI_TARGET ISCSI_TCP \
+                  ANDROID_BINDER_IPC ANDROID_BINDERFS PSI; do \
            grep -q "^CONFIG_${opt}=y\$" .config \
                || { echo "FATAL: CONFIG_${opt} is not =y after merge" >&2; \
                     grep "CONFIG_${opt}" .config >&2; exit 1; }; \
@@ -169,27 +193,27 @@ RUN mkdir -p /output \
 # ==============================================================================
 
 # Stage 1: Download Alpine aarch64 artifacts
-FROM alpine:3.23 AS downloader
+FROM alpine:3.24 AS downloader
 RUN apk add --no-cache wget cpio gzip tar xorriso
 WORKDIR /downloads
-RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/aarch64/alpine-netboot-3.23.3-aarch64.tar.gz \
-    && mkdir -p /netboot && tar -xf alpine-netboot-3.23.3-aarch64.tar.gz -C /netboot
-RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/aarch64/alpine-virt-3.23.3-aarch64.iso \
-    && mkdir -p /iso && xorriso -osirrox on -indev alpine-virt-3.23.3-aarch64.iso -extract / /iso 2>/dev/null || true
+RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/alpine-netboot-3.24.1-aarch64.tar.gz \
+    && mkdir -p /netboot && tar -xf alpine-netboot-3.24.1-aarch64.tar.gz -C /netboot
+RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/alpine-virt-3.24.1-aarch64.iso \
+    && mkdir -p /iso && xorriso -osirrox on -indev alpine-virt-3.24.1-aarch64.iso -extract / /iso 2>/dev/null || true
 
 # Stage 2: Build the custom rootfs (aarch64) — no linux-virt; modules come from kernel-builder
-FROM --platform=linux/arm64/v8 alpine:3.23 AS rootfs-builder
+FROM --platform=linux/arm64/v8 alpine:3.24 AS rootfs-builder
 RUN apk update && apk add --no-cache \
     bash busybox busybox-extras ttyd podman \
     netavark aardvark-dns fuse-overlayfs slirp4netns iptables ip6tables \
-    shadow-uidmap ca-certificates crun curl e2fsprogs util-linux openrc \
+    shadow-uidmap ca-certificates crun curl e2fsprogs e2fsprogs-extra util-linux openrc \
     dropbear ncurses-terminfo-base musl-locales kmod fastfetch
 COPY init-podroid /init
 RUN chmod +x /init
 RUN rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc
 
 # Stage 3: Pack Initramfs
-FROM alpine:3.23 AS packer
+FROM alpine:3.24 AS packer
 RUN apk add --no-cache cpio gzip findutils
 COPY --from=kernel-builder /output/vmlinuz-virt /output/vmlinuz-virt
 COPY --from=rootfs-builder / /rootfs/
@@ -205,7 +229,7 @@ RUN cd /rootfs && find . | cpio -o -H newc 2>/dev/null | gzip -9 > /output/initr
 # ==============================================================================
 
 FROM debian:bookworm AS qemu-builder
-ARG QEMU_VERSION=11.0.0
+ARG QEMU_VERSION=11.1.2
 ENV QEMU_DIR=qemu-${QEMU_VERSION}
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -295,6 +319,14 @@ RUN sed -i '1i#include "/opt/qemu_jmp.h"' ${QEMU_DIR}/util/coroutine-ucontext.c 
 # LIBUSB_OPTION_NO_DEVICE_DISCOVERY before libusb_init to skip enumeration.
 RUN sed -i 's@^    rc = libusb_init(&ctx);@#if defined(__ANDROID__)\n    libusb_set_option(NULL, LIBUSB_OPTION_NO_DEVICE_DISCOVERY); /* unprivileged Android: wrap passed fd only, skip enumeration */\n#endif\n    rc = libusb_init(\&ctx);@' ${QEMU_DIR}/hw/usb/host-libusb.c \
     && grep -q LIBUSB_OPTION_NO_DEVICE_DISCOVERY ${QEMU_DIR}/hw/usb/host-libusb.c
+
+# USB speed inference on Android: hosts whose kernel predates USBDEVFS_GET_SPEED (< 4.14, e.g.
+# the Poco F1's 4.9) leave libusb_get_device_speed() at LIBUSB_SPEED_UNKNOWN and the ioctl retry
+# above also fails on those kernels, so speed_map[] indexes at 0, which silently resolves to
+# USB_SPEED_LOW and the guest rejects "Invalid ep0 maxpacket: 64". Infer the speed from the
+# device descriptor (already read into s->ddesc earlier in usb_host_open()) instead.
+RUN sed -i 's@^    udev->speed = speed_map\[libusb_speed\];@#if defined(__ANDROID__)\n    if (libusb_speed == LIBUSB_SPEED_UNKNOWN) {\n        /* Host kernels < 4.14 cannot report speed; infer it from the descriptor */\n        libusb_speed = s->ddesc.bcdUSB >= 0x0300 ? LIBUSB_SPEED_SUPER\n                     : s->ddesc.bMaxPacketSize0 == 64 ? LIBUSB_SPEED_HIGH\n                     : LIBUSB_SPEED_FULL;\n    }\n#endif\n    udev->speed = speed_map[libusb_speed];@' ${QEMU_DIR}/hw/usb/host-libusb.c \
+    && grep -q 'Host kernels < 4.14 cannot report speed' ${QEMU_DIR}/hw/usb/host-libusb.c
 
 RUN cd ${QEMU_DIR} && ./configure --cc="${CC}" --cross-prefix="${LLVM}/bin/llvm-" --extra-cflags="-fPIC -DANDROID -include /opt/shm_shim.h -I${PREFIX}/include -I${PREFIX}/include/glib-2.0 -I${PREFIX}/lib/glib-2.0/include" --extra-ldflags="-L${PREFIX}/lib -Wl,-z,max-page-size=16384 ${PREFIX}/lib/libucontext.a ${PREFIX}/lib/libshm.a ${PREFIX}/lib/libqemujmp.a" --prefix=/opt/qemu-out --target-list=aarch64-softmmu --enable-tcg --enable-slirp --enable-virtfs --enable-libusb --enable-pie --disable-docs --disable-gtk --disable-sdl --disable-vnc --disable-vhost-user --disable-plugins --with-coroutine=ucontext && make -j$(nproc) install
 

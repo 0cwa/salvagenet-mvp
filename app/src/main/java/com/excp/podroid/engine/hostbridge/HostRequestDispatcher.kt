@@ -8,22 +8,29 @@
  */
 package com.excp.podroid.engine.hostbridge
 
+import com.excp.podroid.data.repository.AddRuleResult
+import com.excp.podroid.data.repository.MAX_PORT_FORWARD_RULES
 import com.excp.podroid.data.repository.PortForwardRule
+import com.excp.podroid.util.NetworkUtils
 import kotlinx.coroutines.CancellationException
 
 class HostRequestDispatcher(
     private val notifications: NotificationPoster,
-    private val addForward: suspend (PortForwardRule) -> Unit,
+    private val addForward: suspend (PortForwardRule) -> AddRuleResult,
     private val removeForward: suspend (PortForwardRule) -> Unit,
     private val listForwards: suspend () -> List<PortForwardRule>,
+    private val clearForwards: suspend () -> Int,
     private val openUrl: suspend (String) -> String,
     private val power: suspend (String) -> String,
     private val setHeadless: suspend (String) -> String,
+    private val setContainerCount: suspend (Int) -> Unit,
+    private val phoneAddresses: suspend () -> List<NetworkUtils.LocalAddress>,
 ) {
     private val validProtocols = setOf("tcp", "udp")
 
     private companion object {
         private val WHITESPACE = Regex("\\s+")
+        private val STATS_ARG = Regex("^containers=(\\d+)$")
     }
 
     suspend fun handle(line: String): String {
@@ -38,9 +45,12 @@ class HostRequestDispatcher(
                 "FWD-ADD" -> handleFwdAdd(parts)
                 "FWD-REMOVE" -> handleFwdRemove(parts)
                 "FWD-LIST" -> handleFwdList()
+                "FWD-CLEAN" -> handleFwdClean(parts)
                 "OPEN" -> handleOpen(parts)
                 "POWER" -> handlePower(parts)
                 "HEADLESS" -> handleHeadless(parts)
+                "STATS" -> handleStats(parts)
+                "PHONE-IP" -> handlePhoneIp(parts)
                 "PING" -> "PONG"
                 else -> HostProtocol.err("bad request")
             }
@@ -80,8 +90,15 @@ class HostRequestDispatcher(
         // fails to apply on every diff and every boot while the guest CLI saw OK.
         if (host < 1024) return HostProtocol.err("host port must be >= 1024 (Android apps can't bind privileged ports)")
         if (proto !in validProtocols) return HostProtocol.err("bad protocol")
-        addForward(PortForwardRule(host, guest, proto))
-        return HostProtocol.ok()
+        // Report a refusal instead of printing OK for a rule that was dropped:
+        // a CLI that lies about this is how a user ends up believing 1000 rules
+        // exist when the table stopped accepting them long before.
+        return when (addForward(PortForwardRule(host, guest, proto))) {
+            AddRuleResult.ADDED -> HostProtocol.ok()
+            AddRuleResult.RESERVED -> HostProtocol.err("host port $host is reserved for the in-app desktop")
+            AddRuleResult.TABLE_FULL ->
+                HostProtocol.err("port forward table is full ($MAX_PORT_FORWARD_RULES rules); remove some first")
+        }
     }
 
     // FWD-REMOVE <hostPort> <proto>
@@ -98,6 +115,13 @@ class HostRequestDispatcher(
     private suspend fun handleFwdList(): String {
         val table = listForwards().joinToString("\n") { "${it.hostPort} ${it.guestPort} ${it.protocol}" }
         return HostProtocol.ok(HostProtocol.enc(table))
+    }
+
+    // FWD-CLEAN (no arguments)
+    private suspend fun handleFwdClean(p: List<String>): String {
+        if (p.size != 1) return HostProtocol.err("bad request")
+        val removed = clearForwards()
+        return HostProtocol.ok("removed $removed")
     }
 
     // OPEN <b64url>
@@ -120,5 +144,24 @@ class HostRequestDispatcher(
         if (p.size != 2) return HostProtocol.err("bad request")
         if (p[1] !in setOf("on", "off", "status")) return HostProtocol.err("usage: on|off|status")
         return setHeadless(p[1])
+    }
+
+    // STATS containers=<n>, 0..100000
+    private suspend fun handleStats(p: List<String>): String {
+        if (p.size != 2) return HostProtocol.err("bad request")
+        val count = STATS_ARG.matchEntire(p[1])?.groupValues?.get(1)?.toIntOrNull()
+            ?: return HostProtocol.err("bad request")
+        if (count !in 0..100000) return HostProtocol.err("bad request")
+        setContainerCount(count)
+        return HostProtocol.ok()
+    }
+
+    // PHONE-IP (no arguments)
+    private suspend fun handlePhoneIp(p: List<String>): String {
+        if (p.size != 1) return HostProtocol.err("bad request")
+        val addresses = phoneAddresses()
+        if (addresses.isEmpty()) return HostProtocol.err("no network")
+        val table = addresses.joinToString("\n") { "${it.iface} ${it.address}" }
+        return HostProtocol.ok(HostProtocol.enc(table))
     }
 }

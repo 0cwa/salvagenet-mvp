@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
@@ -13,7 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.excp.podroid.ui.theme.PodroidTokens
 
@@ -38,7 +41,8 @@ fun PodroidListRow(
 ) {
     val rowMod = modifier
         .fillMaxWidth()
-        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+        .heightIn(min = 48.dp)
+        .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
         .padding(vertical = PodroidTokens.Spacing.MD)
 
     Row(
@@ -60,6 +64,10 @@ fun PodroidListRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontFamily = if (mono) PodroidTokens.mono() else FontFamily.Default,
+                textAlign = TextAlign.End,
+                // fill = false: a short value still hugs the right edge via SpaceBetween;
+                // a long value wraps inside the leftover space instead of starving the label.
+                modifier = Modifier.weight(1f, fill = false),
             )
             if (trailing != null) {
                 Spacer(Modifier.width(PodroidTokens.Spacing.SM))
