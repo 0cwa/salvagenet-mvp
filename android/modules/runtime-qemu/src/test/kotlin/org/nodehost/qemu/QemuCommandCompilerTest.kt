@@ -31,6 +31,8 @@ class QemuCommandCompilerTest {
         assertTrue(joined.contains("file=/files/vms/default/storage.img,if=none,id=drive1"))
         assertTrue(joined.contains("file=/files/vms/default/artifacts/alpine-rootfs.squashfs,if=none,id=drive2"))
         assertTrue(joined.contains("hostfwd=tcp:127.0.0.1:19922-:22"))
+        assertEquals(1, launch.kernelArguments.count { it == "arm64.nompam" })
+        assertFalse(launch.kernelArguments.any { it.startsWith("podroid.dns=") })
         assertTrue(result.sockets.all { it.path.startsWith("/files/vms/default/") })
         assertFalse(result.arguments.any { it.contains("hostfwd=tcp::") })
     }
@@ -47,6 +49,8 @@ class QemuCommandCompilerTest {
         assertTrue(joined.contains("ds=nocloud-net;s=http://10.0.2.2:8080/v1/bootstrap/abcdefghijklmnop/"))
         assertFalse(joined.contains("alpine", ignoreCase = true))
         assertFalse(joined.contains("vmlinuz", ignoreCase = true))
+        assertFalse(result.arguments.contains("-append"))
+        assertFalse(joined.contains("arm64.nompam"))
         val normalized = result.argv().map {
             it.replace("/native", "\${NATIVE_LIB}")
                 .replace("/files", "\${FILES}")
@@ -61,7 +65,7 @@ class QemuCommandCompilerTest {
         val result = compiler.compile(resolver.resolve(profile, QemuTestFixtures.runtime(profile), QemuTestFixtures.allocation()).resolved)
         val appendIndex = result.arguments.indexOf("-append")
 
-        assertEquals("console=ttyAMA0 mitigations=off loglevel=1 quiet mitigations=off androidip=10.0.2.2 ssh=1 podroid.x11.dpi=96", result.arguments[appendIndex + 1])
+        assertEquals("console=ttyAMA0 mitigations=off arm64.nompam loglevel=1 quiet mitigations=off androidip=10.0.2.2 ssh=1 podroid.x11.dpi=96", result.arguments[appendIndex + 1])
     }
 
     private fun golden(name: String): List<String> =

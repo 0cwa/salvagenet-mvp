@@ -15,7 +15,7 @@ dependencies.add("implementation", project(":node-shell"))
 
 val preparePodroidRuntime by tasks.registering(Exec::class) {
     group = "build setup"
-    description = "Obtains and verifies the pinned Podroid runtime before Android packaging."
+    description = "Obtains and verifies the pinned Podroid QEMU runtime before Android packaging."
     inputs.files(podroidRuntimeLock, podroidRuntimePreparer)
     inputs.dir(file("src/main/assets/qemu"))
     outputs.dir(podroidRuntimeOutput)
@@ -57,7 +57,7 @@ val verifyNodeHostProfilePackaging by tasks.registering(Exec::class) {
 
 val verifyPodroidPackaging by tasks.registering(Exec::class) {
     group = "verification"
-    description = "Fails unless the debug APK contains the complete pinned ARM64 Podroid runtime."
+    description = "Fails unless the debug APK contains the complete pinned ARM64 Podroid QEMU runtime."
     dependsOn("packageDebug", verifyNodeHostProfilePackaging)
     inputs.files(podroidRuntimeLock, podroidRuntimePreparer, podroidRuntimeApk)
     commandLine(

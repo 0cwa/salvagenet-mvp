@@ -1,14 +1,24 @@
 {
   "schemaVersion": 1,
-  "upstreamCommit": "8ecfefaa3459b7e84c3d6e52c57e8005e289e8e3",
-  "upstreamTree": "6c351c35b78fb7204e0dcb89c410cde2bb6cc291",
+  "upstreamRelease": "v1.3.0",
+  "upstreamCommit": "d5f7210182db9fbbee3ce6780ddd4b3e520e304b",
+  "upstreamTree": "763482f299e89a8da5086f7ca7b2740137040a1f",
   "source": "android/podroid/app/src/main/java/com/excp/podroid/engine/QemuEngine.kt#buildCommand",
-  "captureMethod": "Static expansion of buildCommand using the deterministic inputs below and PodroidService implicit forwards; device-specific absolute paths and Android IPv4 are normalized.",
+  "sourceUrl": "https://github.com/ExTV/Podroid/blob/d5f7210182db9fbbee3ce6780ddd4b3e520e304b/app/src/main/java/com/excp/podroid/engine/QemuEngine.kt",
+  "upstreamSnapshot": "tests/qemu/podroid-upstream.argv",
+  "productionGolden": "tests/qemu/podroid-baseline.argv",
+  "captureMethod": "Static expansion of upstream buildCommand, including inlineLaunchRules, with the deterministic inputs below. The upstream snapshot substitutes only native-library paths, app-files paths, and Android IPv4; it is not a device execution capture.",
+  "productionAdaptations": [
+    "Move kernel, initramfs, and read-only squashfs into the instance artifacts directory.",
+    "Move writable storage and Unix sockets into files/vms/default.",
+    "Replace upstream SSH, VNC, and audio forwards with the single loopback recovery SSH forward on host port 19922."
+  ],
   "inputs": {
     "ramMb": 512,
     "cpus": 2,
     "sshEnabled": true,
     "androidIp": "${ANDROID_IP}",
+    "dnsServers": [],
     "storageSizeGb": 2,
     "storageAccessEnabled": false,
     "qemuExtraArgs": "-cpu max,sve=off,pauth-impdef=on -accel tcg,thread=multi,tb-size=512 -object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0 -overcommit mem-lock=off",
@@ -32,6 +42,7 @@
   "excludedConditionalArguments": [
     "Downloads virtio-9p (storage access disabled by default)",
     "qemu-xhci (USB passthrough disabled by default)",
-    "podroid.bandwidth (unlimited by default)"
+    "podroid.bandwidth (unlimited by default)",
+    "podroid.dns (the selected fixture has no DNS servers; the existing typed path adds no Android DNS adapter)"
   ]
 }
