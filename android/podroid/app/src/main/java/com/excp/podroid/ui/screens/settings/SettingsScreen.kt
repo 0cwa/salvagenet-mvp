@@ -126,7 +126,6 @@ fun SettingsScreen(
     val portForwardPartialWarning by viewModel.portForwardPartialWarning.collectAsStateWithLifecycle()
     val umlRetryMessage by viewModel.umlRetryMessage.collectAsStateWithLifecycle()
     val usbPassthrough by viewModel.usbPassthroughEnabled.collectAsStateWithLifecycle()
-    val autostartOnBoot by viewModel.autostartOnBoot.collectAsStateWithLifecycle()
 
     // rememberSaveable: changing the language calls activity.recreate(), which
     // would otherwise silently close any open dialog and collapse Advanced.
@@ -262,8 +261,6 @@ fun SettingsScreen(
                     onBandwidthChange = viewModel::setBandwidthMbps,
                     storageSizeGb = ui.storageSizeGb,
                     onStorageSizeChange = viewModel::setStorageSizeGb,
-                    autostartOnBoot = autostartOnBoot,
-                    onAutostartChange = viewModel::setAutostartOnBoot,
                 )
 
                 // ── NODE ENROLLMENT ───────────────────────────────────
@@ -563,8 +560,6 @@ private fun VmResourcesSection(
     onBandwidthChange: (Int) -> Unit,
     storageSizeGb: Int,
     onStorageSizeChange: (Int) -> Unit,
-    autostartOnBoot: Boolean,
-    onAutostartChange: (Boolean) -> Unit,
 ) {
     PodroidSectionLabel(stringResource(R.string.vm_resources))
     if (!vmNotRunning) {
@@ -606,26 +601,6 @@ private fun VmResourcesSection(
         onChange = onStorageSizeChange,
         minGb = storageSizeGb,
         enabled = vmNotRunning && !loadBalanceEnabled,
-    )
-    PodroidListRow(
-        label = stringResource(R.string.autostart_on_boot),
-        onClick = { onAutostartChange(!autostartOnBoot) },
-        rightSlot = {
-            PodroidSwitch(
-                checked = autostartOnBoot,
-                onCheckedChange = onAutostartChange,
-            )
-        },
-    )
-    Text(
-        text = stringResource(R.string.autostart_on_boot_desc),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(
-            start = PodroidTokens.Spacing.MD,
-            end = PodroidTokens.Spacing.MD,
-            bottom = PodroidTokens.Spacing.SM,
-        ),
     )
 }
 

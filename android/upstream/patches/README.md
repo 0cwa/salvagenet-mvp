@@ -7,8 +7,9 @@ The series separates the downstream concerns:
 
 - `0001` is the narrow SalvageNet workspace and external composition hook;
 - `0002` records inherited node startup, notification, and backup-security changes;
-- `0003` retains Android API compatibility and enrollment, and hides the optional
-  UML choice because SalvageNet does not package that backend;
+- `0003` retains Android API compatibility and enrollment, hides the optional
+  UML choice because SalvageNet does not package that backend, and removes the
+  upstream boot toggle because node-shell owns the boot policy;
 - `0004` retains terminal unit-test configuration;
 - `0005` retains Podman-or-Docker native build support, including the new upstream
   documentation staging and optional UML build commands;
